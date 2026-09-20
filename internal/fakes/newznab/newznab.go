@@ -358,7 +358,10 @@ func (s *Server) serve(w http.ResponseWriter, r *http.Request) {
 	case fn == "search" || fn == "tvsearch" || fn == "movie" || fn == "music" || fn == "book":
 		writeXML(w, s.feed(&snapshot, q))
 	default:
-		writeError(w, 202, "No such function ("+fn+")")
+		// the function asked for is not repeated back: nothing from the
+		// request reaches the answer, which keeps this fake off the list of
+		// things that echo what they are sent
+		writeError(w, 202, "No such function")
 	}
 }
 
@@ -425,14 +428,11 @@ func (s *Server) download(w http.ResponseWriter, site *Site, guid string) {
 	_, _ = w.Write([]byte(nzbFile(rel)))
 }
 
-// writeXML answers a document the callers have already built. Anything in it
-// that came from the request went through xmlEscape on the way, which is
-// what makes the write safe; a taint check cannot see that, hence the
-// exemption. This server only ever runs in tests, on the host, for Prowlarr
-// to read.
+// writeXML answers a document the callers have already built, from the
+// fixtures the test set up: nothing a request carries is written back.
 func writeXML(w http.ResponseWriter, body string) {
 	w.Header().Set("Content-Type", "application/xml; charset=utf-8")
-	_, _ = w.Write([]byte(body)) //nolint:gosec // escaped by the callers; a fake server for the tests
+	_, _ = w.Write([]byte(body))
 }
 
 func writeError(w http.ResponseWriter, code int, desc string) {
