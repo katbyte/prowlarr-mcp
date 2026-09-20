@@ -1,0 +1,11 @@
+.claude/
+.DS_Store
+.idea/
+dist/
+prowlarr-mcp
+.tools/bin/
+.tools/venv/
+.env
+.prowlarr-mcp
+.testenv*.sh
+.coverage/

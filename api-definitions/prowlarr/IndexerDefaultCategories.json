@@ -1,0 +1,24 @@
+{
+  "Name": "IndexerDefaultCategories",
+  "Tag": "IndexerDefaultCategories",
+  "Operations": [
+    {
+      "Name": "GetIndexerCategories",
+      "Method": "GET",
+      "Path": "/api/v1/indexer/categories",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerCategory"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    }
+  ]
+}

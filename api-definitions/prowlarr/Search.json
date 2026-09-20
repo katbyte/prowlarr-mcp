@@ -1,0 +1,390 @@
+{
+  "Name": "Search",
+  "Tag": "Search",
+  "Operations": [
+    {
+      "Name": "GetSearch",
+      "Method": "GET",
+      "Path": "/api/v1/search",
+      "Options": [
+        {
+          "Name": "query",
+          "Field": "Query",
+          "In": "Query",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "type",
+          "Field": "Type",
+          "In": "Query",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "indexerIds",
+          "Field": "IndexerIds",
+          "In": "Query",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          }
+        },
+        {
+          "Name": "categories",
+          "Field": "Categories",
+          "In": "Query",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          }
+        },
+        {
+          "Name": "limit",
+          "Field": "Limit",
+          "In": "Query",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "offset",
+          "Field": "Offset",
+          "In": "Query",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ReleaseResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostSearch",
+      "Method": "POST",
+      "Path": "/api/v1/search",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ReleaseResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ReleaseResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostSearchBulk",
+      "Method": "POST",
+      "Path": "/api/v1/search/bulk",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ReleaseResource"
+          }
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ReleaseResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    }
+  ],
+  "Models": [
+    {
+      "Name": "ReleaseResource",
+      "SchemaName": "ReleaseResource",
+      "Fields": [
+        {
+          "Name": "Age",
+          "JsonName": "age",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "AgeHours",
+          "JsonName": "ageHours",
+          "Type": {
+            "Type": "Double"
+          }
+        },
+        {
+          "Name": "AgeMinutes",
+          "JsonName": "ageMinutes",
+          "Type": {
+            "Type": "Double"
+          }
+        },
+        {
+          "Name": "Categories",
+          "JsonName": "categories",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "IndexerCategory"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "CommentUrl",
+          "JsonName": "commentUrl",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "DownloadClientId",
+          "JsonName": "downloadClientId",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "DownloadUrl",
+          "JsonName": "downloadUrl",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "FileName",
+          "JsonName": "fileName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Files",
+          "JsonName": "files",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Grabs",
+          "JsonName": "grabs",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Guid",
+          "JsonName": "guid",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "ImdbId",
+          "JsonName": "imdbId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Indexer",
+          "JsonName": "indexer",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "IndexerFlags",
+          "JsonName": "indexerFlags",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "String"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "IndexerId",
+          "JsonName": "indexerId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "InfoHash",
+          "JsonName": "infoHash",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "InfoUrl",
+          "JsonName": "infoUrl",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Leechers",
+          "JsonName": "leechers",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "MagnetUrl",
+          "JsonName": "magnetUrl",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "PosterUrl",
+          "JsonName": "posterUrl",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Protocol",
+          "JsonName": "protocol",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "DownloadProtocol"
+          }
+        },
+        {
+          "Name": "PublishDate",
+          "JsonName": "publishDate",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "ReleaseHash",
+          "JsonName": "releaseHash",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Seeders",
+          "JsonName": "seeders",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Size",
+          "JsonName": "size",
+          "Type": {
+            "Type": "Integer64"
+          }
+        },
+        {
+          "Name": "SortTitle",
+          "JsonName": "sortTitle",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SubGroup",
+          "JsonName": "subGroup",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Title",
+          "JsonName": "title",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "TmdbId",
+          "JsonName": "tmdbId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "TvMazeId",
+          "JsonName": "tvMazeId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "TvdbId",
+          "JsonName": "tvdbId",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ]
+    }
+  ]
+}

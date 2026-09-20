@@ -1,0 +1,448 @@
+{
+  "Name": "Application",
+  "Tag": "Application",
+  "Operations": [
+    {
+      "Name": "DeleteApplicationsBulk",
+      "Method": "DELETE",
+      "Path": "/api/v1/applications/bulk",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationBulkResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "DeleteApplicationsById",
+      "Method": "DELETE",
+      "Path": "/api/v1/applications/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetApplications",
+      "Method": "GET",
+      "Path": "/api/v1/applications",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ApplicationResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetApplicationsById",
+      "Method": "GET",
+      "Path": "/api/v1/applications/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetApplicationsSchema",
+      "Method": "GET",
+      "Path": "/api/v1/applications/schema",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ApplicationResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostApplications",
+      "Method": "POST",
+      "Path": "/api/v1/applications",
+      "Options": [
+        {
+          "Name": "forceSave",
+          "Field": "ForceSave",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        201
+      ]
+    },
+    {
+      "Name": "PostApplicationsActionByName",
+      "Method": "POST",
+      "Path": "/api/v1/applications/action/{name}",
+      "PathParameters": [
+        {
+          "Name": "name",
+          "Argument": "name",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "RawObject"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostApplicationsTest",
+      "Method": "POST",
+      "Path": "/api/v1/applications/test",
+      "Options": [
+        {
+          "Name": "forceTest",
+          "Field": "ForceTest",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostApplicationsTestAll",
+      "Method": "POST",
+      "Path": "/api/v1/applications/testall",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ProviderTestAllResult"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200,
+        400
+      ]
+    },
+    {
+      "Name": "PutApplicationsBulk",
+      "Method": "PUT",
+      "Path": "/api/v1/applications/bulk",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationBulkResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ApplicationResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        202
+      ]
+    },
+    {
+      "Name": "PutApplicationsById",
+      "Method": "PUT",
+      "Path": "/api/v1/applications/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Options": [
+        {
+          "Name": "forceSave",
+          "Field": "ForceSave",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        202
+      ]
+    }
+  ],
+  "Models": [
+    {
+      "Name": "ApplicationBulkResource",
+      "SchemaName": "ApplicationBulkResource",
+      "Fields": [
+        {
+          "Name": "ApplyTags",
+          "JsonName": "applyTags",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ApplyTags"
+          }
+        },
+        {
+          "Name": "Ids",
+          "JsonName": "ids",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SyncLevel",
+          "JsonName": "syncLevel",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ApplicationSyncLevel"
+          }
+        },
+        {
+          "Name": "Tags",
+          "JsonName": "tags",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          },
+          "Nullable": true
+        }
+      ]
+    },
+    {
+      "Name": "ApplicationResource",
+      "SchemaName": "ApplicationResource",
+      "Fields": [
+        {
+          "Name": "ConfigContract",
+          "JsonName": "configContract",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Fields",
+          "JsonName": "fields",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "Field"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Implementation",
+          "JsonName": "implementation",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "ImplementationName",
+          "JsonName": "implementationName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "InfoLink",
+          "JsonName": "infoLink",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Message",
+          "JsonName": "message",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ProviderMessage"
+          }
+        },
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Presets",
+          "JsonName": "presets",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "ApplicationResource"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SyncLevel",
+          "JsonName": "syncLevel",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ApplicationSyncLevel"
+          }
+        },
+        {
+          "Name": "Tags",
+          "JsonName": "tags",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "TestCommand",
+          "JsonName": "testCommand",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        }
+      ]
+    }
+  ],
+  "Constants": [
+    {
+      "Name": "ApplicationSyncLevel",
+      "SchemaName": "ApplicationSyncLevel",
+      "Values": [
+        {
+          "Name": "ApplicationSyncLevelDisabled",
+          "Value": "disabled"
+        },
+        {
+          "Name": "ApplicationSyncLevelAddOnly",
+          "Value": "addOnly"
+        },
+        {
+          "Name": "ApplicationSyncLevelFullSync",
+          "Value": "fullSync"
+        }
+      ]
+    }
+  ]
+}

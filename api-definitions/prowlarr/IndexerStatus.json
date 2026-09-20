@@ -1,0 +1,24 @@
+{
+  "Name": "IndexerStatus",
+  "Tag": "IndexerStatus",
+  "Operations": [
+    {
+      "Name": "GetIndexerStatus",
+      "Method": "GET",
+      "Path": "/api/v1/indexerstatus",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerStatusResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    }
+  ]
+}

@@ -1,0 +1,585 @@
+{
+  "Name": "Common",
+  "Models": [
+    {
+      "Name": "Field",
+      "SchemaName": "Field",
+      "Fields": [
+        {
+          "Name": "Advanced",
+          "JsonName": "advanced",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "HelpLink",
+          "JsonName": "helpLink",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "HelpText",
+          "JsonName": "helpText",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "HelpTextWarning",
+          "JsonName": "helpTextWarning",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Hidden",
+          "JsonName": "hidden",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "IsFloat",
+          "JsonName": "isFloat",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "Label",
+          "JsonName": "label",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Order",
+          "JsonName": "order",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Placeholder",
+          "JsonName": "placeholder",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Privacy",
+          "JsonName": "privacy",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "PrivacyLevel"
+          }
+        },
+        {
+          "Name": "Section",
+          "JsonName": "section",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SelectOptions",
+          "JsonName": "selectOptions",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "SelectOption"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SelectOptionsProviderAction",
+          "JsonName": "selectOptionsProviderAction",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Type",
+          "JsonName": "type",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Unit",
+          "JsonName": "unit",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Value",
+          "JsonName": "value",
+          "Type": {
+            "Type": "Any"
+          },
+          "Nullable": true
+        }
+      ]
+    },
+    {
+      "Name": "IActionResult",
+      "SchemaName": "IActionResult"
+    },
+    {
+      "Name": "IndexerCategory",
+      "SchemaName": "IndexerCategory",
+      "Fields": [
+        {
+          "Name": "Description",
+          "JsonName": "description",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SubCategories",
+          "JsonName": "subCategories",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "IndexerCategory"
+            }
+          },
+          "Nullable": true
+        }
+      ]
+    },
+    {
+      "Name": "IndexerStatusResource",
+      "SchemaName": "IndexerStatusResource",
+      "Fields": [
+        {
+          "Name": "DisabledTill",
+          "JsonName": "disabledTill",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "IndexerId",
+          "JsonName": "indexerId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "InitialFailure",
+          "JsonName": "initialFailure",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "MostRecentFailure",
+          "JsonName": "mostRecentFailure",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        }
+      ]
+    },
+    {
+      "Name": "LogFileResource",
+      "SchemaName": "LogFileResource",
+      "Fields": [
+        {
+          "Name": "ContentsUrl",
+          "JsonName": "contentsUrl",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "DownloadUrl",
+          "JsonName": "downloadUrl",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Filename",
+          "JsonName": "filename",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "LastWriteTime",
+          "JsonName": "lastWriteTime",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "ProviderMessage",
+      "SchemaName": "ProviderMessage",
+      "Fields": [
+        {
+          "Name": "Message",
+          "JsonName": "message",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Type",
+          "JsonName": "type",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ProviderMessageType"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "ProviderTestAllResult",
+      "SchemaName": "ProviderTestAllResult",
+      "Description": "The outcome of testing one provider.",
+      "Fields": [
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "IsValid",
+          "JsonName": "isValid",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "ValidationFailures",
+          "JsonName": "validationFailures",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "ValidationFailure"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "Name": "SelectOption",
+      "SchemaName": "SelectOption",
+      "Fields": [
+        {
+          "Name": "Hint",
+          "JsonName": "hint",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Order",
+          "JsonName": "order",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "ParentValue",
+          "JsonName": "parentValue",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Value",
+          "JsonName": "value",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "ValidationFailure",
+      "SchemaName": "ValidationFailure",
+      "Description": "One reason a provider failed its test: the setting at fault and what is wrong with it.",
+      "Fields": [
+        {
+          "Name": "DetailedDescription",
+          "JsonName": "detailedDescription",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "ErrorCode",
+          "JsonName": "errorCode",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "ErrorMessage",
+          "JsonName": "errorMessage",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "InfoLink",
+          "JsonName": "infoLink",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "IsWarning",
+          "JsonName": "isWarning",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "PropertyName",
+          "JsonName": "propertyName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Severity",
+          "JsonName": "severity",
+          "Description": "error, warning or info",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ]
+    }
+  ],
+  "Constants": [
+    {
+      "Name": "ApplyTags",
+      "SchemaName": "ApplyTags",
+      "Values": [
+        {
+          "Name": "ApplyTagsAdd",
+          "Value": "add"
+        },
+        {
+          "Name": "ApplyTagsRemove",
+          "Value": "remove"
+        },
+        {
+          "Name": "ApplyTagsReplace",
+          "Value": "replace"
+        }
+      ]
+    },
+    {
+      "Name": "AuthenticationType",
+      "SchemaName": "AuthenticationType",
+      "Values": [
+        {
+          "Name": "AuthenticationTypeNone",
+          "Value": "none"
+        },
+        {
+          "Name": "AuthenticationTypeBasic",
+          "Value": "basic"
+        },
+        {
+          "Name": "AuthenticationTypeForms",
+          "Value": "forms"
+        },
+        {
+          "Name": "AuthenticationTypeExternal",
+          "Value": "external"
+        }
+      ]
+    },
+    {
+      "Name": "DownloadProtocol",
+      "SchemaName": "DownloadProtocol",
+      "Values": [
+        {
+          "Name": "DownloadProtocolUnknown",
+          "Value": "unknown"
+        },
+        {
+          "Name": "DownloadProtocolUsenet",
+          "Value": "usenet"
+        },
+        {
+          "Name": "DownloadProtocolTorrent",
+          "Value": "torrent"
+        }
+      ]
+    },
+    {
+      "Name": "PrivacyLevel",
+      "SchemaName": "PrivacyLevel",
+      "Values": [
+        {
+          "Name": "PrivacyLevelNormal",
+          "Value": "normal"
+        },
+        {
+          "Name": "PrivacyLevelPassword",
+          "Value": "password"
+        },
+        {
+          "Name": "PrivacyLevelApiKey",
+          "Value": "apiKey"
+        },
+        {
+          "Name": "PrivacyLevelUserName",
+          "Value": "userName"
+        }
+      ]
+    },
+    {
+      "Name": "ProviderMessageType",
+      "SchemaName": "ProviderMessageType",
+      "Values": [
+        {
+          "Name": "ProviderMessageTypeInfo",
+          "Value": "info"
+        },
+        {
+          "Name": "ProviderMessageTypeWarning",
+          "Value": "warning"
+        },
+        {
+          "Name": "ProviderMessageTypeError",
+          "Value": "error"
+        }
+      ]
+    },
+    {
+      "Name": "SortDirection",
+      "SchemaName": "SortDirection",
+      "Values": [
+        {
+          "Name": "SortDirectionDefault",
+          "Value": "default"
+        },
+        {
+          "Name": "SortDirectionAscending",
+          "Value": "ascending"
+        },
+        {
+          "Name": "SortDirectionDescending",
+          "Value": "descending"
+        }
+      ]
+    },
+    {
+      "Name": "UpdateMechanism",
+      "SchemaName": "UpdateMechanism",
+      "Values": [
+        {
+          "Name": "UpdateMechanismBuiltIn",
+          "Value": "builtIn"
+        },
+        {
+          "Name": "UpdateMechanismScript",
+          "Value": "script"
+        },
+        {
+          "Name": "UpdateMechanismExternal",
+          "Value": "external"
+        },
+        {
+          "Name": "UpdateMechanismApt",
+          "Value": "apt"
+        },
+        {
+          "Name": "UpdateMechanismDocker",
+          "Value": "docker"
+        }
+      ]
+    }
+  ]
+}

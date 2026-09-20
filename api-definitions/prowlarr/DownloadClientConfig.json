@@ -1,0 +1,92 @@
+{
+  "Name": "DownloadClientConfig",
+  "Tag": "DownloadClientConfig",
+  "Operations": [
+    {
+      "Name": "GetConfigDownloadClient",
+      "Method": "GET",
+      "Path": "/api/v1/config/downloadclient",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DownloadClientConfigResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetConfigDownloadClientById",
+      "Method": "GET",
+      "Path": "/api/v1/config/downloadclient/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DownloadClientConfigResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PutConfigDownloadClientById",
+      "Method": "PUT",
+      "Path": "/api/v1/config/downloadclient/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DownloadClientConfigResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DownloadClientConfigResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        202
+      ]
+    }
+  ],
+  "Models": [
+    {
+      "Name": "DownloadClientConfigResource",
+      "SchemaName": "DownloadClientConfigResource",
+      "Fields": [
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "WrittenWhole": true
+    }
+  ]
+}

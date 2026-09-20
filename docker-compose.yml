@@ -1,0 +1,37 @@
+# Default always-on deployment: runs the released image from ghcr.io and serves MCP over HTTP.
+# To run a local build instead: make docker, then set image: prowlarr-mcp (or add build: .).
+# Secrets (PROWLARR_TOKEN, PROWLARR_AUTH_TOKEN) come from a gitignored .env next to this file,
+# see .env.example. Then register it in Claude Code:
+#   claude mcp add --transport http prowlarr http://<host>:8080/mcp \
+#     --header "Authorization: Bearer <PROWLARR_AUTH_TOKEN>"
+
+networks:
+  net:
+    name: net
+
+services:
+  prowlarr-mcp:
+    image: ghcr.io/katbyte/prowlarr-mcp:latest
+    container_name: prowlarr-mcp
+    restart: always
+    logging:
+      options:
+        max-size: 100m
+        max-file: "1"
+    networks:
+      net:
+    # no dns override: the container uses Docker's resolver, which forwards to
+    # the host's, so a LAN name like nas in PROWLARR_SERVER resolves the way it
+    # does on the host. Pinning a public resolver here would break exactly that
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - "TZ=America/Vancouver"
+      - "PROWLARR_SERVER=http://nas:9696"
+      - "PROWLARR_LISTEN=:8080"
+      - "PROWLARR_LOG=INFO"
+      # - "PROWLARR_TOOLSETS=curation"  # the audits and everything that fixes what they find; default core
+      # - "PROWLARR_READ_ONLY=true"     # only register tools that never change server state
+      # - "PROWLARR_ENABLE_DELETE=true" # opt in to indexer_delete, app_delete and the other deletes

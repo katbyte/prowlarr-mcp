@@ -1,0 +1,930 @@
+{
+  "Name": "Indexer",
+  "Tag": "Indexer",
+  "Operations": [
+    {
+      "Name": "DeleteIndexerBulk",
+      "Method": "DELETE",
+      "Path": "/api/v1/indexer/bulk",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerBulkResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "DeleteIndexerById",
+      "Method": "DELETE",
+      "Path": "/api/v1/indexer/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetIndexer",
+      "Method": "GET",
+      "Path": "/api/v1/indexer",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetIndexerById",
+      "Method": "GET",
+      "Path": "/api/v1/indexer/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetIndexerSchema",
+      "Method": "GET",
+      "Path": "/api/v1/indexer/schema",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostIndexer",
+      "Method": "POST",
+      "Path": "/api/v1/indexer",
+      "Options": [
+        {
+          "Name": "forceSave",
+          "Field": "ForceSave",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        201
+      ]
+    },
+    {
+      "Name": "PostIndexerActionByName",
+      "Method": "POST",
+      "Path": "/api/v1/indexer/action/{name}",
+      "PathParameters": [
+        {
+          "Name": "name",
+          "Argument": "name",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "RawObject"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostIndexerTest",
+      "Method": "POST",
+      "Path": "/api/v1/indexer/test",
+      "Options": [
+        {
+          "Name": "forceTest",
+          "Field": "ForceTest",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostIndexerTestAll",
+      "Method": "POST",
+      "Path": "/api/v1/indexer/testall",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ProviderTestAllResult"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200,
+        400
+      ]
+    },
+    {
+      "Name": "PutIndexerBulk",
+      "Method": "PUT",
+      "Path": "/api/v1/indexer/bulk",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerBulkResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        202
+      ]
+    },
+    {
+      "Name": "PutIndexerById",
+      "Method": "PUT",
+      "Path": "/api/v1/indexer/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Options": [
+        {
+          "Name": "forceSave",
+          "Field": "ForceSave",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        202
+      ]
+    }
+  ],
+  "Models": [
+    {
+      "Name": "IndexerBulkResource",
+      "SchemaName": "IndexerBulkResource",
+      "Fields": [
+        {
+          "Name": "AppProfileId",
+          "JsonName": "appProfileId",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "ApplyTags",
+          "JsonName": "applyTags",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ApplyTags"
+          }
+        },
+        {
+          "Name": "Enable",
+          "JsonName": "enable",
+          "Type": {
+            "Type": "Boolean"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Ids",
+          "JsonName": "ids",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "MinimumSeeders",
+          "JsonName": "minimumSeeders",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "PackSeedTime",
+          "JsonName": "packSeedTime",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "PreferMagnetUrl",
+          "JsonName": "preferMagnetUrl",
+          "Type": {
+            "Type": "Boolean"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Priority",
+          "JsonName": "priority",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SeedRatio",
+          "JsonName": "seedRatio",
+          "Type": {
+            "Type": "Double"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SeedTime",
+          "JsonName": "seedTime",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Tags",
+          "JsonName": "tags",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          },
+          "Nullable": true
+        }
+      ]
+    },
+    {
+      "Name": "IndexerCapabilityResource",
+      "SchemaName": "IndexerCapabilityResource",
+      "Fields": [
+        {
+          "Name": "BookSearchParams",
+          "JsonName": "bookSearchParams",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "BookSearchParam"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Categories",
+          "JsonName": "categories",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "IndexerCategory"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "LimitsDefault",
+          "JsonName": "limitsDefault",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "LimitsMax",
+          "JsonName": "limitsMax",
+          "Type": {
+            "Type": "Integer"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "MovieSearchParams",
+          "JsonName": "movieSearchParams",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "MovieSearchParam"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "MusicSearchParams",
+          "JsonName": "musicSearchParams",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "MusicSearchParam"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SearchParams",
+          "JsonName": "searchParams",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "SearchParam"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SupportsRawSearch",
+          "JsonName": "supportsRawSearch",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "TvSearchParams",
+          "JsonName": "tvSearchParams",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "TvSearchParam"
+            }
+          },
+          "Nullable": true
+        }
+      ]
+    },
+    {
+      "Name": "IndexerResource",
+      "SchemaName": "IndexerResource",
+      "Fields": [
+        {
+          "Name": "Added",
+          "JsonName": "added",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "AppProfileId",
+          "JsonName": "appProfileId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Capabilities",
+          "JsonName": "capabilities",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerCapabilityResource"
+          }
+        },
+        {
+          "Name": "ConfigContract",
+          "JsonName": "configContract",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "DefinitionName",
+          "JsonName": "definitionName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Description",
+          "JsonName": "description",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "DownloadClientId",
+          "JsonName": "downloadClientId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Enable",
+          "JsonName": "enable",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "Encoding",
+          "JsonName": "encoding",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Fields",
+          "JsonName": "fields",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "Field"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Implementation",
+          "JsonName": "implementation",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "ImplementationName",
+          "JsonName": "implementationName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "IndexerUrls",
+          "JsonName": "indexerUrls",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "String"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "InfoLink",
+          "JsonName": "infoLink",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Language",
+          "JsonName": "language",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "LegacyUrls",
+          "JsonName": "legacyUrls",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "String"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Message",
+          "JsonName": "message",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ProviderMessage"
+          }
+        },
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Presets",
+          "JsonName": "presets",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "IndexerResource"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Priority",
+          "JsonName": "priority",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Privacy",
+          "JsonName": "privacy",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerPrivacy"
+          }
+        },
+        {
+          "Name": "Protocol",
+          "JsonName": "protocol",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "DownloadProtocol"
+          }
+        },
+        {
+          "Name": "Redirect",
+          "JsonName": "redirect",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "SortName",
+          "JsonName": "sortName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Status",
+          "JsonName": "status",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerStatusResource"
+          }
+        },
+        {
+          "Name": "SupportsPagination",
+          "JsonName": "supportsPagination",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "SupportsRedirect",
+          "JsonName": "supportsRedirect",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "SupportsRss",
+          "JsonName": "supportsRss",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "SupportsSearch",
+          "JsonName": "supportsSearch",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "Tags",
+          "JsonName": "tags",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          },
+          "Nullable": true
+        }
+      ]
+    }
+  ],
+  "Constants": [
+    {
+      "Name": "BookSearchParam",
+      "SchemaName": "BookSearchParam",
+      "Values": [
+        {
+          "Name": "BookSearchParamQ",
+          "Value": "q"
+        },
+        {
+          "Name": "BookSearchParamTitle",
+          "Value": "title"
+        },
+        {
+          "Name": "BookSearchParamAuthor",
+          "Value": "author"
+        },
+        {
+          "Name": "BookSearchParamPublisher",
+          "Value": "publisher"
+        },
+        {
+          "Name": "BookSearchParamGenre",
+          "Value": "genre"
+        },
+        {
+          "Name": "BookSearchParamYear",
+          "Value": "year"
+        }
+      ]
+    },
+    {
+      "Name": "IndexerPrivacy",
+      "SchemaName": "IndexerPrivacy",
+      "Values": [
+        {
+          "Name": "IndexerPrivacyPublic",
+          "Value": "public"
+        },
+        {
+          "Name": "IndexerPrivacySemiPrivate",
+          "Value": "semiPrivate"
+        },
+        {
+          "Name": "IndexerPrivacyPrivate",
+          "Value": "private"
+        }
+      ]
+    },
+    {
+      "Name": "MovieSearchParam",
+      "SchemaName": "MovieSearchParam",
+      "Values": [
+        {
+          "Name": "MovieSearchParamQ",
+          "Value": "q"
+        },
+        {
+          "Name": "MovieSearchParamImdbId",
+          "Value": "imdbId"
+        },
+        {
+          "Name": "MovieSearchParamTmdbId",
+          "Value": "tmdbId"
+        },
+        {
+          "Name": "MovieSearchParamImdbTitle",
+          "Value": "imdbTitle"
+        },
+        {
+          "Name": "MovieSearchParamImdbYear",
+          "Value": "imdbYear"
+        },
+        {
+          "Name": "MovieSearchParamTraktId",
+          "Value": "traktId"
+        },
+        {
+          "Name": "MovieSearchParamGenre",
+          "Value": "genre"
+        },
+        {
+          "Name": "MovieSearchParamDoubanId",
+          "Value": "doubanId"
+        },
+        {
+          "Name": "MovieSearchParamYear",
+          "Value": "year"
+        }
+      ]
+    },
+    {
+      "Name": "MusicSearchParam",
+      "SchemaName": "MusicSearchParam",
+      "Values": [
+        {
+          "Name": "MusicSearchParamQ",
+          "Value": "q"
+        },
+        {
+          "Name": "MusicSearchParamAlbum",
+          "Value": "album"
+        },
+        {
+          "Name": "MusicSearchParamArtist",
+          "Value": "artist"
+        },
+        {
+          "Name": "MusicSearchParamLabel",
+          "Value": "label"
+        },
+        {
+          "Name": "MusicSearchParamYear",
+          "Value": "year"
+        },
+        {
+          "Name": "MusicSearchParamGenre",
+          "Value": "genre"
+        },
+        {
+          "Name": "MusicSearchParamTrack",
+          "Value": "track"
+        }
+      ]
+    },
+    {
+      "Name": "SearchParam",
+      "SchemaName": "SearchParam",
+      "Values": [
+        {
+          "Name": "SearchParamQ",
+          "Value": "q"
+        }
+      ]
+    },
+    {
+      "Name": "TvSearchParam",
+      "SchemaName": "TvSearchParam",
+      "Values": [
+        {
+          "Name": "TvSearchParamQ",
+          "Value": "q"
+        },
+        {
+          "Name": "TvSearchParamSeason",
+          "Value": "season"
+        },
+        {
+          "Name": "TvSearchParamEp",
+          "Value": "ep"
+        },
+        {
+          "Name": "TvSearchParamImdbId",
+          "Value": "imdbId"
+        },
+        {
+          "Name": "TvSearchParamTvdbId",
+          "Value": "tvdbId"
+        },
+        {
+          "Name": "TvSearchParamRId",
+          "Value": "rId"
+        },
+        {
+          "Name": "TvSearchParamTvMazeId",
+          "Value": "tvMazeId"
+        },
+        {
+          "Name": "TvSearchParamTraktId",
+          "Value": "traktId"
+        },
+        {
+          "Name": "TvSearchParamTmdbId",
+          "Value": "tmdbId"
+        },
+        {
+          "Name": "TvSearchParamDoubanId",
+          "Value": "doubanId"
+        },
+        {
+          "Name": "TvSearchParamGenre",
+          "Value": "genre"
+        },
+        {
+          "Name": "TvSearchParamYear",
+          "Value": "year"
+        }
+      ]
+    }
+  ]
+}

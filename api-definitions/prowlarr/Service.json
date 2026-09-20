@@ -1,0 +1,18 @@
+{
+  "Name": "prowlarr",
+  "Package": "prowlarr",
+  "Title": "Prowlarr",
+  "ApiVersion": "1.0.0",
+  "Source": "docs/prowlarr-openapi.json",
+  "Auth": "Prowlarr",
+  "Workarounds": [
+    "prowlarr-ui-routes",
+    "prowlarr-undeclared-responses",
+    "prowlarr-undeclared-write-responses",
+    "prowlarr-created-accepted",
+    "prowlarr-put-id-integer",
+    "prowlarr-test-all-results",
+    "prowlarr-command-body",
+    "prowlarr-bulk-answer-lists"
+  ]
+}

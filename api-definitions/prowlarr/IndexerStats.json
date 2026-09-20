@@ -1,0 +1,261 @@
+{
+  "Name": "IndexerStats",
+  "Tag": "IndexerStats",
+  "Operations": [
+    {
+      "Name": "GetIndexerStats",
+      "Method": "GET",
+      "Path": "/api/v1/indexerstats",
+      "Options": [
+        {
+          "Name": "startDate",
+          "Field": "StartDate",
+          "In": "Query",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "endDate",
+          "Field": "EndDate",
+          "In": "Query",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "indexers",
+          "Field": "Indexers",
+          "In": "Query",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "protocols",
+          "Field": "Protocols",
+          "In": "Query",
+          "Type": {
+            "Type": "String"
+          }
+        },
+        {
+          "Name": "tags",
+          "Field": "Tags",
+          "In": "Query",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ],
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerStatsResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    }
+  ],
+  "Models": [
+    {
+      "Name": "HostStatistics",
+      "SchemaName": "HostStatistics",
+      "Fields": [
+        {
+          "Name": "Host",
+          "JsonName": "host",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "NumberOfGrabs",
+          "JsonName": "numberOfGrabs",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfQueries",
+          "JsonName": "numberOfQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "IndexerStatistics",
+      "SchemaName": "IndexerStatistics",
+      "Fields": [
+        {
+          "Name": "AverageGrabResponseTime",
+          "JsonName": "averageGrabResponseTime",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "AverageResponseTime",
+          "JsonName": "averageResponseTime",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "IndexerId",
+          "JsonName": "indexerId",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "IndexerName",
+          "JsonName": "indexerName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "NumberOfAuthQueries",
+          "JsonName": "numberOfAuthQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfFailedAuthQueries",
+          "JsonName": "numberOfFailedAuthQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfFailedGrabs",
+          "JsonName": "numberOfFailedGrabs",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfFailedQueries",
+          "JsonName": "numberOfFailedQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfFailedRssQueries",
+          "JsonName": "numberOfFailedRssQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfGrabs",
+          "JsonName": "numberOfGrabs",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfQueries",
+          "JsonName": "numberOfQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfRssQueries",
+          "JsonName": "numberOfRssQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "IndexerStatsResource",
+      "SchemaName": "IndexerStatsResource",
+      "Fields": [
+        {
+          "Name": "Hosts",
+          "JsonName": "hosts",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "HostStatistics"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Indexers",
+          "JsonName": "indexers",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "IndexerStatistics"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "UserAgents",
+          "JsonName": "userAgents",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "UserAgentStatistics"
+            }
+          },
+          "Nullable": true
+        }
+      ]
+    },
+    {
+      "Name": "UserAgentStatistics",
+      "SchemaName": "UserAgentStatistics",
+      "Fields": [
+        {
+          "Name": "NumberOfGrabs",
+          "JsonName": "numberOfGrabs",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "NumberOfQueries",
+          "JsonName": "numberOfQueries",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "UserAgent",
+          "JsonName": "userAgent",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        }
+      ]
+    }
+  ]
+}

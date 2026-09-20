@@ -1,0 +1,365 @@
+{
+  "Name": "IndexerProxy",
+  "Tag": "IndexerProxy",
+  "Operations": [
+    {
+      "Name": "DeleteIndexerProxyById",
+      "Method": "DELETE",
+      "Path": "/api/v1/indexerproxy/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetIndexerProxy",
+      "Method": "GET",
+      "Path": "/api/v1/indexerproxy",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerProxyResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetIndexerProxyById",
+      "Method": "GET",
+      "Path": "/api/v1/indexerproxy/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerProxyResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetIndexerProxySchema",
+      "Method": "GET",
+      "Path": "/api/v1/indexerproxy/schema",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "IndexerProxyResource"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostIndexerProxy",
+      "Method": "POST",
+      "Path": "/api/v1/indexerproxy",
+      "Options": [
+        {
+          "Name": "forceSave",
+          "Field": "ForceSave",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerProxyResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerProxyResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        201
+      ]
+    },
+    {
+      "Name": "PostIndexerProxyActionByName",
+      "Method": "POST",
+      "Path": "/api/v1/indexerproxy/action/{name}",
+      "PathParameters": [
+        {
+          "Name": "name",
+          "Argument": "name",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerProxyResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "RawObject"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostIndexerProxyTest",
+      "Method": "POST",
+      "Path": "/api/v1/indexerproxy/test",
+      "Options": [
+        {
+          "Name": "forceTest",
+          "Field": "ForceTest",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerProxyResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PostIndexerProxyTestAll",
+      "Method": "POST",
+      "Path": "/api/v1/indexerproxy/testall",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "List",
+          "NestedItem": {
+            "Type": "Reference",
+            "ReferenceName": "ProviderTestAllResult"
+          }
+        }
+      },
+      "ExpectedStatusCodes": [
+        200,
+        400
+      ]
+    },
+    {
+      "Name": "PutIndexerProxyById",
+      "Method": "PUT",
+      "Path": "/api/v1/indexerproxy/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Options": [
+        {
+          "Name": "forceSave",
+          "Field": "ForceSave",
+          "In": "Query",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerProxyResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "IndexerProxyResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        202
+      ]
+    }
+  ],
+  "Models": [
+    {
+      "Name": "IndexerProxyResource",
+      "SchemaName": "IndexerProxyResource",
+      "Fields": [
+        {
+          "Name": "ConfigContract",
+          "JsonName": "configContract",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Fields",
+          "JsonName": "fields",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "Field"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "Implementation",
+          "JsonName": "implementation",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "ImplementationName",
+          "JsonName": "implementationName",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "IncludeHealthWarnings",
+          "JsonName": "includeHealthWarnings",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "InfoLink",
+          "JsonName": "infoLink",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Link",
+          "JsonName": "link",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "Message",
+          "JsonName": "message",
+          "Type": {
+            "Type": "Reference",
+            "ReferenceName": "ProviderMessage"
+          }
+        },
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "OnHealthIssue",
+          "JsonName": "onHealthIssue",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "Presets",
+          "JsonName": "presets",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Reference",
+              "ReferenceName": "IndexerProxyResource"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "SupportsOnHealthIssue",
+          "JsonName": "supportsOnHealthIssue",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "Tags",
+          "JsonName": "tags",
+          "Type": {
+            "Type": "List",
+            "NestedItem": {
+              "Type": "Integer"
+            }
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "TestCommand",
+          "JsonName": "testCommand",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        }
+      ]
+    }
+  ]
+}

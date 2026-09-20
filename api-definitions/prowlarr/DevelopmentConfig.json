@@ -1,0 +1,128 @@
+{
+  "Name": "DevelopmentConfig",
+  "Tag": "DevelopmentConfig",
+  "Operations": [
+    {
+      "Name": "GetConfigDevelopment",
+      "Method": "GET",
+      "Path": "/api/v1/config/development",
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DevelopmentConfigResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "GetConfigDevelopmentById",
+      "Method": "GET",
+      "Path": "/api/v1/config/development/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DevelopmentConfigResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        200
+      ]
+    },
+    {
+      "Name": "PutConfigDevelopmentById",
+      "Method": "PUT",
+      "Path": "/api/v1/config/development/{id}",
+      "PathParameters": [
+        {
+          "Name": "id",
+          "Argument": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        }
+      ],
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DevelopmentConfigResource"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "DevelopmentConfigResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        202
+      ]
+    }
+  ],
+  "Models": [
+    {
+      "Name": "DevelopmentConfigResource",
+      "SchemaName": "DevelopmentConfigResource",
+      "Fields": [
+        {
+          "Name": "ConsoleLogLevel",
+          "JsonName": "consoleLogLevel",
+          "Type": {
+            "Type": "String"
+          },
+          "Nullable": true
+        },
+        {
+          "Name": "FilterSentryEvents",
+          "JsonName": "filterSentryEvents",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "Id",
+          "JsonName": "id",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "LogIndexerResponse",
+          "JsonName": "logIndexerResponse",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "LogRotate",
+          "JsonName": "logRotate",
+          "Type": {
+            "Type": "Integer"
+          }
+        },
+        {
+          "Name": "LogSql",
+          "JsonName": "logSql",
+          "Type": {
+            "Type": "Boolean"
+          }
+        }
+      ],
+      "WrittenWhole": true
+    }
+  ]
+}
