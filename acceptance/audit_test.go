@@ -465,16 +465,25 @@ func TestAuditHealth(t *testing.T) {
 	// do fix: a failed request raises the indexer check, and retiring what
 	// it names clears it on the next run. (The allowed hosts warning is a
 	// server setting, which these tools deliberately do not write.)
-	// ignored: with every indexer it names already held back, the search
-	// itself is refused, which is the state the check is about. The words
-	// are ones no test before this searched for: Prowlarr answers a search
-	// it has just made from memory, without asking the indexer, and a hold
-	// from an earlier failure may have run out by now
-	_, _ = suite.Invoke("release_search", map[string]any{"query": "the health check", "indexers": []string{idxDown, idxRevoked}})
-	suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})
-	detail, ok := finding(t, suite.Call(t, "audit_health", nil), "IndexerStatusCheck", "warning")
-	if !ok || !strings.Contains(detail, idxRevoked) {
-		t.Fatalf("a failing indexer does not raise Prowlarr's indexer check: %q %v", detail, findings(t, suite.Call(t, "audit_health", nil)))
+	// its error is not looked at: with every indexer it names already held
+	// back the search itself is refused, which is the state the check is
+	// about. The words are ones no test before this searched for.
+	searched, searchErr := suite.Invoke("release_search", map[string]any{"query": "the health check", "indexers": []string{idxDown, idxRevoked}})
+	// Twice in some twenty-five runs the check run straight after the search
+	// did not name the indexer, and why is not known: the same steps run by
+	// themselves named it at once every time. So the check is asked for
+	// until it does, and a run in which it never does says what Prowlarr
+	// was holding back, for whoever looks next.
+	var detail string
+	named := acc.EventuallyWithin(patience, func() bool {
+		suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})
+		detail, _ = finding(t, suite.Call(t, "audit_health", nil), "IndexerStatusCheck", "warning")
+
+		return strings.Contains(detail, idxRevoked)
+	})
+	if !named {
+		held, heldErr := sdk.GetIndexerStatus(suite.Ctx)
+		t.Fatalf("a failing indexer does not raise Prowlarr's indexer check: %q; the search answered %v, %v; Prowlarr holds back %+v, %v; health: %v", detail, searched["by_indexer"], searchErr, held.Model, heldErr, findings(t, suite.Call(t, "audit_health", nil)))
 	}
 	retire(t, idxRevoked)
 	suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})
