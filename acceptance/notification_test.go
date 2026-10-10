@@ -147,6 +147,12 @@ func TestNotifications(t *testing.T) {
 	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": "Nowhere"})["results"], "results"); len(res) != 1 || acc.IsBool(res[0]["ok"], true) {
 		t.Errorf("testing one that cannot be reached = %v", res)
 	}
+	// Prowlarr fails the test of every one outright when one cannot be sent,
+	// without saying which: the tool still answers for each, by name
+	every := acc.Rows(t, suite.Call(t, "notification_test", nil)["results"], "results")
+	if len(every) != 2 || acc.Str(every[0]["name"]) != "Nowhere" || acc.IsBool(every[0]["ok"], true) || acc.Str(every[1]["name"]) != renamed || !acc.IsBool(every[1]["ok"], true) {
+		t.Errorf("testing every one, one of which cannot be reached = %v", every)
+	}
 
 	// deleted only once it is confirmed
 	would := suite.Call(t, "notification_delete", map[string]any{"notification": "Nowhere"})

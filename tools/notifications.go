@@ -298,7 +298,7 @@ func registerNotificationTools(r *registry) {
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "notification_test",
-		Description: "Send a test notification, one by name or every one, and say what is wrong with any that fail.",
+		Description: "Send a test notification, one by name or every one that is sent for something, and say what is wrong with any that fail.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
 		Notification string `json:"notification,omitempty" jsonschema:"one to test, by name or id; default every one"`
 	},
@@ -311,31 +311,54 @@ func registerNotificationTools(r *registry) {
 		for _, n := range res.Model {
 			names[n.Id] = n.Name
 		}
-		if in.Notification == "" {
-			var results []prowlarr.ProviderTestAllResult
-			all, testErr := pc.PostNotificationTestAll(ctx)
-			if results, err = testAllAnswer(all.HttpResponse, all.Model, testErr); err != nil {
-				return nil, testOut{}, err
+		// test sends a test through one notification. One that cannot be
+		// sent answers a 500 with why, where the other providers answer a
+		// 400: it is the test that failed, not the asking
+		test := func(n *prowlarr.NotificationResource) (testRow, error) {
+			_, testErr := pc.PostNotificationTest(ctx, *n, prowlarr.PostNotificationTestOperationOptions{ForceTest: new(true)})
+			row, testErr := testOne(n.Name, testErr)
+			if client.StatusCode(testErr) >= http.StatusInternalServerError {
+				row.Problems = outsideLines(client.Messages(testErr))
+				if len(row.Problems) == 0 {
+					row.Problems = []string{outsideProse(testErr.Error())}
+				}
+				testErr = nil
 			}
 
-			return nil, testOut{Results: testResults(results, names)}, nil
+			return row, testErr
+		}
+
+		if in.Notification == "" {
+			all, allErr := pc.PostNotificationTestAll(ctx)
+			results, allErr := testAllAnswer(all.HttpResponse, all.Model, allErr)
+			if client.StatusCode(allErr) < http.StatusInternalServerError {
+				return nil, testOut{Results: testResults(results, names)}, allErr
+			}
+
+			// one that cannot be sent fails the test of them all with a 500
+			// that says neither which it was nor how the others did, so each
+			// is tested by itself: the ones sent for something, which are
+			// the ones the test of them all tests
+			rows := []testRow{}
+			for i := range res.Model {
+				if len(sentFor(&res.Model[i])) == 0 {
+					continue
+				}
+				row, testErr := test(&res.Model[i])
+				if testErr != nil {
+					return nil, testOut{}, testErr
+				}
+				rows = append(rows, row)
+			}
+			slices.SortFunc(rows, func(a, b testRow) int { return strings.Compare(a.Name, b.Name) })
+
+			return nil, testOut{Results: rows}, nil
 		}
 		n, err := find(res.Model, in.Notification, "notification")
 		if err != nil {
 			return nil, testOut{}, err
 		}
-		_, err = pc.PostNotificationTest(ctx, *n, prowlarr.PostNotificationTestOperationOptions{ForceTest: new(true)})
-		row, err := testOne(n.Name, err)
-		// a notification that cannot be sent answers a 500 with why, where
-		// the other providers answer a 400: it is the test that failed, not
-		// the asking
-		if client.StatusCode(err) >= http.StatusInternalServerError {
-			row.Problems = outsideLines(client.Messages(err))
-			if len(row.Problems) == 0 {
-				row.Problems = []string{outsideProse(err.Error())}
-			}
-			err = nil
-		}
+		row, err := test(n)
 
 		return nil, testOut{Results: []testRow{row}}, err
 	})

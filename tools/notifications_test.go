@@ -2,6 +2,8 @@ package tools
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
@@ -135,5 +137,32 @@ func TestNotificationEdit(t *testing.T) {
 	}
 	if msg := callError(t, cs, "notification_edit", map[string]any{"notification": "Alerts", "add_on": []string{"application_update"}}); !strings.Contains(msg, "cannot be sent for") {
 		t.Errorf("an event the kind cannot send = %q", msg)
+	}
+}
+
+// Prowlarr fails the test of every notification outright when one of them
+// cannot be sent, and says neither which it was nor how the others did. The
+// tool then tests each by itself and answers for each by name: the ones sent
+// for something, which are the ones the test of them all tests.
+func TestNotificationTestEveryOneWhenOneCannotBeSent(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeServer(t)
+	f.answer("GET /api/v1/notification", []any{discord(6, "Alerts", "grab"), discord(7, "Quiet"), discord(8, "Health", "health_issue")})
+	refused := map[string]any{"message": "One or more errors occurred. (Connection refused)"}
+	f.answerStatus("POST /api/v1/notification/testall", http.StatusInternalServerError, refused)
+	f.answerStatus("POST /api/v1/notification/test", http.StatusInternalServerError, refused)
+	cs := session(t, f, Options{})
+
+	out := mustCall(t, cs, "notification_test", nil)
+	rows := listOf(out["results"])
+	if len(rows) != 2 || len(f.requested("POST /api/v1/notification/test")) != 2 {
+		t.Fatalf("testing every one = %v, after %d tests of one", out, len(f.requested("POST /api/v1/notification/test")))
+	}
+	for i, name := range []string{"Alerts", "Health"} {
+		row := objectOf(rows[i])
+		if row["name"] != name || flag(t, row["ok"], "ok") || !strings.Contains(fmt.Sprint(row["problems"]), "Connection refused") {
+			t.Errorf("row %d = %v, want %s failing with why", i, row, name)
+		}
 	}
 }

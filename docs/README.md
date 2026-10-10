@@ -72,6 +72,7 @@ import once it is not.
   `password`, `userName`) - except on Cardigann definitions, where a
   tracker's own credentials are marked `normal`, so the tools keep their own
   list of names (`apiKey`, `password`, `cookie`, `passkey`, `2facode`, ...).
+  Radarr's source, whose base classes Prowlarr shares, masks only an API key and a password on a read and uses `userName` to scrub its logs; whether Prowlarr masks a user name has not been checked here, and the tools hide all three whichever it is.
 - **Saving a provider tests it first.** A create with `forceSave=true` skips
   the *warnings* but not the errors, so an indexer whose site is down cannot
   be created enabled at all. The tools create it disabled, then force-save it

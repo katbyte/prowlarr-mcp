@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- `notification_test` of every notification answers for each by name when one of them cannot be sent, where the whole call failed with Prowlarr's own error and said neither which it was nor how the others did. It tests the ones sent for something, as Prowlarr's own test of them all does
+
 ## 0.2.0 (2026-10-10)
 
 ### Breaking

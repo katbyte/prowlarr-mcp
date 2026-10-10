@@ -95,10 +95,15 @@ func (f *fakeServer) answer(route string, v any) {
 // answerOK sets what a route answers and has it answer 200, for the writes
 // Prowlarr answers so rather than with a create's 201.
 func (f *fakeServer) answerOK(route string, v any) {
+	f.answerStatus(route, http.StatusOK, v)
+}
+
+// answerStatus sets what a route answers and the status it answers with.
+func (f *fakeServer) answerStatus(route string, status int, v any) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.answers[route] = v
-	f.statuses[route] = http.StatusOK
+	f.statuses[route] = status
 }
 
 // requested reports the requests made to a route, with their queries.
