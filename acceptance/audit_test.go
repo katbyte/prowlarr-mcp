@@ -466,8 +466,11 @@ func TestAuditHealth(t *testing.T) {
 	// it names clears it on the next run. (The allowed hosts warning is a
 	// server setting, which these tools deliberately do not write.)
 	// ignored: with every indexer it names already held back, the search
-	// itself is refused, which is the state the check is about
-	_, _ = suite.Invoke("release_search", map[string]any{"query": "severance", "indexers": []string{idxDown, idxRevoked}})
+	// itself is refused, which is the state the check is about. The words
+	// are ones no test before this searched for: Prowlarr answers a search
+	// it has just made from memory, without asking the indexer, and a hold
+	// from an earlier failure may have run out by now
+	_, _ = suite.Invoke("release_search", map[string]any{"query": "the health check", "indexers": []string{idxDown, idxRevoked}})
 	suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})
 	detail, ok := finding(t, suite.Call(t, "audit_health", nil), "IndexerStatusCheck", "warning")
 	if !ok || !strings.Contains(detail, idxRevoked) {
