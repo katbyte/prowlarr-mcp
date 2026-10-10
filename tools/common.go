@@ -597,7 +597,7 @@ func projectCommand(c *prowlarr.CommandResource) commandOut {
 	}
 
 	return commandOut{
-		ID: c.Id, Name: name, Status: string(c.Status), Message: outsideProse(c.Message),
+		ID: c.Id, Name: name, Status: string(c.Status), Message: outsideSaid(c.Message),
 		Started: c.Started, Ended: c.Ended, Duration: c.Duration,
 	}
 }
@@ -641,7 +641,7 @@ func (r *registry) runCommand(ctx context.Context, name string, fields map[strin
 		if cmd.Exception != "" {
 			msg = strings.TrimSpace(msg + " " + firstLine(cmd.Exception))
 		}
-		return out, fmt.Errorf("%s %s: %s", name, cmd.Status, outsideProse(msg))
+		return out, fmt.Errorf("%s %s: %s", name, cmd.Status, outsideSaid(msg))
 	default:
 	}
 

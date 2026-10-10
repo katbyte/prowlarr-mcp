@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- an indexer's stored API key no longer reaches a client in what a failed request said. Prowlarr quotes the whole address of a request that failed, the key among its parameters, and `indexer_test`, `audit_failing` with `test`, and the error a refused save answers with passed that on as it came. An address in such text is now shown without who it signs in as, the value of any parameter, or what follows its `#`; a credential a site puts in the path itself cannot be told from the rest of the path and is left
 - `notification_test` of every notification answers for each by name when one of them cannot be sent, where the whole call failed with Prowlarr's own error and said neither which it was nor how the others did. It tests the ones sent for something, as Prowlarr's own test of them all does
 
 ## 0.2.0 (2026-10-10)

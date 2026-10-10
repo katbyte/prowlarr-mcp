@@ -131,7 +131,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 			if h := healthNames(checks, app.Name, "ApplicationStatusCheck", "ApplicationLongTermStatusCheck"); h != nil {
 				out.report(finding{
 					Subject: app.Name, Kind: "app", Problem: "failing",
-					Detail: "Prowlarr's health check: " + h.Message, Fix: "app_test says why; app_edit base_url or api_key",
+					Detail: "Prowlarr's health check: " + outsideSaid(h.Message), Fix: "app_test says why; app_edit base_url or api_key",
 				})
 			}
 			if tr, ok := tested[app.Id]; ok && !tr.OK {
@@ -239,7 +239,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 			if h := healthNames(checks, p.Name, "IndexerProxyStatusCheck"); h != nil {
 				out.report(finding{
 					Subject: p.Name, Kind: "proxy", Problem: "proxy_failing",
-					Detail: "Prowlarr's health check: " + h.Message, Fix: "proxy_test says why; proxy_edit its host",
+					Detail: "Prowlarr's health check: " + outsideSaid(h.Message), Fix: "proxy_test says why; proxy_edit its host",
 				})
 			}
 			if tr, ok := tested[p.Id]; ok && !tr.OK {
@@ -314,7 +314,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 			if h := healthNames(checks, c.Name, "DownloadClientStatusCheck"); h != nil {
 				out.report(finding{
 					Subject: c.Name, Kind: "download_client", Problem: "client_failing",
-					Detail: "Prowlarr's health check: " + h.Message, Fix: "downloadclient_test says why; downloadclient_edit its settings",
+					Detail: "Prowlarr's health check: " + outsideSaid(h.Message), Fix: "downloadclient_test says why; downloadclient_edit its settings",
 				})
 			}
 			if tr, ok := tested[c.Id]; ok && !tr.OK {

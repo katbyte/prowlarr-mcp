@@ -320,7 +320,7 @@ func registerNotificationTools(r *registry) {
 			if client.StatusCode(testErr) >= http.StatusInternalServerError {
 				row.Problems = outsideLines(client.Messages(testErr))
 				if len(row.Problems) == 0 {
-					row.Problems = []string{outsideProse(testErr.Error())}
+					row.Problems = []string{outsideSaid(testErr.Error())}
 				}
 				testErr = nil
 			}

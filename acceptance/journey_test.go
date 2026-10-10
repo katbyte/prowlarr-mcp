@@ -147,6 +147,57 @@ func TestJourneyReadsChangeNothing(t *testing.T) {
 	}
 }
 
+// --- no answer shows a stored key -------------------------------------------
+
+// Every key the suite gave Prowlarr - each indexer's, each application's -
+// and Prowlarr's own are looked for in what the tools answer, with the
+// failing indexers made to fail afresh and then tested. That is when Prowlarr
+// quotes the whole address of the request that failed, key and all, in a
+// failed test, in its log and in the error it refuses a save with; none of
+// it may reach a client.
+func TestJourneyNoAnswerShowsAStoredKey(t *testing.T) {
+	if !suite.Ready {
+		t.Skip(testenv.NotConfigured)
+	}
+
+	// words no test has searched for, so the failing indexers are asked again
+	_, _ = suite.Invoke("release_search", map[string]any{"query": "a stored key", "indexers": []string{idxDown, idxRevoked, idxFlaky}})
+	suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})
+
+	keys := []string{testenv.Token(), "sonarrkey", "radarrkey", "lidarrkey", "milkiekey"}
+	for _, key := range siteKeys {
+		keys = append(keys, key)
+	}
+	calls := []struct {
+		tool string
+		args map[string]any
+	}{
+		{"indexer_test", nil}, {"indexer_test", map[string]any{"indexer": idxDown}}, {"indexer_test", map[string]any{"indexer": idxRevoked}},
+		{"app_test", nil}, {"proxy_test", nil}, {"downloadclient_test", nil},
+		{"audit_failing", map[string]any{"test": true}}, {"audit_apps", map[string]any{"test": true}}, {"audit_proxies", map[string]any{"test": true}}, {"audit_downloadclients", map[string]any{"test": true}},
+		{"audit_health", nil}, {"audit_definitions", nil}, {"server_health", map[string]any{"check": true}}, {"server_info", nil}, {"server_settings", nil},
+		{"server_log", map[string]any{"limit": 1000}}, {"history_list", map[string]any{"limit": 1000}}, {"command_list", nil},
+		{"indexer_list", nil}, {"indexer_get", map[string]any{"indexer": idxDown}}, {"indexer_get", map[string]any{"indexer": "Milkie"}}, {"indexer_stats", nil},
+		{"app_list", nil}, {"app_get", map[string]any{"app": appSonarr}}, {"proxy_list", nil}, {"downloadclient_list", nil}, {"notification_list", nil},
+		// a save Prowlarr refuses with a 500 that quotes the address it made of this one, the indexer's own key on the end
+		{"indexer_edit", map[string]any{"indexer": idxTorrent, "base_url": "https://someone:a-sign-in-word@site.example/path?passkey=a-pass-key#frag", "force": true}},
+	}
+	keys = append(keys, "a-sign-in-word", "a-pass-key")
+	for _, c := range calls {
+		out, err := suite.Invoke(c.tool, c.args)
+		raw, _ := json.Marshal(out)
+		text := string(raw)
+		if err != nil {
+			text += " " + err.Error()
+		}
+		for _, key := range keys {
+			if at := strings.Index(text, key); at >= 0 {
+				t.Errorf("%s %v shows the key %q: ...%s...", c.tool, c.args, key, text[max(0, at-200):min(len(text), at+len(key)+20)])
+			}
+		}
+	}
+}
+
 // --- writes done twice ------------------------------------------------------
 
 // Every write that tells a client a repeat changes nothing more is repeated,

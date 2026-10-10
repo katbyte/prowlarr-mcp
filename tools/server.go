@@ -52,7 +52,7 @@ func registerServerTools(r *registry) {
 	projectHealth := func(list []prowlarr.HealthResource) []healthRow {
 		out := make([]healthRow, 0, len(list))
 		for _, h := range list {
-			out = append(out, healthRow{Source: h.Source, Type: string(h.Type), Message: outsideProse(h.Message), WikiURL: h.WikiUrl, Fix: healthFix[h.Source]})
+			out = append(out, healthRow{Source: h.Source, Type: string(h.Type), Message: outsideSaid(h.Message), WikiURL: h.WikiUrl, Fix: healthFix[h.Source]})
 		}
 		// errors first, then warnings, then the rest
 		rank := map[string]int{"error": 0, "warning": 1, "notice": 2}
@@ -306,7 +306,7 @@ func registerServerTools(r *registry) {
 			}
 			out.Total, out.Offset = total, min(offset, total)
 			for _, line := range slices.Backward(lines[:max(len(lines)-offset, 0)]) {
-				out.Entries = append(out.Entries, logEntry{Message: outsideProse(line)})
+				out.Entries = append(out.Entries, logEntry{Message: outsideSaid(line)})
 			}
 			out.NextOffset = nextOffset(out.Offset, len(out.Entries), out.Total)
 
@@ -333,7 +333,7 @@ func registerServerTools(r *registry) {
 				}
 				out.Total++
 				if out.Total > offset && len(out.Entries) < limit {
-					out.Entries = append(out.Entries, logEntry{Time: e.Time, Level: e.Level, Logger: e.Logger, Message: outsideProse(e.Message), Exception: outsideProse(firstLine(e.Exception))})
+					out.Entries = append(out.Entries, logEntry{Time: e.Time, Level: e.Level, Logger: e.Logger, Message: outsideSaid(e.Message), Exception: outsideSaid(firstLine(e.Exception))})
 				}
 			}
 			if len(res.Model.Records) < 200 {

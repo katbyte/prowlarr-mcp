@@ -187,13 +187,13 @@ func registerSettingAudits(r *registry, t *auditTable) {
 			if h := healthNames(checks, i.Name, "OutdatedDefinitionCheck", "IndexerNoDefinitionCheck"); h != nil {
 				out.report(finding{
 					Subject: i.Name, Kind: "indexer", Problem: "definition_obsolete",
-					Detail: "Prowlarr's health check: " + h.Message, Fix: "indexer_catalog for its replacement and indexer_add it, then indexer_delete this one",
+					Detail: "Prowlarr's health check: " + outsideSaid(h.Message), Fix: "indexer_catalog for its replacement and indexer_add it, then indexer_delete this one",
 				})
 			}
 			if i.Message != nil && i.Message.Message != "" && i.Message.Type != prowlarr.ProviderMessageTypeInfo {
 				out.report(finding{
 					Subject: i.Name, Kind: "indexer", Problem: "definition_notice",
-					Detail: "its definition says: " + i.Message.Message, Fix: "read it; indexer_catalog may list a replacement",
+					Detail: "its definition says: " + outsideSaid(i.Message.Message), Fix: "read it; indexer_catalog may list a replacement",
 				})
 			}
 			base := fieldString(i.Fields, "baseUrl")
@@ -241,7 +241,7 @@ func registerSettingAudits(r *registry, t *auditTable) {
 			if h.Type == prowlarr.HealthCheckResultOk || (h.Type == prowlarr.HealthCheckResultNotice && !in.Notices) {
 				continue
 			}
-			detail := h.Message
+			detail := outsideSaid(h.Message)
 			if h.WikiUrl != "" {
 				detail += " (" + h.WikiUrl + ")"
 			}

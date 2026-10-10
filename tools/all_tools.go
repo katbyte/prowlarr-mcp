@@ -14,6 +14,9 @@
 package tools
 
 import (
+	"context"
+	"errors"
+
 	"github.com/katbyte/go-kt/lock"
 	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
@@ -258,8 +261,22 @@ func (r *registry) queued() *mcpregistry.Registry {
 // handler into an ordinary tool error, and sends empty collections as []
 // rather than null: an AI client reading "findings": null cannot tell "none"
 // from "not fetched", and Go leaves un-appended slices nil.
+//
+// An error a tool answers with is Prowlarr's own words as often as not, and
+// Prowlarr quotes the whole address of a request that failed, an indexer's
+// API key among its parameters. So an error reaches a client with every
+// address in it blanked, as what a tool shows of a failure is (outsideSaid).
 func add[In, Out any](r *registry, kind mcpregistry.Kind, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
-	mcpregistry.Add(r.queued(), kind, t, h)
+	mcpregistry.Add(r.queued(), kind, t, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
+		res, out, err := h(ctx, req, in)
+		if err != nil {
+			if said := blankAddresses(err.Error()); said != err.Error() {
+				err = errors.New(said)
+			}
+		}
+
+		return res, out, err
+	})
 }
 
 // queuedFor is every tool queued for these options: registration never calls

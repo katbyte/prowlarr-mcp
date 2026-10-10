@@ -380,7 +380,7 @@ func testResults(results []prowlarr.ProviderTestAllResult, names map[int]string)
 			if f.PropertyName != "" {
 				msg = f.PropertyName + ": " + msg
 			}
-			row.Problems = append(row.Problems, outsideProse(msg))
+			row.Problems = append(row.Problems, outsideSaid(msg))
 		}
 		out = append(out, row)
 	}
@@ -421,7 +421,7 @@ func testOne(name string, err error) (testRow, error) {
 	// what failed is often the site's own words, or an application's
 	row.Problems = outsideLines(se.Messages)
 	if len(row.Problems) == 0 {
-		row.Problems = []string{outsideProse(se.Body)}
+		row.Problems = []string{outsideSaid(se.Body)}
 	}
 
 	return row, nil
