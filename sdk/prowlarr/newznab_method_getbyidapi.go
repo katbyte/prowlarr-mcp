@@ -166,6 +166,7 @@ func (o GetByIdApiOperationOptions) ToQuery() *client.QueryParams {
 // GetByIdApi calls GET /{id}/api.
 func (c Client) GetByIdApi(ctx context.Context, id int, options GetByIdApiOperationOptions) (result GetByIdApiOperationResponse, err error) {
 	opts := client.RequestOptions{
+		Accept: "application/rss+xml",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},

@@ -5,6 +5,7 @@ package prowlarr
 import (
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/katbyte/pandorest/client"
@@ -26,6 +27,9 @@ func TestOperationGetByIdDownload(t *testing.T) {
 	expectRequest(t, r, http.MethodGet, "/7/download")
 	expectQuery(t, r, "link", "v-Link")
 	expectQuery(t, r, "file", "v-File")
+	if got := r.Header.Get("Accept"); !strings.HasPrefix(got, "application/octet-stream") {
+		t.Errorf("Accept = %q, want application/octet-stream asked for first", got)
+	}
 	if result.HttpResponse == nil || result.HttpResponse.StatusCode != 200 {
 		t.Fatalf("HttpResponse = %+v", result.HttpResponse)
 	}

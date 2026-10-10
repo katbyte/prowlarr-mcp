@@ -45,6 +45,7 @@ func (o GetByIdDownloadOperationOptions) ToQuery() *client.QueryParams {
 // GetByIdDownload calls GET /{id}/download.
 func (c Client) GetByIdDownload(ctx context.Context, id int, options GetByIdDownloadOperationOptions) (result GetByIdDownloadOperationResponse, err error) {
 	opts := client.RequestOptions{
+		Accept: "application/octet-stream",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},

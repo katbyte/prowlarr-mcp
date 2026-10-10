@@ -166,6 +166,7 @@ func (o GetIndexerByIdNewznabOperationOptions) ToQuery() *client.QueryParams {
 // GetIndexerByIdNewznab calls GET /api/v1/indexer/{id}/newznab.
 func (c Client) GetIndexerByIdNewznab(ctx context.Context, id int, options GetIndexerByIdNewznabOperationOptions) (result GetIndexerByIdNewznabOperationResponse, err error) {
 	opts := client.RequestOptions{
+		Accept: "application/rss+xml",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},

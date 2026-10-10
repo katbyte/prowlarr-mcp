@@ -45,6 +45,7 @@ func (o GetIndexerByIdDownloadOperationOptions) ToQuery() *client.QueryParams {
 // GetIndexerByIdDownload calls GET /api/v1/indexer/{id}/download.
 func (c Client) GetIndexerByIdDownload(ctx context.Context, id int, options GetIndexerByIdDownloadOperationOptions) (result GetIndexerByIdDownloadOperationResponse, err error) {
 	opts := client.RequestOptions{
+		Accept: "application/octet-stream",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},

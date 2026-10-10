@@ -5,6 +5,7 @@ package prowlarr
 import (
 	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/katbyte/pandorest/client"
@@ -86,6 +87,9 @@ func TestOperationGetByIdApi(t *testing.T) {
 	expectQuery(t, r, "source", "v-Source")
 	expectQuery(t, r, "host", "v-Host")
 	expectQuery(t, r, "server", "v-Server")
+	if got := r.Header.Get("Accept"); !strings.HasPrefix(got, "application/rss+xml") {
+		t.Errorf("Accept = %q, want application/rss+xml asked for first", got)
+	}
 	if result.HttpResponse == nil || result.HttpResponse.StatusCode != 200 {
 		t.Fatalf("HttpResponse = %+v", result.HttpResponse)
 	}
