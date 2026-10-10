@@ -9,8 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/lib/client"
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/go-kt/chttp"
+	"github.com/katbyte/pandorest/client"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
 
 // The rules syncs works out which indexers reach which application by, one
@@ -329,13 +330,19 @@ func TestForcedAdd(t *testing.T) {
 	}
 }
 
+// refused is the error the base client gives for an answer with a status its
+// operation does not document, carrying what the server said went wrong.
+func refused(status int, messages ...string) error {
+	return &client.StatusError{StatusError: &chttp.StatusError{StatusCode: status}, Messages: messages}
+}
+
 // Testing every provider answers 400 with the results when any fails; that
 // is an answer, and a failed single test is a row, not an error.
 func TestTestAnswers(t *testing.T) {
 	t.Parallel()
 
 	resp := &http.Response{Body: io.NopCloser(strings.NewReader(`[{"id":1,"isValid":true},{"id":2,"isValid":false,"validationFailures":[{"propertyName":"BaseUrl","errorMessage":"Unable to connect"}]}]`))}
-	results, err := testAllAnswer(resp, nil, &client.StatusError{StatusCode: http.StatusBadRequest})
+	results, err := testAllAnswer(resp, nil, refused(http.StatusBadRequest))
 	if err != nil || len(results) != 2 {
 		t.Fatalf("400 with results = %v, %v", results, err)
 	}
@@ -343,11 +350,11 @@ func TestTestAnswers(t *testing.T) {
 	if rows[0].Name != "a" || rows[0].OK || rows[0].Problems[0] != "BaseUrl: Unable to connect" || !rows[1].OK {
 		t.Errorf("rows = %+v", rows)
 	}
-	if _, err := testAllAnswer(nil, nil, &client.StatusError{StatusCode: http.StatusInternalServerError}); err == nil {
+	if _, err := testAllAnswer(nil, nil, refused(http.StatusInternalServerError)); err == nil {
 		t.Error("a 500 was taken for an answer")
 	}
 
-	row, err := testOne("x", &client.StatusError{StatusCode: http.StatusBadRequest, Messages: []string{"ApiKey: Invalid"}})
+	row, err := testOne("x", refused(http.StatusBadRequest, "ApiKey: Invalid"))
 	if err != nil || row.OK || row.Problems[0] != "ApiKey: Invalid" {
 		t.Errorf("a failed test = %+v, %v", row, err)
 	}

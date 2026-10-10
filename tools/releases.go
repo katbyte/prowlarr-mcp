@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -47,7 +47,7 @@ type releaseRow struct {
 
 func projectRelease(rel *prowlarr.ReleaseResource) releaseRow {
 	row := releaseRow{
-		Title: rel.Title, Indexer: rel.Indexer, IndexerID: rel.IndexerId, GUID: rel.Guid, Protocol: string(rel.Protocol),
+		Title: outsideName(rel.Title), Indexer: rel.Indexer, IndexerID: rel.IndexerId, GUID: rel.Guid, Protocol: string(rel.Protocol),
 		Size: rel.Size, SizeText: humanSize(rel.Size), AgeHours: float64(int(rel.AgeHours*10)) / 10, Published: rel.PublishDate,
 		Grabs: rel.Grabs, Flags: rel.IndexerFlags, IMDBID: rel.ImdbId, TMDBID: rel.TmdbId, TVDBID: rel.TvdbId, InfoURL: rel.InfoUrl,
 	}
@@ -76,12 +76,12 @@ func registerReleaseTools(r *registry) {
 		Protocol   string   `json:"protocol,omitempty"    jsonschema:"only usenet or only torrent results"`
 		MinSeeders int      `json:"min_seeders,omitempty" jsonschema:"torrents with fewer seeders are left out"`
 		Sort       string   `json:"sort,omitempty"        jsonschema:"seeders, age (newest first), size or grabs; default seeders for torrents, then age"`
-		Limit      int      `json:"limit,omitempty"       jsonschema:"results to return, default 25"`
+		pageIn
 	}
 	type searchOut struct {
-		Total     int            `json:"total"      jsonschema:"results found, before the limit"`
-		ByIndexer map[string]int `json:"by_indexer" jsonschema:"how many results each indexer answered with; an indexer asked that is not here found nothing or failed"`
-		Releases  []releaseRow   `json:"releases"`
+		pageOut
+		ByIndexer map[string]int `json:"by_indexer" jsonschema:"how many results each indexer answered with, across every page; an indexer asked that is not here found nothing or failed"`
+		Releases  []releaseRow   `json:"releases"   jsonschema:"the indexers are asked again for every page, so what they answer may have moved between one and the next"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "release_search",
@@ -91,7 +91,7 @@ func registerReleaseTools(r *registry) {
 		if !ok {
 			return nil, searchOut{}, fmt.Errorf("type must be search, tv, movie, music or book, got %q", in.Type)
 		}
-		opts := prowlarr.GetSearchOperationOptions{Query: in.Query, Type: kind, Limit: 100}
+		opts := prowlarr.GetSearchOperationOptions{Query: in.Query, Type: kind, Limit: new(100)}
 		cats, err := r.categoryIDs(ctx, in.Categories)
 		if err != nil {
 			return nil, searchOut{}, err
@@ -126,8 +126,7 @@ func registerReleaseTools(r *registry) {
 		if err := sortReleases(rows, in.Sort); err != nil {
 			return nil, searchOut{}, err
 		}
-		out.Total = len(rows)
-		out.Releases = rows[:min(len(rows), limitOr(in.Limit, 25))]
+		out.Releases, out.pageOut = paged(rows, in.Limit, in.Offset, defaultLimit)
 
 		return nil, out, nil
 	})
@@ -167,7 +166,7 @@ func registerReleaseTools(r *registry) {
 		// the answer is the release as sent, a guid and an indexer; the
 		// grab's own record in the history names what was fetched
 		title := in.GUID
-		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: i.Id, EventType: prowlarr.HistoryEventTypeReleaseGrabbed, Limit: 5})
+		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), EventType: prowlarr.HistoryEventTypeReleaseGrabbed, Limit: new(5)})
 		if err == nil {
 			events := hist.Model
 			slices.SortStableFunc(events, func(a, b prowlarr.HistoryResource) int { return strings.Compare(b.Date, a.Date) })

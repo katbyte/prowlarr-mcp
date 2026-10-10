@@ -5,7 +5,7 @@ package acceptance
 import (
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/internal/fakes/newznab"
+	"github.com/katbyte/go-kt/test/services/newznab"
 	"github.com/katbyte/prowlarr-mcp/internal/fakes/servarr"
 )
 
@@ -19,8 +19,8 @@ var releases = []newznab.Release{
 	{Title: "Severance.S01E01.Good.News.About.Hell.1080p.ATVP.WEB-DL.DDP5.1.H.264-FAKE", Category: newznab.CategoryTVHD, Seeders: 50, Peers: 5, TVDBID: 371980},
 	{Title: "Severance.S02E01.Hello.Ms.Cobel.1080p.ATVP.WEB-DL.DDP5.1.H.264-FAKE", Category: newznab.CategoryTVHD, Seeders: 80, Peers: 9, TVDBID: 371980},
 	{Title: "The.Expanse.S01E01.Dulcinea.1080p.BluRay.x264-FAKE", Category: newznab.CategoryTVHD, Seeders: 12, Peers: 1, TVDBID: 280619},
-	{Title: "Dune.Part.Two.2024.1080p.BluRay.x264-FAKE", Category: newznab.CategoryMoviesHD, Seeders: 120, Peers: 10, TMDBID: 693134, IMDBID: 15239678},
-	{Title: "Arrival.2016.1080p.BluRay.x264-FAKE", Category: newznab.CategoryMoviesHD, Seeders: 30, Peers: 2, TMDBID: 329865, IMDBID: 2543164, Freeleech: true},
+	{Title: "Dune.Part.Two.2024.1080p.BluRay.x264-FAKE", Category: newznab.CategoryMoviesHD, Seeders: 120, Peers: 10, TMDBID: 693134, IMDBID: "tt15239678"},
+	{Title: "Arrival.2016.1080p.BluRay.x264-FAKE", Category: newznab.CategoryMoviesHD, Seeders: 30, Peers: 2, TMDBID: 329865, IMDBID: "tt2543164", Freeleech: true},
 }
 
 // animeReleases are what the anime site carries.

@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -92,15 +93,20 @@ func registerTagTools(r *registry) {
 	pc := r.client
 
 	type listOut struct {
+		pageOut
 		Tags []tagRow `json:"tags"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "tag_list",
 		Description: "Every tag with what carries it - indexers, applications, proxies, notifications. Tags route indexers: an application with tags receives only the indexers sharing one, and an indexer goes through the proxies sharing one.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, listOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in pageIn) (*mcp.CallToolResult, listOut, error) {
 		tags, err := r.tagDetails(ctx)
+		if err != nil {
+			return nil, listOut{}, err
+		}
+		page, where := paged(tags, in.Limit, in.Offset, defaultLimit)
 
-		return nil, listOut{Tags: tags}, err
+		return nil, listOut{pageOut: where, Tags: page}, nil
 	})
 
 	add(r, writeTool, &mcp.Tool{
@@ -114,6 +120,12 @@ func registerTagTools(r *registry) {
 		if label == "" {
 			return nil, tagRow{}, errors.New("give the tag a label")
 		}
+
+		// the tags are read before one is added: held, so that two calls
+		// making the same tag do not each find it missing
+		unlock := r.locks.ByString(tagsLock)
+		defer unlock()
+
 		res, err := pc.GetTag(ctx)
 		if err != nil {
 			return nil, tagRow{}, err
@@ -130,12 +142,69 @@ func registerTagTools(r *registry) {
 	})
 
 	add(r, writeTool, &mcp.Tool{
+		Name:        "tag_edit",
+		Description: "Rename a tag. Everything that carries it carries the new name, so what reaches which application and goes through which proxy stays as it was.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
+		Tag   string `json:"tag"   jsonschema:"the tag to rename, by its label or id"`
+		Label string `json:"label" jsonschema:"its new label, stored lower case"`
+	},
+	) (*mcp.CallToolResult, tagRow, error) {
+		label := strings.ToLower(strings.TrimSpace(in.Label))
+		if label == "" {
+			return nil, tagRow{}, errors.New("give the tag its new label")
+		}
+
+		// the tags are read before one is written: held, so that a tag made
+		// under the new label in the meantime is seen
+		unlock := r.locks.ByString(tagsLock)
+		defer unlock()
+
+		res, err := pc.GetTag(ctx)
+		if err != nil {
+			return nil, tagRow{}, err
+		}
+		ref := strings.TrimSpace(in.Tag)
+		i := slices.IndexFunc(res.Model, func(t prowlarr.TagResource) bool { return strings.EqualFold(t.Label, ref) || strconv.Itoa(t.Id) == ref })
+		if i < 0 {
+			have := make([]string, 0, len(res.Model))
+			for _, t := range res.Model {
+				have = append(have, t.Label)
+			}
+			slices.Sort(have)
+
+			return nil, tagRow{}, fmt.Errorf("no tag %q (have: %s)", in.Tag, strings.Join(have, ", "))
+		}
+		tag := res.Model[i]
+		if slices.ContainsFunc(res.Model, func(t prowlarr.TagResource) bool { return t.Id != tag.Id && strings.EqualFold(t.Label, label) }) {
+			return nil, tagRow{}, fmt.Errorf("tag %q already exists: two tags cannot share a label, and what carries %q would have to be moved to it one thing at a time", label, tag.Label)
+		}
+		tag.Label = label
+		if _, err := pc.PutTagById(ctx, tag.Id, tag); err != nil {
+			return nil, tagRow{}, err
+		}
+
+		// read back with what carries it, which is what a rename leaves alone
+		rows, err := r.tagDetails(ctx)
+		if err != nil {
+			return nil, tagRow{}, err
+		}
+		if j := slices.IndexFunc(rows, func(row tagRow) bool { return row.ID == tag.Id }); j >= 0 {
+			return nil, rows[j], nil
+		}
+
+		return nil, tagRow{}, fmt.Errorf("the rename was accepted, but tag %d is no longer listed", tag.Id)
+	})
+
+	add(r, writeTool, &mcp.Tool{
 		Name:        "tag_delete",
 		Description: "Delete a tag nothing carries (tag_list and audit_tags find them). Prowlarr refuses to delete a tag in use, so this never changes what reaches an application or goes through a proxy.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
 		Label string `json:"label" jsonschema:"the tag to delete"`
 	},
 	) (*mcp.CallToolResult, deletedOut, error) {
+		unlock := r.locks.ByString(tagsLock)
+		defer unlock()
+
 		tags, err := r.tagDetails(ctx)
 		if err != nil {
 			return nil, deletedOut{}, err

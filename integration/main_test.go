@@ -1,6 +1,6 @@
 //go:build integration
 
-// Package integration runs the generated SDK, lib/prowlarr, against a real
+// Package integration runs the generated SDK, sdk/prowlarr, against a real
 // Prowlarr in Docker. It tests one thing: that every response Prowlarr sends
 // decodes into the generated types with the fields actually populated, and
 // that every request the generated options and bodies build is one Prowlarr

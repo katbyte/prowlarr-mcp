@@ -11,9 +11,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/internal/fakes/newznab"
-	"github.com/katbyte/prowlarr-mcp/lib/client"
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/go-kt/test/services/arrserver"
+	"github.com/katbyte/go-kt/test/services/newznab"
+	"github.com/katbyte/pandorest/client"
+	"github.com/katbyte/prowlarr-mcp/lib/testenv"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
 
 // The calls the tools rely on, field by field, and the fixes the importer's
@@ -72,7 +74,7 @@ func TestIndexerWrites(t *testing.T) {
 	}
 	i := got.Model
 	if i.Name != torrentName || i.Protocol != prowlarr.DownloadProtocolTorrent || i.Implementation != "Torznab" ||
-		field(i.Fields, "baseUrl") != sites.URL(torrentSite) || i.AppProfileId != fx.profile || !slices.Contains(i.Tags, fx.tag) {
+		field(i.Fields, "baseUrl") != sites.Indexer(torrentSite).URL() || i.AppProfileId != fx.profile || !slices.Contains(i.Tags, fx.tag) {
 		t.Errorf("indexer = %+v", i)
 	}
 	// the site's capabilities, read from its caps when it was added
@@ -121,7 +123,7 @@ func TestIndexerWrites(t *testing.T) {
 func TestSearchAndGrab(t *testing.T) {
 	need(t)
 
-	res, err := sdk.GetSearch(ctx, prowlarr.GetSearchOperationOptions{Query: "dune", Type: "search", IndexerIds: []int{fx.torrent, fx.usenet}, Limit: 100})
+	res, err := sdk.GetSearch(ctx, prowlarr.GetSearchOperationOptions{Query: "dune", Type: "search", IndexerIds: []int{fx.torrent, fx.usenet}, Limit: new(100)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,8 +151,8 @@ func TestSearchAndGrab(t *testing.T) {
 	if err != nil || len(bulk.Model) != 1 {
 		t.Errorf("bulk grab = %+v, %v", bulk.Model, err)
 	}
-	if sites.Downloads(torrentSite) < 2 {
-		t.Errorf("the site served %d downloads, want the two grabs", sites.Downloads(torrentSite))
+	if len(sites.Indexer(torrentSite).Grabbed()) < 2 {
+		t.Errorf("the site served %d downloads, want the two grabs", len(sites.Indexer(torrentSite).Grabbed()))
 	}
 }
 
@@ -236,7 +238,7 @@ func TestHistoryAndStats(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	page, err := sdk.GetHistory(ctx, prowlarr.GetHistoryOperationOptions{Page: 1, PageSize: 2, SortKey: "date", SortDirection: prowlarr.SortDirectionDescending})
+	page, err := sdk.GetHistory(ctx, prowlarr.GetHistoryOperationOptions{Page: new(1), PageSize: new(2), SortKey: "date", SortDirection: prowlarr.SortDirectionDescending})
 	if err != nil || len(page.Model.Records) != 2 || page.Model.TotalRecords < 3 {
 		t.Fatalf("a page = %+v, %v", page.Model, err)
 	}
@@ -245,12 +247,12 @@ func TestHistoryAndStats(t *testing.T) {
 		t.Errorf("a record = %+v", r)
 	}
 	// the pager walks every page
-	all, err := sdk.GetHistoryComplete(ctx, prowlarr.GetHistoryOperationOptions{PageSize: 2})
+	all, err := sdk.GetHistoryComplete(ctx, prowlarr.GetHistoryOperationOptions{PageSize: new(2)})
 	if err != nil || len(all.Items) != page.Model.TotalRecords {
 		t.Errorf("complete = %d of %d, %v", len(all.Items), page.Model.TotalRecords, err)
 	}
 	// filtered by event type (its number) and indexer
-	grabs, err := sdk.GetHistory(ctx, prowlarr.GetHistoryOperationOptions{EventType: []int{2}, IndexerIds: []int{fx.torrent}, PageSize: 50})
+	grabs, err := sdk.GetHistory(ctx, prowlarr.GetHistoryOperationOptions{EventType: []int{2}, IndexerIds: []int{fx.torrent}, PageSize: new(50)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -263,7 +265,7 @@ func TestHistoryAndStats(t *testing.T) {
 	if err != nil || len(since.Model) < 3 {
 		t.Errorf("since = %d, %v", len(since.Model), err)
 	}
-	one, err := sdk.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: fx.torrent, Limit: 2})
+	one, err := sdk.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(fx.torrent), Limit: new(2)})
 	if err != nil || len(one.Model) != 2 {
 		t.Errorf("an indexer's history = %d, %v", len(one.Model), err)
 	}
@@ -322,11 +324,20 @@ func TestConfigRoundTrips(t *testing.T) {
 	if err != nil || host.Model.Port != 9696 || host.Model.ApiKey == "" {
 		t.Fatalf("host = %+v, %v", host.Model, err)
 	}
-	// the one section a round trip cannot write back: this container does not
-	// require authentication from local addresses, and Prowlarr reads an empty
-	// allowed-hosts list that it then refuses to save
-	if _, err := sdk.PutConfigHostById(ctx, 1, *host.Model); client.StatusCode(err) != http.StatusBadRequest || !strings.Contains(err.Error(), "Allowed Hosts") {
-		t.Errorf("host round trip = %v", err)
+	// prowlarr-host-settings: the server sends the host names it answers to
+	// and the networks it trusts, which the document does not list. This
+	// container lets local addresses in unasked and starts with no allowed
+	// hosts, which Prowlarr reads back and then refuses to save, so the round
+	// trip is refused as read and taken once the hosts are named
+	if host.Model.AllowedHosts == "" {
+		if _, err := sdk.PutConfigHostById(ctx, 1, *host.Model); client.StatusCode(err) != http.StatusBadRequest || !strings.Contains(err.Error(), "Allowed Hosts") {
+			t.Errorf("host round trip with no allowed hosts = %v", err)
+		}
+	}
+	host.Model.AllowedHosts = "127.0.0.1,localhost," + testenv.Host()
+	put, err := sdk.PutConfigHostById(ctx, 1, *host.Model)
+	if err != nil || put.Model.AllowedHosts != host.Model.AllowedHosts || put.Model.ApiKey != host.Model.ApiKey || put.Model.Port != 9696 {
+		t.Errorf("host round trip with the hosts named = %+v, %v", put.Model, err)
 	}
 	ui, err := sdk.GetConfigUi(ctx)
 	if err != nil {
@@ -420,7 +431,7 @@ func TestCommandsAndBackups(t *testing.T) {
 func TestLogs(t *testing.T) {
 	need(t)
 
-	logs, err := sdk.GetLog(ctx, prowlarr.GetLogOperationOptions{Page: 1, PageSize: 5, SortKey: "time", SortDirection: prowlarr.SortDirectionDescending})
+	logs, err := sdk.GetLog(ctx, prowlarr.GetLogOperationOptions{Page: new(1), PageSize: new(5), SortKey: "time", SortDirection: prowlarr.SortDirectionDescending})
 	if err != nil || len(logs.Model.Records) == 0 || logs.Model.Records[0].Level == "" || logs.Model.Records[0].Message == "" {
 		t.Fatalf("log = %+v, %v", logs.Model, err)
 	}
@@ -464,8 +475,8 @@ func TestProviderAction(t *testing.T) {
 func TestTestAllWithAFailure(t *testing.T) {
 	need(t)
 
-	sites.SetFailure(usenetSite, newznab.Failure{Status: http.StatusServiceUnavailable})
-	defer sites.SetFailure(usenetSite, newznab.Failure{})
+	sites.Indexer(usenetSite).SetFailure(newznab.Failure{Status: http.StatusServiceUnavailable})
+	defer sites.Indexer(usenetSite).SetFailure(newznab.Failure{})
 	res, err := sdk.PostIndexerTestAll(ctx)
 	if err != nil || res.HttpResponse.StatusCode != http.StatusBadRequest {
 		t.Fatalf("test all = %v, %v", res.HttpResponse, err)
@@ -482,3 +493,40 @@ func TestTestAllWithAFailure(t *testing.T) {
 }
 
 func boolv(b *bool) bool { return b != nil && *b }
+
+// The releases Prowlarr reads from its update server, which the suite plays:
+// each decodes with its changes, the newest is marked latest and the one
+// running installed, and with the server away the read answers a 500 saying
+// so.
+func TestUpdates(t *testing.T) {
+	need(t)
+
+	st, err := sdk.GetSystemStatus(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const newer = "99.0.0.1"
+	home.Offer(arrserver.Update{Version: newer, New: []string{"a new thing"}, Fixed: []string{"an old fault"}}, arrserver.Update{Version: st.Model.Version})
+	t.Cleanup(func() { home.Offer() })
+
+	updates, err := sdk.GetUpdate(ctx)
+	if err != nil || len(updates.Model) != 2 {
+		t.Fatalf("updates = %+v, %v", updates.Model, err)
+	}
+	latest, running := updates.Model[0], updates.Model[1]
+	if latest.Version != newer || !boolv(latest.Latest) || boolv(latest.Installed) || !boolv(latest.Installable) || latest.ReleaseDate == "" || latest.Branch == "" || latest.FileName == "" {
+		t.Errorf("the newer release = %+v", latest)
+	}
+	if latest.Changes == nil || !slices.Equal(latest.Changes.New, []string{"a new thing"}) || !slices.Equal(latest.Changes.Fixed, []string{"an old fault"}) {
+		t.Errorf("its changes = %+v", latest.Changes)
+	}
+	if running.Version != st.Model.Version || !boolv(running.Installed) || boolv(running.Latest) {
+		t.Errorf("the release running = %+v", running)
+	}
+
+	home.SetDown(true)
+	t.Cleanup(func() { home.SetDown(false) })
+	if _, err := sdk.GetUpdate(ctx); client.StatusCode(err) != http.StatusInternalServerError {
+		t.Errorf("with the update server down the read answered %v, want a 500", err)
+	}
+}

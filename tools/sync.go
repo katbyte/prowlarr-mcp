@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
 
 // Which indexers reach which applications. Prowlarr keeps the answer to

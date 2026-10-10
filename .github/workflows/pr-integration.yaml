@@ -15,10 +15,9 @@ on:
       - 'scripts/testdata/**'
       - 'acceptance/**'
       - 'integration/**'
-      # internal/pandorest's tests re-import the spec and regenerate the SDK,
-      # failing when api-definitions/ or lib/prowlarr is stale
-      - 'docs/prowlarr-openapi.json'
-      - 'api-definitions/**'
+      # sdk/pandorest's tests re-import the spec and regenerate the SDK,
+      # failing when the definitions in api-defs/ or sdk/prowlarr is stale
+      - 'api-defs/**'
       - '.github/workflows/pr-integration.yaml'
   workflow_dispatch:
 
@@ -43,7 +42,7 @@ jobs:
   # one job per suite, so a failure names which layer broke: the client's view
   # of the API, or the tools' behaviour on top of it
   integration:
-    name: integration (lib/prowlarr against a real Prowlarr)
+    name: integration (sdk/prowlarr against a real Prowlarr)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:

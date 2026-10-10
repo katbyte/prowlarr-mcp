@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -64,19 +64,21 @@ func registerDownloadClientTools(r *registry) {
 	}
 
 	type listOut struct {
+		pageOut
 		Clients []downloadClientRow `json:"download_clients"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "downloadclient_list",
 		Description: "Prowlarr's own download clients, which take the releases grabbed from Prowlarr itself (the applications grab to their own): each one's kind, protocol, whether it is enabled, its priority, category mapping, settings without credentials, and the indexers pinned to it.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, listOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in pageIn) (*mcp.CallToolResult, listOut, error) {
 		res, err := pc.GetDownloadClient(ctx)
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		out := listOut{}
-		for i := range res.Model {
-			row, err := project(ctx, &res.Model[i])
+		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		out := listOut{pageOut: where}
+		for i := range page {
+			row, err := project(ctx, &page[i])
 			if err != nil {
 				return nil, listOut{}, err
 			}
@@ -119,7 +121,7 @@ func registerDownloadClientTools(r *registry) {
 			c.Name = in.Name
 		}
 		c.Presets, c.Enable, c.Priority = nil, new(true), limitOr(in.Priority, 1)
-		if c.Tags, err = r.resolveTags(ctx, in.Tags, true); err != nil {
+		if c.Tags, err = r.makeTags(ctx, in.Tags); err != nil {
 			return nil, downloadClientRow{}, err
 		}
 		if err := setFields(c.Fields, in.Settings); err != nil {
@@ -156,13 +158,25 @@ func registerDownloadClientTools(r *registry) {
 		Name:        "downloadclient_edit",
 		Description: "Change one of Prowlarr's download clients: enable or disable it, rename it, set its priority, or change a setting by name. Prowlarr tests an enabled one before saving unless force is set.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in editIn) (*mcp.CallToolResult, downloadClientRow, error) {
-		c, err := r.resolveDownloadClient(ctx, in.Client)
+		found, err := r.resolveDownloadClient(ctx, in.Client)
 		if err != nil {
 			return nil, downloadClientRow{}, err
 		}
 		if in.Name == "" && in.Enable == nil && in.Priority == 0 && len(in.Settings) == 0 {
 			return nil, downloadClientRow{}, errors.New("nothing to change: name a setting to edit")
 		}
+
+		// what is sent back is the whole client, so it is read once no other
+		// edit of it can run
+		unlock := editing[prowlarr.DownloadClientResource](r, found.Id, false)
+		defer unlock()
+
+		read, err := pc.GetDownloadClientById(ctx, found.Id)
+		if err != nil {
+			return nil, downloadClientRow{}, err
+		}
+		c := read.Model
+
 		if in.Name != "" {
 			c.Name = in.Name
 		}
@@ -223,19 +237,30 @@ func registerDownloadClientTools(r *registry) {
 
 	add(r, deleteTool, &mcp.Tool{
 		Name:        "downloadclient_delete",
-		Description: "Delete one of Prowlarr's download clients. Indexers pinned to it fall back to the first enabled client of their protocol.",
+		Description: "Delete one of Prowlarr's download clients. Indexers pinned to it fall back to the first enabled client of their protocol. Without confirm nothing changes and the answer says what would go.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
 		Client string `json:"client" jsonschema:"the download client to delete, by name or id"`
+		confirmIn
 	},
 	) (*mcp.CallToolResult, deletedOut, error) {
 		c, err := r.resolveDownloadClient(ctx, in.Client)
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
-		if _, err := pc.DeleteDownloadClientById(ctx, c.Id); err != nil {
+		row, err := project(ctx, c)
+		if err != nil {
 			return nil, deletedOut{}, err
 		}
+		loses := []string{"its settings and credentials, as Prowlarr holds them"}
+		if len(row.Indexers) > 0 {
+			loses = append(loses, "the pin of "+strings.Join(row.Indexers, ", ")+" to it: they fall back to the first enabled client of their protocol")
+		}
+		out, err := deleting(in.Confirm, c.Name, loses, "downloadclient_edit enable=false keeps it and stops grabs going to it", func() error {
+			_, delErr := pc.DeleteDownloadClientById(ctx, c.Id)
 
-		return nil, deletedOut{Deleted: c.Name}, nil
+			return delErr
+		})
+
+		return nil, out, err
 	})
 }

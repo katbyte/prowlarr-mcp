@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -33,19 +33,32 @@ type finding struct {
 
 // auditOut is what every audit answers.
 type auditOut struct {
-	Scanned  int       `json:"scanned"        jsonschema:"how many indexers (or applications, proxies, tags) were looked at"`
-	Found    int       `json:"total_findings"`
-	Findings []finding `json:"findings"       jsonschema:"capped at limit; total_findings is the real count"`
-	Note     string    `json:"note,omitempty" jsonschema:"what the audit could not see, or what its count means"`
+	Scanned    int       `json:"scanned"               jsonschema:"how many indexers (or applications, proxies, tags) were looked at"`
+	Found      int       `json:"total_findings"        jsonschema:"findings in all, before limit and offset"`
+	Offset     int       `json:"offset"                jsonschema:"how many findings were skipped"`
+	NextOffset int       `json:"next_offset,omitempty" jsonschema:"pass back as offset for the findings after these; absent when these were the last"`
+	Findings   []finding `json:"findings"              jsonschema:"the page asked for; total_findings is the real count"`
+	Note       string    `json:"note,omitempty"        jsonschema:"what the audit could not see, or what its count means"`
 }
 
-// report adds a finding, counting it whether or not it fits under the limit.
-func (o *auditOut) report(limit int, f finding) {
+// report adds a finding. An audit reports every one it makes: the tool cuts
+// them to the page asked for once the audit has run (addAudit).
+func (o *auditOut) report(f finding) {
 	o.Found++
-	if len(o.Findings) < limitOr(limit, 100) {
-		o.Findings = append(o.Findings, f)
-	}
+	o.Findings = append(o.Findings, f)
 }
+
+// auditPage is the two arguments every audit takes for its worklist.
+type auditPage struct {
+	Limit  int `json:"limit,omitempty"  jsonschema:"findings to return, default 100, at most 1000"`
+	Offset int `json:"offset,omitempty" jsonschema:"skip this many findings: a previous call's next_offset"`
+}
+
+// page is the page of findings asked for, which every audit's arguments hold.
+func (p auditPage) page() auditPage { return p }
+
+// auditArgs is what an audit's arguments have in common.
+type auditArgs interface{ page() auditPage }
 
 // snapshot is Prowlarr as the audits read it, loaded once per call and shared:
 // audit_all runs every audit over one snapshot rather than reading every
@@ -307,15 +320,27 @@ func registerAuditAll(r *registry, t *auditTable) {
 // addAudit registers an audit's tool and queues it for audit_all. The tool
 // reads a snapshot and runs the audit with what it was asked; audit_all runs
 // it with the defaults.
-func addAudit[In any](r *registry, t *auditTable, tool *mcp.Tool, summary string, run func(ctx context.Context, s *snapshot, in In) (auditOut, error)) {
+func addAudit[In auditArgs](r *registry, t *auditTable, tool *mcp.Tool, summary string, run func(ctx context.Context, s *snapshot, in In) (auditOut, error)) {
 	add(r, readTool, tool, func(ctx context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, auditOut, error) {
 		s, err := r.snap(ctx)
 		if err != nil {
 			return nil, auditOut{}, err
 		}
 		out, err := run(ctx, s, in)
+		if err != nil {
+			return nil, out, err
+		}
+		// the audit found everything there is to find; the worklist is the page asked for
+		var where pageOut
+		out.Findings, where = paged(out.Findings, in.page().Limit, in.page().Offset, defaultLimit)
+		out.Offset, out.NextOffset = where.Offset, where.NextOffset
+		// a finding's detail quotes what a site, an application or a health
+		// check said; its subject is a name the fixing tool takes, left as it is
+		for i := range out.Findings {
+			out.Findings[i].Detail = outsideProse(out.Findings[i].Detail)
+		}
 
-		return nil, out, err
+		return nil, out, nil
 	})
 	t.list = append(t.list, audit{
 		name:    tool.Name,

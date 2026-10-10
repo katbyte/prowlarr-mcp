@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/katbyte/go-kt/version"
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -30,16 +30,17 @@ import (
 type fakeServer struct {
 	srv *httptest.Server
 
-	mu      sync.Mutex
-	answers map[string]any
-	seen    []string
-	bodies  map[string][]string
+	mu       sync.Mutex
+	answers  map[string]any
+	statuses map[string]int
+	seen     []string
+	bodies   map[string][]string
 }
 
 func newFakeServer(t *testing.T) *fakeServer {
 	t.Helper()
 
-	f := &fakeServer{answers: map[string]any{}, bodies: map[string][]string{}}
+	f := &fakeServer{answers: map[string]any{}, statuses: map[string]int{}, bodies: map[string][]string{}}
 	// what a new Prowlarr answers: nothing configured
 	for _, route := range []string{
 		"/api/v1/indexer", "/api/v1/indexerstatus", "/api/v1/applications", "/api/v1/indexerproxy", "/api/v1/downloadclient",
@@ -58,17 +59,22 @@ func newFakeServer(t *testing.T) *fakeServer {
 		f.seen = append(f.seen, key+"?"+r.URL.RawQuery)
 		f.bodies[key] = append(f.bodies[key], string(body))
 		answer, ok := f.answers[key]
+		status := f.statuses[key]
 		f.mu.Unlock()
 		if !ok {
 			http.NotFound(w, r)
 			return
 		}
-		status := http.StatusOK
-		switch r.Method {
-		case http.MethodPost:
+		// what Prowlarr answers a create and an update with, unless the
+		// route was given a status of its own
+		switch {
+		case status != 0:
+		case r.Method == http.MethodPost:
 			status = http.StatusCreated
-		case http.MethodPut:
+		case r.Method == http.MethodPut:
 			status = http.StatusAccepted
+		default:
+			status = http.StatusOK
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(status)
@@ -84,6 +90,15 @@ func (f *fakeServer) answer(route string, v any) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.answers[route] = v
+}
+
+// answerOK sets what a route answers and has it answer 200, for the writes
+// Prowlarr answers so rather than with a create's 201.
+func (f *fakeServer) answerOK(route string, v any) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.answers[route] = v
+	f.statuses[route] = http.StatusOK
 }
 
 // requested reports the requests made to a route, with their queries.
@@ -224,8 +239,8 @@ func detailOf(t *testing.T, out map[string]any, subject, problem string) string 
 	return ""
 }
 
-// str and num read a field of an answer, failing the test when it is not
-// there or not what it should be.
+// str, num and flag read a field of an answer, failing the test when it is
+// not there or not what it should be.
 func str(t *testing.T, v any, field string) string {
 	t.Helper()
 
@@ -246,6 +261,38 @@ func num(t *testing.T, v any, field string) float64 {
 	}
 
 	return f
+}
+
+func flag(t *testing.T, v any, field string) bool {
+	t.Helper()
+
+	b, ok := v.(bool)
+	if !ok {
+		t.Fatalf("%s is %T (%v), want true or false", field, v, v)
+	}
+
+	return b
+}
+
+// listOf and objectOf read a list or an object out of an answer. One that is
+// not there, or is something else, reads as empty, so a test that counts
+// what it was given fails on the count.
+func listOf(v any) []any {
+	l, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+
+	return l
+}
+
+func objectOf(v any) map[string]any {
+	m, ok := v.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	return m
 }
 
 // torznab is a canned Torznab indexer.
@@ -633,6 +680,7 @@ func TestIndexerEditSendsTheWholeIndexer(t *testing.T) {
 		map[string]any{"name": "baseSettings.limitsUnit", "value": 0, "type": "select", "selectOptions": []any{map[string]any{"value": 0, "name": "Day"}, map[string]any{"value": 1, "name": "Hour"}}},
 	)
 	f.answer("GET /api/v1/indexer", []any{idx})
+	f.answer("GET /api/v1/indexer/4", idx)
 	f.answer("PUT /api/v1/indexer/4", idx)
 	cs := session(t, f, Options{})
 

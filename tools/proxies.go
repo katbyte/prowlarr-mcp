@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -52,12 +52,13 @@ func registerProxyTools(r *registry) {
 	pc := r.client
 
 	type listOut struct {
+		pageOut
 		Proxies []proxyRow `json:"proxies"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "proxy_list",
 		Description: "The proxies indexers send their requests through - FlareSolverr for sites behind Cloudflare, HTTP and SOCKS proxies - with each one's address, its tags, and the indexers that use it by sharing one.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, listOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in pageIn) (*mcp.CallToolResult, listOut, error) {
 		res, err := pc.GetIndexerProxy(ctx)
 		if err != nil {
 			return nil, listOut{}, err
@@ -70,9 +71,10 @@ func registerProxyTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		out := listOut{}
-		for i := range res.Model {
-			out.Proxies = append(out.Proxies, projectProxy(&res.Model[i], idx, tags))
+		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		out := listOut{pageOut: where}
+		for i := range page {
+			out.Proxies = append(out.Proxies, projectProxy(&page[i], idx, tags))
 		}
 
 		return nil, out, nil
@@ -114,7 +116,7 @@ func registerProxyTools(r *registry) {
 			p.Name = in.Name
 		}
 		p.Presets = nil
-		if p.Tags, err = r.resolveTags(ctx, in.Tags, true); err != nil {
+		if p.Tags, err = r.makeTags(ctx, in.Tags); err != nil {
 			return nil, proxyRow{}, err
 		}
 		values := map[string]any{}
@@ -175,10 +177,22 @@ func registerProxyTools(r *registry) {
 		Name:        "proxy_edit",
 		Description: "Change a proxy: its address or other settings, its name, or the tags that pick which indexers use it. Prowlarr tests it before saving unless force is set.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in editIn) (*mcp.CallToolResult, proxyRow, error) {
-		p, err := r.resolveProxy(ctx, in.Proxy)
+		found, err := r.resolveProxy(ctx, in.Proxy)
 		if err != nil {
 			return nil, proxyRow{}, err
 		}
+
+		// what is sent back is the whole proxy, so it is read once no other
+		// edit of it can run
+		unlock := editing[prowlarr.IndexerProxyResource](r, found.Id, len(in.Tags)+len(in.AddTags) > 0)
+		defer unlock()
+
+		read, err := pc.GetIndexerProxyById(ctx, found.Id)
+		if err != nil {
+			return nil, proxyRow{}, err
+		}
+		p := read.Model
+
 		if in.Name != "" {
 			p.Name = in.Name
 		}
@@ -253,19 +267,34 @@ func registerProxyTools(r *registry) {
 
 	add(r, deleteTool, &mcp.Tool{
 		Name:        "proxy_delete",
-		Description: "Delete a proxy. The indexers that used it send their requests directly from then on, which a site behind Cloudflare refuses.",
+		Description: "Delete a proxy. The indexers that used it send their requests directly from then on, which a site behind Cloudflare refuses. Without confirm nothing changes and the answer says what would go.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
 		Proxy string `json:"proxy" jsonschema:"the proxy to delete, by name or id"`
+		confirmIn
 	},
 	) (*mcp.CallToolResult, deletedOut, error) {
 		p, err := r.resolveProxy(ctx, in.Proxy)
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
-		if _, err := pc.DeleteIndexerProxyById(ctx, p.Id); err != nil {
+		idx, err := r.indexers(ctx)
+		if err != nil {
 			return nil, deletedOut{}, err
 		}
+		tags, err := r.tagLabels(ctx)
+		if err != nil {
+			return nil, deletedOut{}, err
+		}
+		loses := []string{"its address and credentials, as Prowlarr holds them"}
+		if used := projectProxy(p, idx, tags).Indexers; len(used) > 0 {
+			loses = append(loses, "the route of "+strings.Join(used, ", ")+" through it: they send their requests directly from then on, which a site behind Cloudflare refuses")
+		}
+		out, err := deleting(in.Confirm, p.Name, loses, "", func() error {
+			_, delErr := pc.DeleteIndexerProxyById(ctx, p.Id)
 
-		return nil, deletedOut{Deleted: p.Name}, nil
+			return delErr
+		})
+
+		return nil, out, err
 	})
 }

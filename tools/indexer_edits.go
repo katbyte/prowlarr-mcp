@@ -9,8 +9,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/client"
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/pandorest/client"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -114,10 +114,22 @@ func registerIndexerEditTools(r *registry) {
 		Name:        "indexer_edit",
 		Description: "Change an indexer: enable or disable it, rename it, set its priority, tags, sync profile, redirect, download client, base URL, VIP expiry, query and grab limits, seed goals, or any other setting by name. Prowlarr tests an enabled indexer before saving it and refuses one that fails unless force is set.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in editIn) (*mcp.CallToolResult, editOut, error) {
-		i, err := r.resolveIndexer(ctx, in.Indexer)
+		found, err := r.resolveIndexer(ctx, in.Indexer)
 		if err != nil {
 			return nil, editOut{}, err
 		}
+
+		// what is sent back is the whole indexer, so it is read once no other
+		// edit of it can run
+		unlock := editing[prowlarr.IndexerResource](r, found.Id, len(in.Tags)+len(in.AddTags) > 0)
+		defer unlock()
+
+		read, err := pc.GetIndexerById(ctx, found.Id)
+		if err != nil {
+			return nil, editOut{}, err
+		}
+		i := read.Model
+
 		var changed []string
 		if in.Name != "" && in.Name != i.Name {
 			i.Name = in.Name
@@ -308,7 +320,7 @@ func registerIndexerEditTools(r *registry) {
 		}
 		if len(in.AddTags) > 0 {
 			var ids []int
-			if ids, err = r.resolveTags(ctx, in.AddTags, true); err != nil {
+			if ids, err = r.makeTags(ctx, in.AddTags); err != nil {
 				return nil, bulkOut{}, err
 			}
 			tagChanges = append(tagChanges, struct {
@@ -356,24 +368,41 @@ func registerIndexerEditTools(r *registry) {
 
 	type deleteIn struct {
 		Indexer string `json:"indexer" jsonschema:"the indexer to delete, by name or id"`
-	}
-	type deleteOut struct {
-		Deleted string `json:"deleted"`
-		Note    string `json:"note"`
+		confirmIn
 	}
 	add(r, deleteTool, &mcp.Tool{
 		Name:        "indexer_delete",
-		Description: "Delete an indexer from Prowlarr, with its history and statistics. Applications that sync fully drop it on the next sync; disabling it instead keeps it and its history.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in deleteIn) (*mcp.CallToolResult, deleteOut, error) {
+		Description: "Delete an indexer from Prowlarr, with its history and statistics. Applications that sync fully drop it on the next sync; disabling it instead keeps it and its history. Without confirm nothing changes and the answer says what would go.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in deleteIn) (*mcp.CallToolResult, deletedOut, error) {
 		i, err := r.resolveIndexer(ctx, in.Indexer)
 		if err != nil {
-			return nil, deleteOut{}, err
+			return nil, deletedOut{}, err
 		}
-		if _, err := pc.DeleteIndexerById(ctx, i.Id); err != nil {
-			return nil, deleteOut{}, err
+		apps, err := pc.GetApplications(ctx)
+		if err != nil {
+			return nil, deletedOut{}, err
 		}
+		tags, err := r.tagLabels(ctx)
+		if err != nil {
+			return nil, deletedOut{}, err
+		}
+		loses := []string{"its history and statistics: every query, grab and failure Prowlarr recorded for it", "its settings and credentials, as Prowlarr holds them"}
+		var receiving []string
+		for a := range apps.Model {
+			if syncs(&apps.Model[a], i, tags).Synced {
+				receiving = append(receiving, apps.Model[a].Name)
+			}
+		}
+		if len(receiving) > 0 {
+			loses = append(loses, "its place in "+strings.Join(receiving, ", ")+": an application set to full sync drops it on the next sync")
+		}
+		out, err := deleting(in.Confirm, i.Name, loses, "indexer_edit enable=false retires it and keeps its history; after a delete, app_sync runs the sync now", func() error {
+			_, delErr := pc.DeleteIndexerById(ctx, i.Id)
 
-		return nil, deleteOut{Deleted: i.Name, Note: "applications set to full sync drop it on the next sync (app_sync runs one now)"}, nil
+			return delErr
+		})
+
+		return nil, out, err
 	})
 }
 

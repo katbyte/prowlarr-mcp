@@ -14,9 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/internal/fakes/newznab"
+	"github.com/katbyte/go-kt/test/services/arrserver"
+	"github.com/katbyte/go-kt/test/services/newznab"
 	"github.com/katbyte/prowlarr-mcp/internal/fakes/servarr"
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/lib/testenv"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
 
 // The fixtures the suite creates through the SDK, by name, and the fakes
@@ -53,35 +55,32 @@ var (
 	sdk   *prowlarr.Client
 	sites *newznab.Server
 	apps  *servarr.Server
+	// home is the server Prowlarr calls home to, as the suite plays it: the
+	// update server, the clock and the notices
+	home  = arrserver.New()
+	proxy *testenv.Proxy
 	fx    fixtures
 	ready bool
 )
 
-func configured() bool {
-	return os.Getenv("PROWLARR_SERVER") != "" && os.Getenv("PROWLARR_TOKEN") != ""
-}
-
-func envPort(name string, def int) int {
-	if n, err := strconv.Atoi(os.Getenv(name)); err == nil && n > 0 {
-		return n
-	}
-
-	return def
-}
-
-func testHost() string {
-	if h := os.Getenv("PROWLARR_TEST_HOST"); h != "" {
-		return h
-	}
-
-	return "host.docker.internal"
-}
+// The ports the fake sites and applications listen on when the environment
+// names none.
+const (
+	defaultIndexerPort = 19791
+	defaultAppPort     = 19792
+)
 
 func runSuite(m *testing.M) int {
-	if !configured() {
+	if !testenv.Configured() {
 		return m.Run() // every test skips
 	}
 	ctx = context.Background()
+	p, err := testenv.StartProxy(ctx, home)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "proxy:", err)
+		return 1
+	}
+	proxy = p
 	if err := start(); err != nil {
 		fmt.Fprintln(os.Stderr, "integration setup:", err)
 		stop()
@@ -96,13 +95,30 @@ func runSuite(m *testing.M) int {
 	}
 	stop()
 
+	// a request Prowlarr made that the suite does not answer is said loudly
+	// even when the assertions happened to survive it
+	report := proxy.Report() + home.Report()
+	if report != "" {
+		fmt.Fprint(os.Stderr, report)
+		if code == 0 {
+			code = 1
+		}
+	}
+
 	return code
 }
 
 func start() error {
-	var err error
+	indexerPort, err := testenv.IndexerPort(defaultIndexerPort)
+	if err != nil {
+		return err
+	}
+	appPort, err := testenv.AppPort(defaultAppPort)
+	if err != nil {
+		return err
+	}
 	sites, err = newznab.New(newznab.Options{
-		Addr: ":" + strconv.Itoa(envPort("PROWLARR_TEST_INDEXER_PORT", 19791)), PublicHost: testHost(),
+		Addr: ":" + strconv.Itoa(indexerPort), PublicHost: testenv.Host(),
 		Sites: []newznab.Site{
 			{Name: torrentSite, Protocol: newznab.Torrent, APIKey: siteKey, Releases: releases},
 			{Name: usenetSite, Protocol: newznab.Usenet, APIKey: siteKey, Releases: releases},
@@ -112,13 +128,13 @@ func start() error {
 		return err
 	}
 	apps, err = servarr.New(servarr.Options{
-		Addr: ":" + strconv.Itoa(envPort("PROWLARR_TEST_APP_PORT", 19792)), PublicHost: testHost(),
+		Addr: ":" + strconv.Itoa(appPort), PublicHost: testenv.Host(),
 		Apps: []servarr.App{{Name: fakeSonarr, Kind: servarr.Sonarr, APIKey: fakeSonarrKey}},
 	})
 	if err != nil {
 		return err
 	}
-	if sdk, err = prowlarr.New(os.Getenv("PROWLARR_SERVER"), os.Getenv("PROWLARR_TOKEN")); err != nil {
+	if sdk, err = prowlarr.New(testenv.Server(), testenv.Token()); err != nil {
 		return err
 	}
 	ready = true
@@ -133,6 +149,9 @@ func stop() {
 	if apps != nil {
 		_ = apps.Close()
 	}
+	if err := proxy.Stop(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+	}
 }
 
 // need skips a test when the container is not configured.
@@ -140,13 +159,20 @@ func need(t *testing.T) {
 	t.Helper()
 
 	if !ready {
-		t.Skip("PROWLARR_SERVER and PROWLARR_TOKEN are not set; run: eval \"$(scripts/testenv.sh up)\"")
+		t.Skip(testenv.NotConfigured)
 	}
 }
 
 // seed creates the fixtures through the SDK's write methods, each of which
 // is generated to expect Prowlarr's real status: 201 for a create.
 func seed() error {
+	// Prowlarr checks its health as it starts, before the suite's proxy is
+	// there to answer its update check, and a check that cannot be answered
+	// ends the run of them: so they are run again now that it can
+	if err := checkHealth(); err != nil {
+		return err
+	}
+
 	tag, err := sdk.PostTag(ctx, prowlarr.TagResource{Label: tagName})
 	if err != nil {
 		return fmt.Errorf("tag: %w", err)
@@ -185,7 +211,7 @@ func seed() error {
 		}
 		idx := schema.Model[i]
 		idx.Name, idx.Enable, idx.AppProfileId, idx.Tags, idx.Presets = s.name, new(true), fx.profile, []int{fx.tag}, nil
-		setField(idx.Fields, "baseUrl", sites.URL(s.site))
+		setField(idx.Fields, "baseUrl", sites.Indexer(s.site).URL())
 		setField(idx.Fields, "apiKey", siteKey)
 		made, err := sdk.PostIndexer(ctx, idx, prowlarr.PostIndexerOperationOptions{})
 		if err != nil {
@@ -249,7 +275,7 @@ func seed() error {
 	note := notes.Model[i]
 	note.Name, note.Presets = webhookName, nil
 	note.OnGrab, note.OnHealthIssue, note.OnHealthRestored, note.OnApplicationUpdate = new(false), new(false), new(false), new(false)
-	setField(note.Fields, "url", "http://"+testHost()+":1/webhook")
+	setField(note.Fields, "url", "http://"+testenv.Host()+":1/webhook")
 	madeNote, err := sdk.PostNotification(ctx, note, prowlarr.PostNotificationOperationOptions{})
 	if err != nil {
 		return fmt.Errorf("notification: %w", err)
@@ -324,6 +350,29 @@ func runCommand(t *testing.T, body map[string]any) *prowlarr.CommandResource {
 		}
 	}
 	t.Fatalf("%v never finished", body)
+
+	return nil
+}
+
+// checkHealth runs Prowlarr's health checks and waits for them to finish.
+func checkHealth() error {
+	res, err := sdk.PostCommand(ctx, []byte(`{"name":"CheckHealth"}`))
+	if err != nil {
+		return fmt.Errorf("running the health checks: %w", err)
+	}
+	cmd := res.Model
+	for deadline := time.Now().Add(60 * time.Second); time.Now().Before(deadline); time.Sleep(300 * time.Millisecond) {
+		got, err := sdk.GetCommandById(ctx, cmd.Id)
+		if err != nil {
+			return fmt.Errorf("reading the health checks' command: %w", err)
+		}
+		if cmd = got.Model; cmd.Status != prowlarr.CommandStatusQueued && cmd.Status != prowlarr.CommandStatusStarted {
+			break
+		}
+	}
+	if cmd.Status != prowlarr.CommandStatusCompleted {
+		return fmt.Errorf("the health checks ended %s: %s", cmd.Status, cmd.Exception)
+	}
 
 	return nil
 }

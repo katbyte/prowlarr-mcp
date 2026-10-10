@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -17,8 +17,8 @@ import (
 
 func registerIndexerAudits(r *registry, t *auditTable) {
 	type failingIn struct {
-		Test  bool `json:"test,omitempty"  jsonschema:"also test each failing indexer against its site, to say why it fails; counts against the site's request limits"`
-		Limit int  `json:"limit,omitempty" jsonschema:"findings to return, default 100"`
+		Test bool `json:"test,omitempty" jsonschema:"also test each failing indexer against its site, to say why it fails; counts against the site's request limits"`
+		auditPage
 	}
 	addAudit(r, t, &mcp.Tool{
 		Name: "audit_failing",
@@ -29,7 +29,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		now := time.Now()
 		for _, i := range s.enabled() {
 			out.Scanned++
-			hist, err := s.r.client.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: i.Id, Limit: 25})
+			hist, err := s.r.client.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), Limit: new(25)})
 			if err != nil {
 				return auditOut{}, err
 			}
@@ -68,7 +68,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 					f.Detail += "; its test says: " + strings.Join(row.Problems, "; ")
 				}
 			}
-			out.report(in.Limit, f)
+			out.report(f)
 		}
 
 		return out, nil
@@ -78,7 +78,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		Days        int `json:"days,omitempty"         jsonschema:"how far back to judge, default 30"`
 		Threshold   int `json:"threshold,omitempty"    jsonschema:"the failed share, in percent, that makes an indexer unreliable; default 20"`
 		MinRequests int `json:"min_requests,omitempty" jsonschema:"requests an indexer must have had to be judged, default 10"`
-		Limit       int `json:"limit,omitempty"        jsonschema:"findings to return, default 100"`
+		auditPage
 	}
 	addAudit(r, t, &mcp.Tool{
 		Name: "audit_unreliable",
@@ -138,7 +138,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		}
 		slices.SortStableFunc(rows, func(a, b scored) int { return b.pct - a.pct })
 		for _, row := range rows {
-			out.report(in.Limit, row.f)
+			out.report(row.f)
 		}
 
 		return out, nil
@@ -148,7 +148,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		Days        int `json:"days,omitempty"         jsonschema:"how far back to judge, default 30"`
 		ThresholdMs int `json:"threshold_ms,omitempty" jsonschema:"the average query time, in milliseconds, that makes an indexer slow; default 5000"`
 		MinQueries  int `json:"min_queries,omitempty"  jsonschema:"queries an indexer must have answered to be judged, default 5"`
-		Limit       int `json:"limit,omitempty"        jsonschema:"findings to return, default 100"`
+		auditPage
 	}
 	addAudit(r, t, &mcp.Tool{
 		Name: "audit_slow",
@@ -190,7 +190,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		}
 		slices.SortStableFunc(rows, func(a, b scored) int { return b.ms - a.ms })
 		for _, row := range rows {
-			out.report(in.Limit, row.f)
+			out.report(row.f)
 		}
 
 		return out, nil
@@ -199,7 +199,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 	type unusedIn struct {
 		Days       int  `json:"days,omitempty"         jsonschema:"how far back to look, default 90"`
 		MinAgeDays *int `json:"min_age_days,omitempty" jsonschema:"leave out indexers added fewer than this many days ago, default 7"`
-		Limit      int  `json:"limit,omitempty"        jsonschema:"findings to return, default 100"`
+		auditPage
 	}
 	addAudit(r, t, &mcp.Tool{
 		Name: "audit_unused",
@@ -248,9 +248,9 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 					detail += ", and no application receives it"
 					fix = "audit_unsynced says why no application receives it; " + fix
 				}
-				out.report(in.Limit, finding{Subject: i.Name, Kind: "indexer", Problem: "never_queried", Detail: detail, Fix: fix})
+				out.report(finding{Subject: i.Name, Kind: "indexer", Problem: "never_queried", Detail: detail, Fix: fix})
 			case st.NumberOfGrabs == 0:
-				out.report(in.Limit, finding{
+				out.report(finding{
 					Subject: i.Name, Kind: "indexer", Problem: "never_grabbed",
 					Detail: fmt.Sprintf("queried %d times in %d days and never grabbed from: every search waits for it and it gives nothing back", asked, window),
 					Fix:    "indexer_edit enable=false or indexer_delete, or a sync profile without automatic search (profile_create) to keep it for searching by hand",
@@ -266,7 +266,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 
 	type limitsIn struct {
 		Threshold int `json:"threshold,omitempty" jsonschema:"the share of a limit, in percent, used within its window that is worth a warning; default 80"`
-		Limit     int `json:"limit,omitempty"     jsonschema:"findings to return, default 100"`
+		auditPage
 	}
 	addAudit(r, t, &mcp.Tool{
 		Name: "audit_limits",
@@ -314,7 +314,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 				if float64(l.used) >= l.limit {
 					problem = l.problem + "_reached"
 				}
-				out.report(in.Limit, finding{
+				out.report(finding{
 					Subject: i.Name, Kind: "indexer", Problem: problem,
 					Detail: fmt.Sprintf("%d of %d %s in the last %s (%d%%)", l.used, int(l.limit), l.name, unit, pct),
 					Fix:    "indexer_edit query_limit/grab_limit to what the site allows, or a sync profile without RSS to spend fewer",

@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -67,12 +67,13 @@ func registerAppTools(r *registry) {
 	pc := r.client
 
 	type listOut struct {
+		pageOut
 		Apps []appRow `json:"apps"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "app_list",
 		Description: "The applications Prowlarr feeds indexers to - Sonarr, Radarr, Lidarr, Readarr and the rest: each one's sync level, tags, address, the address it reaches Prowlarr by, the categories it syncs, and how many indexers it receives and does not.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, listOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in pageIn) (*mcp.CallToolResult, listOut, error) {
 		apps, err := pc.GetApplications(ctx)
 		if err != nil {
 			return nil, listOut{}, err
@@ -85,9 +86,10 @@ func registerAppTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		out := listOut{}
-		for i := range apps.Model {
-			out.Apps = append(out.Apps, projectApp(&apps.Model[i], idx, tags))
+		page, where := paged(apps.Model, in.Limit, in.Offset, defaultLimit)
+		out := listOut{pageOut: where}
+		for i := range page {
+			out.Apps = append(out.Apps, projectApp(&page[i], idx, tags))
 		}
 
 		return nil, out, nil
@@ -230,7 +232,7 @@ func registerAppTools(r *registry) {
 		a.Presets = nil
 		// full unless asked otherwise: apply sets the one asked for
 		a.SyncLevel = prowlarr.ApplicationSyncLevelFullSync
-		if a.Tags, err = r.resolveTags(ctx, in.Tags, true); err != nil {
+		if a.Tags, err = r.makeTags(ctx, in.Tags); err != nil {
 			return nil, appOut{}, err
 		}
 		if in.ProwlarrURL == "" {
@@ -294,10 +296,22 @@ func registerAppTools(r *registry) {
 		Name:        "app_edit",
 		Description: "Change an application: its address, API key, the address it reaches Prowlarr by, its sync level, tags or sync categories, or any other setting by name. Prowlarr tests the connection before saving unless force is set; app_sync pushes the result.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in editIn) (*mcp.CallToolResult, editOut, error) {
-		a, err := r.resolveApp(ctx, in.App)
+		found, err := r.resolveApp(ctx, in.App)
 		if err != nil {
 			return nil, editOut{}, err
 		}
+
+		// what is sent back is the whole application, so it is read once no
+		// other edit of it can run
+		unlock := editing[prowlarr.ApplicationResource](r, found.Id, len(in.Tags)+len(in.AddTags) > 0)
+		defer unlock()
+
+		read, err := pc.GetApplicationsById(ctx, found.Id)
+		if err != nil {
+			return nil, editOut{}, err
+		}
+		a := read.Model
+
 		changed, err := apply(a, &in.appIn)
 		if err != nil {
 			return nil, editOut{}, err
@@ -417,26 +431,36 @@ func registerAppTools(r *registry) {
 
 	add(r, deleteTool, &mcp.Tool{
 		Name:        "app_delete",
-		Description: "Disconnect an application from Prowlarr. The indexers Prowlarr put in it stay there, no longer kept in step; setting its sync level to disabled pauses it instead.",
+		Description: "Disconnect an application from Prowlarr. The indexers Prowlarr put in it stay there, no longer kept in step; setting its sync level to disabled pauses it instead. Without confirm nothing changes and the answer says what would go.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
 		App string `json:"app" jsonschema:"the application to remove, by name or id"`
+		confirmIn
 	},
 	) (*mcp.CallToolResult, deletedOut, error) {
 		a, err := r.resolveApp(ctx, in.App)
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
-		if _, err := pc.DeleteApplicationsById(ctx, a.Id); err != nil {
+		idx, err := r.indexers(ctx)
+		if err != nil {
 			return nil, deletedOut{}, err
 		}
+		tags, err := r.tagLabels(ctx)
+		if err != nil {
+			return nil, deletedOut{}, err
+		}
+		loses := []string{"its connection settings and API key, as Prowlarr holds them", "its place in the routing: the tags and sync categories that decided what it received"}
+		if n := projectApp(a, idx, tags).IndexersSynced; n > 0 {
+			loses = append(loses, fmt.Sprintf("the %d indexers Prowlarr put in it stay there, no longer kept in step with Prowlarr's", n))
+		}
+		out, err := deleting(in.Confirm, a.Name, loses, "app_edit sync_level=disabled pauses it and keeps it", func() error {
+			_, delErr := pc.DeleteApplicationsById(ctx, a.Id)
 
-		return nil, deletedOut{Deleted: a.Name}, nil
+			return delErr
+		})
+
+		return nil, out, err
 	})
-}
-
-// deletedOut is what a delete answers: the name of what it removed.
-type deletedOut struct {
-	Deleted string `json:"deleted"`
 }
 
 // toAnys turns a list into the []any a provider field holds.

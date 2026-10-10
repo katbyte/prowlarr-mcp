@@ -27,6 +27,8 @@ import (
 	"testing"
 	"time"
 
+	acc "github.com/katbyte/go-kt/mcp/acctest"
+	"github.com/katbyte/prowlarr-mcp/lib/testenv"
 	"github.com/katbyte/prowlarr-mcp/tools"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -43,7 +45,7 @@ func buildBinary(t *testing.T) (bin, coverDir string) {
 		coverDir = f.Value.String()
 		// the main package too: without it the binary registers no exit hook
 		// and writes no counters at all
-		args = append(args, "-cover", "-coverpkg=.,./tools/...,./lib/...,./cli/...,./internal/...")
+		args = append(args, "-cover", "-coverpkg=.,./tools/...,./sdk/...,./lib/...,./cli/...,./internal/...")
 	}
 	cmd := exec.CommandContext(t.Context(), "go", append(args, ".")...) //nolint:gosec // go build of this checkout
 	// from the module root
@@ -171,8 +173,8 @@ func connect(t *testing.T, transport mcp.Transport, stderr *lockedBuffer) *mcp.C
 }
 
 func TestTheBinary(t *testing.T) {
-	if !ready {
-		t.Skip("PROWLARR_SERVER and PROWLARR_TOKEN are not set")
+	if !suite.Ready {
+		t.Skip(testenv.NotConfigured)
 	}
 	path, coverDir := buildBinary(t)
 	bin := binary{path: path, coverDir: coverDir}
@@ -206,7 +208,7 @@ func TestTheBinary(t *testing.T) {
 					t.Errorf("tools = %v\nwant %v", got, want)
 				}
 				// a real answer came back over stdout, uncorrupted
-				if out := callOn(t, cs, "server_info", nil); !strings.HasPrefix(str(out["version"]), "2.") || num(t, out["indexers"], "indexers") == 0 {
+				if out := callOn(t, cs, "server_info", nil); !strings.HasPrefix(acc.Str(out["version"]), "2.") || acc.Num(t, out["indexers"], "indexers") == 0 {
 					t.Errorf("server_info = %v", out)
 				}
 				// closing stdin ends the process cleanly
@@ -221,13 +223,13 @@ func TestTheBinary(t *testing.T) {
 			cs := connect(t, &mcp.CommandTransport{Command: cmd}, stderr)
 			t.Cleanup(func() { _ = cs.Close() })
 			const label = "through-the-binary"
-			t.Cleanup(func() { _, _ = invoke("tag_delete", map[string]any{"label": label}) })
+			t.Cleanup(func() { _, _ = suite.Invoke("tag_delete", map[string]any{"label": label}) })
 			callOn(t, cs, "indexer_edit", map[string]any{"indexer": idxAnime, "add_tags": []string{label}})
-			if !slices.Contains(strs(t, indexerRow(t, idxAnime)["tags"], "tags"), label) {
+			if !slices.Contains(acc.Strs(t, indexerRow(t, idxAnime)["tags"], "tags"), label) {
 				t.Error("indexer_edit through the binary did not tag the indexer")
 			}
 			callOn(t, cs, "indexer_edit", map[string]any{"indexer": idxAnime, "remove_tags": []string{label}})
-			if slices.Contains(strs(t, indexerRow(t, idxAnime)["tags"], "tags"), label) {
+			if slices.Contains(acc.Strs(t, indexerRow(t, idxAnime)["tags"], "tags"), label) {
 				t.Error("indexer_edit through the binary did not untag the indexer")
 			}
 		})
@@ -257,7 +259,7 @@ func TestTheBinary(t *testing.T) {
 		})
 
 		base := "http://" + addr
-		if !eventually(func() bool {
+		if !acc.EventuallyWithin(patience, func() bool {
 			resp, err := http.Get(base + "/healthz") //nolint:noctx // a probe with the test's own timeout
 			if err != nil {
 				return false

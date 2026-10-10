@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/lib/client"
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/pandorest/client"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -108,15 +108,19 @@ func (f *indexerFilter) keep(row *indexerRow) bool {
 func registerIndexerTools(r *registry) {
 	pc := r.client
 
+	type listIn struct {
+		indexerFilter
+		pageIn
+	}
 	type listOut struct {
-		Total    int          `json:"total"    jsonschema:"indexers matching the filters"`
-		Enabled  int          `json:"enabled"  jsonschema:"of those, how many are enabled"`
-		Indexers []indexerRow `json:"indexers"`
+		pageOut
+		Enabled  int          `json:"enabled"  jsonschema:"of the indexers matching the filters, how many are enabled"`
+		Indexers []indexerRow `json:"indexers" jsonschema:"by name"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "indexer_list",
 		Description: "Prowlarr's indexers: each one's definition, usenet or torrent, public or private, whether it is enabled, its priority, tags, sync profile and URL, and whether Prowlarr has disabled it after failures. Filter by name, protocol, privacy, tag, enabled or failing.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, in indexerFilter) (*mcp.CallToolResult, listOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in listIn) (*mcp.CallToolResult, listOut, error) {
 		all, err := r.indexers(ctx)
 		if err != nil {
 			return nil, listOut{}, err
@@ -126,18 +130,19 @@ func registerIndexerTools(r *registry) {
 			return nil, listOut{}, err
 		}
 		out := listOut{}
+		var rows []indexerRow
 		for i := range all {
 			row := l.indexerRow(&all[i])
 			if !in.keep(&row) {
 				continue
 			}
-			out.Total++
 			if row.Enabled {
 				out.Enabled++
 			}
-			out.Indexers = append(out.Indexers, row)
+			rows = append(rows, row)
 		}
-		slices.SortFunc(out.Indexers, func(a, b indexerRow) int { return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)) })
+		slices.SortFunc(rows, func(a, b indexerRow) int { return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)) })
+		out.Indexers, out.pageOut = paged(rows, in.Limit, in.Offset, defaultLimit)
 
 		return nil, out, nil
 	})
@@ -267,7 +272,7 @@ func registerIndexerTools(r *registry) {
 				}
 			}
 		}
-		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: i.Id, Limit: 10})
+		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), Limit: new(10)})
 		if err != nil {
 			return nil, getOut{}, err
 		}
@@ -375,7 +380,7 @@ func testResults(results []prowlarr.ProviderTestAllResult, names map[int]string)
 			if f.PropertyName != "" {
 				msg = f.PropertyName + ": " + msg
 			}
-			row.Problems = append(row.Problems, msg)
+			row.Problems = append(row.Problems, outsideProse(msg))
 		}
 		out = append(out, row)
 	}
@@ -413,9 +418,10 @@ func testOne(name string, err error) (testRow, error) {
 	if !ok || se.StatusCode != http.StatusBadRequest {
 		return row, err
 	}
-	row.Problems = se.Messages
+	// what failed is often the site's own words, or an application's
+	row.Problems = outsideLines(se.Messages)
 	if len(row.Problems) == 0 {
-		row.Problems = []string{se.Body}
+		row.Problems = []string{outsideProse(se.Body)}
 	}
 
 	return row, nil

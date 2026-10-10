@@ -6,20 +6,17 @@
 // Every tool is registered through add with a kind: read tools never change
 // Prowlarr's state, write tools do (and are dropped under --read-only), and
 // delete tools remove indexers, applications and the other things Prowlarr
-// holds (and are only registered with --enable-delete). --toolsets picks the
-// groups a session needs, and --allow-tools / --deny-tools narrow the set
-// further.
+// holds (and are only registered with --enable-delete, and change nothing
+// without confirm). --toolsets and
+// --allow-tools ask for tools, and --deny-tools takes tools out of what they
+// asked for. Which tools a session gets from all that, and what each tells a
+// client about itself, is go-kt's registry's work.
 package tools
 
 import (
-	"cmp"
-	"context"
-	"fmt"
-	"reflect"
-	"slices"
-	"strings"
-
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/go-kt/lock"
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -28,17 +25,20 @@ type Options struct {
 	// ReadOnly registers only tools that never change Prowlarr's state.
 	ReadOnly bool
 	// EnableDelete registers the tools that delete indexers, applications,
-	// profiles, proxies, download clients and tags. Off unless the operator
-	// opts in.
+	// profiles, proxies, download clients, notifications, saved filters and
+	// backups. Off unless the operator opts in.
 	EnableDelete bool
 	// Toolsets, when set, restricts registration to the named groups (see
 	// Toolsets). "core" is always included, so a set can be asked for on its
-	// own. Allow and Deny narrow whatever is left.
+	// own.
 	Toolsets []string
-	// Allow, when set, restricts registration to matching tools: exact names,
-	// prefix/suffix globs (indexer_*, *_delete) or the "essential" preset.
+	// Allow asks for tools by name: exact names, prefix/suffix globs
+	// (indexer_*, *_delete) or the "essential" preset. Beside Toolsets it
+	// adds to them, "these sets and these tools as well"; on its own it is
+	// only the tools it names. It lets nothing past ReadOnly or EnableDelete.
 	Allow []string
-	// Deny removes matching tools from whatever Allow left.
+	// Deny removes matching tools from whatever Toolsets and Allow asked for:
+	// it is how a toolset is narrowed.
 	Deny []string
 }
 
@@ -73,27 +73,43 @@ var Toolsets = map[string][]string{
 		"audit_download_clients", "audit_tags", "audit_health", "audit_profiles",
 		"indexer_test", "indexer_edit", "indexer_bulk_edit", "indexer_stats",
 		"app_get", "app_test", "app_edit", "app_sync", "profile_list", "profile_edit",
-		"proxy_list", "proxy_test", "proxy_edit", "tag_list", "tag_delete", "server_health",
+		"proxy_list", "proxy_test", "proxy_edit", "tag_list", "tag_edit", "tag_delete", "server_health",
 	},
 	// set Prowlarr up: find a tracker in the catalogue and add it, add the
 	// applications it feeds and the proxies and download clients it uses, and
 	// the categories and tags that describe them
 	"setup": {
 		"indexer_catalog", "indexer_add", "app_add", "profile_create", "proxy_add", "downloadclient_add",
-		"tag_create", "category_list",
+		"notification_add", "tag_create", "category_list",
 	},
 	// search from Prowlarr itself and send a release straight to a download
 	// client, without going through an application
 	"grab": {
 		"release_grab", "downloadclient_list", "downloadclient_test", "downloadclient_edit",
 	},
-	// running Prowlarr rather than using it: scheduled tasks, logs, updates,
-	// backups, notifications, and the tools that remove things
+	// running Prowlarr rather than using it: scheduled tasks and what they
+	// queue, logs, updates, its own settings, backups and a restart,
+	// notifications, the filters saved in its web interface, and the tools
+	// that remove things
 	"admin": {
-		"task_list", "task_run", "server_logs", "server_log", "server_updates", "backup_list",
-		"notification_list", "notification_test",
+		"task_list", "task_run", "command_list", "command_cancel", "server_logs", "server_log", "server_updates",
+		"server_settings", "server_settings_edit", "server_restart",
+		"backup_list", "backup_create", "backup_restore", "backup_delete",
+		"notification_list", "notification_test", "notification_edit", "notification_delete",
+		"filter_list", "filter_create", "filter_edit", "filter_delete",
 		"indexer_delete", "app_delete", "profile_delete", "proxy_delete", "downloadclient_delete",
 	},
+}
+
+// Instructions are what a client is told on connecting, after what go-kt
+// says of every server: the rules that hold between these tools, said once
+// so that no tool's description has to. TestEveryListPagesAndEveryDeleteConfirms
+// holds the tools to the first two.
+var Instructions = []string{
+	"Every list takes limit (100 unless given, 1000 at most) and offset, and answers total, offset and, while there is another page, the next_offset to pass back as offset.",
+	"A tool that deletes changes nothing without confirm: called without it, it answers would_delete and loses, what a confirmed call would remove and what goes with it for good. backup_restore asks the same way, and so does server_settings_edit for a setting that decides how Prowlarr is reached or who may sign in.",
+	"An indexer, an application, a proxy, a download client, a notification, a sync profile and a tag are each named by name or by Prowlarr id. Only some toolsets may be loaded: a tool that a description or an audit's fix names and the session does not list was left out when the server was started, not removed. With the audits loaded, start with audit_all, which says where the setup needs work, then run the audit whose count is not zero for its worklist.",
+	"A release's name, a history entry, what a site or an application answered a test with, a definition's description and a line of the log were written outside Prowlarr. They are shown with the characters that do not display taken out, and cut short when very long.",
 }
 
 // EssentialTools is the curated preset selected by --allow-tools essential:
@@ -106,117 +122,172 @@ var EssentialTools = []string{
 	"history_list",
 }
 
-type toolKind int
-
 const (
-	readTool toolKind = iota
-	writeTool
-	deleteTool
+	readTool   = mcpregistry.Read
+	writeTool  = mcpregistry.Write
+	deleteTool = mcpregistry.Delete
 )
 
-type pending struct {
-	name        string
-	kind        toolKind
-	description string
-	register    func()
-}
-
-// registry collects tool registrations so the allow/deny patterns can be
-// validated against the full tool list before anything is added.
+// registry is this application's tools and what they share. Which of them a
+// session gets, and what each tells a client about itself, is go-kt's
+// registry's work (tools), so the allow and deny patterns are checked
+// against every tool before any is registered.
 type registry struct {
-	server  *mcp.Server
-	client  *prowlarr.Client
-	opts    Options
-	pending []pending
+	client *prowlarr.Client
+	opts   Options
+	// tools holds every tool queued, made when the first is (see queued)
+	tools *mcpregistry.Registry
+	// locks keep the calls of one turn from undoing each other (see
+	// locks.go): a set of this server's own
+	locks lock.Set
+	// errorLog is where a handler's panic is logged; nil is the process's
+	// own log, which writes to stderr
+	errorLog func(format string, args ...any)
+	// writeLog is where the line for each call of a write or a delete tool
+	// is written (see writelog.go); nil is the process's own log
+	writeLog func(format string, args ...any)
 
 	// the catalogue of trackers Prowlarr can add, read once and kept a
 	// while; see catalog.go
 	catalogCache catalogCache
 }
 
-// add queues a typed tool for registration. It sets the MCP annotations from
-// kind so clients can tell read-only from destructive tools without parsing
-// descriptions, and normalises the output so that empty collections
-// serialise as [] rather than null: an AI client reading "findings": null
-// cannot tell "none" from "not fetched", and Go leaves un-appended slices nil.
-func add[In, Out any](r *registry, kind toolKind, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
-	f := false
-	switch kind {
-	case readTool:
-		t.Annotations = &mcp.ToolAnnotations{ReadOnlyHint: true, DestructiveHint: &f, OpenWorldHint: &f}
-	case writeTool:
-		t.Annotations = &mcp.ToolAnnotations{DestructiveHint: &f, OpenWorldHint: &f}
-	case deleteTool:
-		t.Annotations = &mcp.ToolAnnotations{DestructiveHint: new(true), OpenWorldHint: &f}
-	}
+// toolHints are what a tool tells a client about itself beyond its kind, in
+// the MCP annotations' terms. A write tool is destructive when it can change
+// or take away what was there - a setting written over, a tag removed, the
+// indexers a sync takes out of an application - and additive when it only
+// ever adds; idempotent when calling it again with the same arguments changes
+// nothing more, which includes a repeat that is refused.
+//
+// Every write tool has an entry, each decided on its own rather than taken
+// from the kind: marked all alike, app_sync (it removes the indexers an
+// application should no longer have) and task_run (housekeeping deletes old
+// history) read as additive to a client. A write tool missing from here is
+// marked destructive, and fails TestEveryWriteToolIsHinted.
+//
+// One that is open world reaches past Prowlarr and what it manages, as an
+// email does: a test notification is sent to whoever the notification
+// reaches. A grab is not: Prowlarr hands the release to its own download
+// client.
+var toolHints = map[string]mcpregistry.Hints{
+	// a new indexer beside the others; asked again it adds a second from the
+	// same definition, which is what audit_duplicates finds
+	"indexer_add": {Additive: true},
+	// settings, tags and seed goals written over, the same ones again the
+	// second time
+	"indexer_edit":      {Idempotent: true},
+	"indexer_bulk_edit": {Idempotent: true},
+	// a new application beside the others; asked again it connects the same
+	// one twice, which audit_apps finds
+	"app_add": {Additive: true},
+	// settings and tags written over, the same ones again the second time
+	"app_edit": {Idempotent: true},
+	// adds, rewrites and removes indexers in every application until each
+	// holds what it should; a second sync finds nothing left to change
+	"app_sync": {Idempotent: true},
+	// a new profile, which nothing uses until an indexer is given it
+	"profile_create": {Additive: true},
+	// switches written over, the same ones again the second time
+	"profile_edit": {Idempotent: true},
+	// a new proxy, used by the indexers that share its tag
+	"proxy_add": {Additive: true},
+	// settings and tags written over, the same ones again the second time
+	"proxy_edit": {Idempotent: true},
+	// a new download client beside the others
+	"downloadclient_add": {Additive: true},
+	// settings written over, the same ones again the second time
+	"downloadclient_edit": {Idempotent: true},
+	// a new label; one that exists is refused before anything is sent
+	"tag_create": {Additive: true, Idempotent: true},
+	// a label written over, the same one again the second time
+	"tag_edit": {Idempotent: true},
+	// a tag nothing carries is removed; asked again there is no such tag
+	"tag_delete": {Idempotent: true},
+	// a release handed to a download client and a grab recorded, with nothing
+	// in Prowlarr written over; asked again it is sent again
+	"release_grab": {Additive: true},
+	// a sync takes indexers out of applications, housekeeping deletes old
+	// history, and each backup is one more
+	"task_run": {},
+	// a queued command is taken off the queue; asked again it is no longer
+	// there to take
+	"command_cancel": {Idempotent: true},
+	// one more backup beside the others, kept until it is deleted
+	"backup_create": {Additive: true},
+	// the database and settings written over with a backup's
+	"backup_restore": {},
+	// what is under way is cut off, and Prowlarr is down until it is back
+	"server_restart": {},
+	// settings written over, the same ones again the second time
+	"server_settings_edit": {Idempotent: true},
+	// a new notification beside the others; asked again it adds a second
+	"notification_add": {Additive: true},
+	// settings, events and tags written over, the same ones again the
+	// second time
+	"notification_edit": {Idempotent: true},
+	// a new saved filter beside the others; asked again it saves a second
+	"filter_create": {Additive: true},
+	// a label and conditions written over, the same ones again the second
+	// time
+	"filter_edit": {Idempotent: true},
 
-	wrapped := func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
-		res, out, err := h(ctx, req, in)
-		if err == nil {
-			emptyNilSlices(reflect.ValueOf(&out).Elem())
-		}
-
-		return res, out, err
-	}
-
-	r.pending = append(r.pending, pending{
-		name:        t.Name,
-		kind:        kind,
-		description: t.Description,
-		register:    func() { mcp.AddTool(r.server, t, wrapped) },
-	})
+	// a read: Prowlarr is not changed, but the message goes out to whoever
+	// the notification reaches
+	"notification_test": {SendsOut: true},
 }
 
-// emptyNilSlices walks v (structs, pointers, slices) and replaces every settable
-// nil slice with an empty one.
-func emptyNilSlices(v reflect.Value) {
-	switch v.Kind() {
-	case reflect.Pointer:
-		if !v.IsNil() {
-			emptyNilSlices(v.Elem())
-		}
-	case reflect.Struct:
-		for _, f := range v.Fields() {
-			emptyNilSlices(f)
-		}
-	case reflect.Slice:
-		if v.IsNil() {
-			if v.CanSet() {
-				v.Set(reflect.MakeSlice(v.Type(), 0, 0))
-			}
-
-			return
-		}
-		for i := range v.Len() {
-			emptyNilSlices(v.Index(i))
-		}
-	default:
+// queued is every tool queued so far, in go-kt's registry, which is made
+// when the first tool is.
+func (r *registry) queued() *mcpregistry.Registry {
+	if r.tools == nil {
+		r.tools = mcpregistry.New(mcpregistry.Config{
+			Toolsets:  Toolsets,
+			Essential: EssentialTools,
+			Hints:     toolHints,
+			LogError:  r.errorLog,
+			LogWrite:  r.logWrite,
+		})
 	}
+
+	return r.tools
+}
+
+// add queues a typed tool for registration. go-kt's registry sets the MCP
+// annotations from kind and the tool's hints so clients can tell read-only
+// from destructive tools without parsing descriptions, turns a panic in the
+// handler into an ordinary tool error, and sends empty collections as []
+// rather than null: an AI client reading "findings": null cannot tell "none"
+// from "not fetched", and Go leaves un-appended slices nil.
+func add[In, Out any](r *registry, kind mcpregistry.Kind, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
+	mcpregistry.Add(r.queued(), kind, t, h)
+}
+
+// queuedFor is every tool queued for these options: registration never calls
+// the client, only the handlers do.
+func queuedFor(client *prowlarr.Client, opts Options) *registry {
+	r := &registry{client: client, opts: opts}
+	queueTools(r)
+
+	return r
 }
 
 // RegisterAll adds every tool permitted by opts to the MCP server and returns
 // the names registered. It fails when an allow/deny pattern matches no tool,
 // so a typo cannot silently hide one.
 func RegisterAll(server *mcp.Server, client *prowlarr.Client, opts Options) ([]string, error) {
-	r := &registry{server: server, client: client, opts: opts}
-	queueTools(r)
+	return queuedFor(client, opts).queued().Register(server, opts.selection())
+}
 
-	keep, err := selected(r, opts)
-	if err != nil {
-		return nil, err
+// selection is the part of the options that chooses tools, as go-kt's
+// registry takes it.
+func (o *Options) selection() mcpregistry.Selection {
+	return mcpregistry.Selection{
+		ReadOnly:     o.ReadOnly,
+		EnableDelete: o.EnableDelete,
+		Toolsets:     o.Toolsets,
+		Allow:        o.Allow,
+		Deny:         o.Deny,
 	}
-
-	var registered []string
-	for _, p := range r.pending {
-		if !keep[p.name] {
-			continue
-		}
-		p.register()
-		registered = append(registered, p.name)
-	}
-	slices.Sort(registered)
-
-	return registered, nil
 }
 
 // queueTools queues every tool, before any filtering.
@@ -233,229 +304,50 @@ func queueTools(r *registry) {
 	registerDownloadClientTools(r)
 	registerNotificationTools(r)
 	registerTagTools(r)
+	registerBackupTools(r)
+	registerCommandTools(r)
+	registerSettingsTools(r)
+	registerFilterTools(r)
 	registerAuditTools(r)
 }
 
-// names lists the queued tools in registration order.
-func (r *registry) names() []string {
-	out := make([]string, 0, len(r.pending))
-	for _, p := range r.pending {
-		out = append(out, p.name)
-	}
-
-	return out
-}
-
-// selected applies the kind gates and the toolset/allow/deny filters, and is
-// shared by RegisterAll and Describe so `prowlarr-mcp tools` cannot drift from
-// what the server actually registers.
-func selected(r *registry, opts Options) (map[string]bool, error) {
-	names := r.names()
-	sets, err := compileToolsets(opts.Toolsets, names)
-	if err != nil {
-		return nil, err
-	}
-	allow, err := compilePatterns(opts.Allow, names, "allow")
-	if err != nil {
-		return nil, err
-	}
-	deny, err := compilePatterns(opts.Deny, names, "deny")
-	if err != nil {
-		return nil, err
-	}
-
-	keep := make(map[string]bool, len(r.pending))
-	for _, p := range r.pending {
-		switch {
-		case p.kind == deleteTool && !opts.EnableDelete:
-		case p.kind != readTool && opts.ReadOnly:
-		case len(sets) > 0 && !sets[p.name]:
-		case len(allow) > 0 && !matchesAny(allow, p.name):
-		case matchesAny(deny, p.name):
-		default:
-			keep[p.name] = true
-		}
-	}
-
-	return keep, nil
-}
-
-// compileToolsets turns the requested set names into the tools they hold,
-// always including core. An unknown name aborts startup naming the valid ones,
-// the way an allow/deny pattern that matches nothing does.
-func compileToolsets(raw, known []string) (map[string]bool, error) {
-	var asked []string
-	for _, entry := range raw {
-		for name := range strings.SplitSeq(entry, ",") {
-			if name = strings.TrimSpace(name); name != "" {
-				asked = append(asked, name)
-			}
-		}
-	}
-	if len(asked) == 0 {
-		return nil, nil
-	}
-
-	out := map[string]bool{}
-	for _, name := range asked {
-		if name == "all" {
-			for _, t := range known {
-				out[t] = true
-			}
-			continue
-		}
-		if tools, ok := Toolsets[name]; ok {
-			for _, t := range tools {
-				out[t] = true
-			}
-			continue
-		}
-		// not a named set: a resource family, every tool with that prefix
-		found := false
-		for _, t := range known {
-			if strings.HasPrefix(t, name+"_") {
-				out[t], found = true, true
-			}
-		}
-		if !found {
-			return nil, fmt.Errorf("unknown toolset %q (sets: all, %s; or a resource family: %s)",
-				name, strings.Join(setNames(), ", "), strings.Join(resourceFamilies(known), ", "))
-		}
-	}
-	// core is what every other set assumes: without it there is no way to find
-	// an indexer or an application
-	for _, t := range Toolsets["core"] {
-		out[t] = true
-	}
-
-	return out, nil
-}
-
-// setNames lists the curated toolsets, sorted.
-func setNames() []string {
-	out := make([]string, 0, len(Toolsets))
-	for k := range Toolsets {
-		out = append(out, k)
-	}
-	slices.Sort(out)
-
-	return out
-}
-
-// resourceFamilies lists the resource prefixes in use, sorted.
-func resourceFamilies(known []string) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, t := range known {
-		if i := strings.Index(t, "_"); i > 0 && !seen[t[:i]] {
-			seen[t[:i]] = true
-			out = append(out, t[:i])
-		}
-	}
-	slices.Sort(out)
-
-	return out
-}
-
-// compilePatterns expands the essential preset, splits comma-separated
-// entries, and checks that every pattern matches at least one known tool.
-func compilePatterns(raw, known []string, which string) ([]string, error) {
-	var out []string
-	for _, entry := range raw {
-		for pat := range strings.SplitSeq(entry, ",") {
-			pat = strings.TrimSpace(pat)
-			if pat == "" {
-				continue
-			}
-			if pat == "essential" {
-				out = append(out, EssentialTools...)
-				continue
-			}
-			if !slices.ContainsFunc(known, func(n string) bool { return matchPattern(pat, n) }) {
-				return nil, fmt.Errorf("%s-tools pattern %q matches no tool (have: %s)", which, pat, strings.Join(known, ", "))
-			}
-			out = append(out, pat)
-		}
-	}
-
-	return out, nil
-}
-
-func matchesAny(patterns []string, name string) bool {
-	return slices.ContainsFunc(patterns, func(p string) bool { return matchPattern(p, name) })
-}
-
-// matchPattern supports exact names plus a single leading or trailing '*'.
-func matchPattern(pattern, name string) bool {
-	switch {
-	case pattern == "*":
-		return true
-	case strings.HasSuffix(pattern, "*"):
-		return strings.HasPrefix(name, strings.TrimSuffix(pattern, "*"))
-	case strings.HasPrefix(pattern, "*"):
-		return strings.HasSuffix(name, strings.TrimPrefix(pattern, "*"))
-	default:
-		return pattern == name
-	}
-}
-
 // ToolInfo describes a registered tool without a server to register it on.
-type ToolInfo struct {
-	Name        string
-	Kind        string // read, write or delete
-	Toolset     string // the curated set it belongs to
-	Description string
-}
+type ToolInfo = mcpregistry.Info
 
-// Describe lists the tools opts would register, for `prowlarr-mcp tools`. It
-// needs no connectivity: registration never calls the client, only the
-// handlers do.
-func Describe(opts Options) ([]ToolInfo, error) {
+// described is every tool queued with no server behind it, for the answers
+// that need none.
+func described(opts Options) (*registry, error) {
 	client, err := prowlarr.New("https://describe.invalid", "describe")
 	if err != nil {
 		return nil, err
 	}
-	server := mcp.NewServer(&mcp.Implementation{Name: "prowlarr-mcp", Version: "describe"}, nil)
 
-	r := &registry{server: server, client: client, opts: opts}
-	queueTools(r)
+	return queuedFor(client, opts), nil
+}
 
-	keep, err := selected(r, opts)
+// Describe lists the tools opts would register, for `prowlarr-mcp tools`. It
+// needs no connectivity, and makes the same choice RegisterAll does.
+func Describe(opts Options) ([]ToolInfo, error) {
+	r, err := described(opts)
 	if err != nil {
 		return nil, err
 	}
 
-	set := map[string]string{}
-	for name, members := range Toolsets {
-		for _, m := range members {
-			// core wins: it is the set a tool is reached through most often
-			if set[m] == "" || name == "core" {
-				set[m] = name
-			}
-		}
-	}
-
-	kinds := map[toolKind]string{readTool: "read", writeTool: "write", deleteTool: "delete"}
-	out := make([]ToolInfo, 0, len(r.pending))
-	for _, p := range r.pending {
-		if !keep[p.name] {
-			continue
-		}
-		out = append(out, ToolInfo{Name: p.name, Kind: kinds[p.kind], Toolset: set[p.name], Description: p.description})
-	}
-	slices.SortFunc(out, func(a, b ToolInfo) int { return cmp.Compare(a.Name, b.Name) })
-
-	return out, nil
+	return r.queued().Describe(opts.selection())
 }
 
 // ToolsetNames lists the curated toolsets, for help output.
-func ToolsetNames() []string { return setNames() }
+func ToolsetNames() []string {
+	return mcpregistry.New(mcpregistry.Config{Toolsets: Toolsets}).ToolsetNames()
+}
 
 // FamilyNames lists the resource prefixes accepted by --toolsets, for help
 // output.
 func FamilyNames() []string {
-	r := &registry{}
-	queueTools(r)
+	r, err := described(Options{})
+	if err != nil {
+		return nil
+	}
 
-	return resourceFamilies(r.names())
+	return r.queued().FamilyNames()
 }

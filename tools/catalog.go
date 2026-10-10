@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -133,7 +133,7 @@ func registerCatalogTools(r *registry) {
 		Privacy  string `json:"privacy,omitempty"  jsonschema:"public, semiPrivate or private"`
 		Language string `json:"language,omitempty" jsonschema:"the site's language, e.g. en or fr-FR"`
 		Category int    `json:"category,omitempty" jsonschema:"only sites carrying this category, e.g. 5000 for TV or 2000 for movies (category_list names them)"`
-		Limit    int    `json:"limit,omitempty"    jsonschema:"entries to return, default 25"`
+		pageIn
 	}
 	type catalogRow struct {
 		Definition  string   `json:"definition"            jsonschema:"what indexer_add takes"`
@@ -149,7 +149,7 @@ func registerCatalogTools(r *registry) {
 		Added       []string `json:"added,omitempty"       jsonschema:"indexers already added from this definition"`
 	}
 	type catalogOut struct {
-		Total   int          `json:"total"   jsonschema:"entries matching"`
+		pageOut
 		Entries []catalogRow `json:"entries"`
 	}
 	add(r, readTool, &mcp.Tool{
@@ -165,6 +165,7 @@ func registerCatalogTools(r *registry) {
 			return nil, catalogOut{}, err
 		}
 		words := strings.Fields(strings.ToLower(in.Search))
+		limit, offset := pageArgs(in.Limit, in.Offset, defaultLimit)
 		out := catalogOut{}
 		for i := range all {
 			e := &all[i]
@@ -182,12 +183,12 @@ func registerCatalogTools(r *registry) {
 				continue
 			}
 			out.Total++
-			if len(out.Entries) >= limitOr(in.Limit, 25) {
+			if out.Total <= offset || len(out.Entries) >= limit {
 				continue
 			}
 			row := catalogRow{
 				Definition: catalogName(e, all), Protocol: string(e.Protocol), Privacy: string(e.Privacy), Language: e.Language,
-				Description: e.Description, URLs: nonEmpty(e.IndexerUrls), Categories: topCategories(e), Needs: needs(e),
+				Description: outsideProse(e.Description), URLs: nonEmpty(e.IndexerUrls), Categories: topCategories(e), Needs: needs(e),
 				Cloudflare: cloudflare(e.Fields),
 			}
 			for k, ok := range searches(e) {
@@ -203,6 +204,8 @@ func registerCatalogTools(r *registry) {
 			}
 			out.Entries = append(out.Entries, row)
 		}
+		out.Offset = min(offset, out.Total)
+		out.NextOffset = nextOffset(out.Offset, len(out.Entries), out.Total)
 
 		return nil, out, nil
 	})
@@ -267,7 +270,7 @@ func registerCatalogTools(r *registry) {
 			}
 			i.AppProfileId = profiles.Model[0].Id
 		}
-		if i.Tags, err = r.resolveTags(ctx, in.Tags, true); err != nil {
+		if i.Tags, err = r.makeTags(ctx, in.Tags); err != nil {
 			return nil, addOut{}, err
 		}
 		values := in.values()
@@ -322,25 +325,27 @@ func registerCatalogTools(r *registry) {
 		Parent int    `json:"parent,omitempty"`
 	}
 	type categoriesOut struct {
+		pageOut
 		Categories []categoryRow `json:"categories" jsonschema:"each top-level category followed by its subcategories"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "category_list",
 		Description: "The standard Newznab categories Prowlarr files releases under and the applications sync by - 2000 movies, 5000 TV, 3000 audio, 7000 books and their subcategories - for release_search and an application's sync categories.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, categoriesOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in pageIn) (*mcp.CallToolResult, categoriesOut, error) {
 		res, err := pc.GetIndexerCategories(ctx)
 		if err != nil {
 			return nil, categoriesOut{}, err
 		}
-		out := categoriesOut{}
+		var all []categoryRow
 		for _, c := range res.Model {
-			out.Categories = append(out.Categories, categoryRow{ID: c.Id, Name: c.Name})
+			all = append(all, categoryRow{ID: c.Id, Name: c.Name})
 			for _, s := range c.SubCategories {
-				out.Categories = append(out.Categories, categoryRow{ID: s.Id, Name: s.Name, Parent: c.Id})
+				all = append(all, categoryRow{ID: s.Id, Name: s.Name, Parent: c.Id})
 			}
 		}
+		page, where := paged(all, in.Limit, in.Offset, defaultLimit)
 
-		return nil, out, nil
+		return nil, categoriesOut{pageOut: where, Categories: page}, nil
 	})
 }
 

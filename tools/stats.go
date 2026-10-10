@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/katbyte/prowlarr-mcp/lib/client"
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/pandorest/client"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -69,9 +69,9 @@ func dataInt(h *prowlarr.HistoryResource, key string) *int {
 func projectHistory(h *prowlarr.HistoryResource, names map[int]string) historyRow {
 	row := historyRow{
 		Date: h.Date, Indexer: names[h.IndexerId], Event: eventNames[h.EventType], Successful: boolv(h.Successful),
-		Query: data(h, "query"), QueryType: data(h, "queryType"), Categories: data(h, "categories"),
+		Query: outsideName(data(h, "query")), QueryType: data(h, "queryType"), Categories: data(h, "categories"),
 		Source: data(h, "source"), Host: data(h, "host"), Results: dataInt(h, "queryResults"), ElapsedMs: dataInt(h, "elapsedTime"),
-		Cached: data(h, "cached") == "1", Title: data(h, "grabTitle"), GrabMethod: data(h, "grabMethod"), URL: redactURL(data(h, "url")),
+		Cached: data(h, "cached") == "1", Title: outsideName(data(h, "grabTitle")), GrabMethod: data(h, "grabMethod"), URL: redactURL(data(h, "url")),
 	}
 	if row.Indexer == "" {
 		row.Indexer = fmt.Sprintf("id %d", h.IndexerId)
@@ -116,11 +116,11 @@ func registerStatsTools(r *registry) {
 		Successful *bool  `json:"successful,omitempty" jsonschema:"false for only the failures, true for only the successes"`
 		Days       int    `json:"days,omitempty"       jsonschema:"how far back, default 7"`
 		Source     string `json:"source,omitempty"     jsonschema:"only events one application or client caused, matched against its user agent, e.g. Sonarr"`
-		Limit      int    `json:"limit,omitempty"      jsonschema:"events to return, default 50"`
+		pageIn
 	}
 	type historyOut struct {
-		Total  int          `json:"total"  jsonschema:"events matching, within the days asked for; capped at 5000 read"`
-		Events []historyRow `json:"events" jsonschema:"newest first"`
+		pageOut
+		Events []historyRow `json:"events" jsonschema:"newest first; total counts the events matching within the days asked for, of at most 5000 read"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "history_list",
@@ -131,7 +131,7 @@ func registerStatsTools(r *registry) {
 			return nil, historyOut{}, err
 		}
 		names := indexerNames(all)
-		opts := prowlarr.GetHistoryOperationOptions{PageSize: 250, SortKey: "date", SortDirection: prowlarr.SortDirectionDescending, Successful: in.Successful}
+		opts := prowlarr.GetHistoryOperationOptions{PageSize: new(250), SortKey: "date", SortDirection: prowlarr.SortDirectionDescending, Successful: in.Successful}
 		if in.Indexer != "" {
 			var i *prowlarr.IndexerResource
 			if i, err = find(all, in.Indexer, "indexer"); err != nil {
@@ -147,17 +147,19 @@ func registerStatsTools(r *registry) {
 			opts.EventType = []int{code}
 		}
 		cutoff := time.Now().AddDate(0, 0, -daysOr(in.Days, 7))
-		limit := limitOr(in.Limit, 50)
+		limit, offset := pageArgs(in.Limit, in.Offset, defaultLimit)
 		out := historyOut{}
 		err = r.eachHistory(ctx, opts, cutoff, 5000, func(h *prowlarr.HistoryResource) {
 			if in.Source != "" && !strings.Contains(strings.ToLower(data(h, "source")), strings.ToLower(in.Source)) {
 				return
 			}
 			out.Total++
-			if len(out.Events) < limit {
+			if out.Total > offset && len(out.Events) < limit {
 				out.Events = append(out.Events, projectHistory(h, names))
 			}
 		})
+		out.Offset = min(offset, out.Total)
+		out.NextOffset = nextOffset(out.Offset, len(out.Events), out.Total)
 
 		return nil, out, err
 	})
@@ -167,6 +169,7 @@ func registerStatsTools(r *registry) {
 		Protocol string `json:"protocol,omitempty" jsonschema:"usenet or torrent"`
 		Tag      string `json:"tag,omitempty"      jsonschema:"only indexers carrying this tag"`
 		Indexer  string `json:"indexer,omitempty"  jsonschema:"only this indexer, by name or id"`
+		pageIn
 	}
 	type indexerStat struct {
 		Indexer           string `json:"indexer"`
@@ -192,10 +195,11 @@ func registerStatsTools(r *registry) {
 		Grabs   int    `json:"grabs"`
 	}
 	type statsOut struct {
-		Days     int           `json:"days"`
-		Queries  int           `json:"queries"`
-		Grabs    int           `json:"grabs"`
-		Indexers []indexerStat `json:"indexers" jsonschema:"busiest first"`
+		Days    int `json:"days"`
+		Queries int `json:"queries" jsonschema:"across every indexer counted, not only the ones on this page"`
+		Grabs   int `json:"grabs"   jsonschema:"across every indexer counted, not only the ones on this page"`
+		pageOut
+		Indexers []indexerStat `json:"indexers" jsonschema:"busiest first; total, limit and offset count these"`
 		Sources  []agentStat   `json:"sources"  jsonschema:"which applications do the asking, busiest first"`
 		Hosts    []hostStat    `json:"hosts"`
 	}
@@ -252,6 +256,7 @@ func registerStatsTools(r *registry) {
 		slices.SortStableFunc(out.Indexers, func(a, b indexerStat) int {
 			return (b.Queries + b.RSSQueries + b.Grabs) - (a.Queries + a.RSSQueries + a.Grabs)
 		})
+		out.Indexers, out.pageOut = paged(out.Indexers, in.Limit, in.Offset, defaultLimit)
 		for _, u := range res.Model.UserAgents {
 			out.Sources = append(out.Sources, agentStat{Source: u.UserAgent, Queries: u.NumberOfQueries, Grabs: u.NumberOfGrabs})
 		}
@@ -282,12 +287,15 @@ func failedPercent(s *prowlarr.IndexerStatistics) int { return percent(failures(
 // eachHistory walks the history newest first, stopping at the cutoff or
 // after max events.
 func (r *registry) eachHistory(ctx context.Context, opts prowlarr.GetHistoryOperationOptions, cutoff time.Time, maxEvents int, fn func(*prowlarr.HistoryResource)) error {
-	if opts.PageSize <= 0 {
-		opts.PageSize = 250
+	size := 250
+	if opts.PageSize != nil && *opts.PageSize > 0 {
+		size = *opts.PageSize
 	}
+	opts.PageSize = &size
+
 	seen := 0
 	for page := 1; ; page++ {
-		opts.Page = page
+		opts.Page = &page
 		res, err := r.client.GetHistory(ctx, opts)
 		if err != nil {
 			return err
@@ -306,7 +314,7 @@ func (r *registry) eachHistory(ctx context.Context, opts prowlarr.GetHistoryOper
 				return nil
 			}
 		}
-		if len(res.Model.Records) < opts.PageSize || page*opts.PageSize >= res.Model.TotalRecords {
+		if len(res.Model.Records) < size || page*size >= res.Model.TotalRecords {
 			return nil
 		}
 	}

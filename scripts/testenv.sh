@@ -18,11 +18,18 @@
 # the host (internal/fakes): Newznab and Torznab sites that can be made to
 # fail, answer slowly or refuse their key, and a Sonarr and a Radarr that
 # record what Prowlarr syncs into them. The container reaches them through
-# host.docker.internal. Everything else it would reach for - its definitions
-# service, its update check - goes to a proxy that is not there, so a run
-# needs no network and Prowlarr falls back to the definitions seeded here
-# (scripts/testdata/definitions, three real ones from Prowlarr's
-# definitions repository), which is exactly what it does offline.
+# host.docker.internal. Everything else it would reach for - its update
+# server, its definitions service - goes to a proxy the suites run (go-kt's
+# test/replayproxy), which answers Prowlarr's own services from the suite and
+# refuses the rest, so a run needs no network and Prowlarr falls back to the
+# definitions seeded here (scripts/testdata/definitions, three real ones from
+# Prowlarr's definitions repository), which is exactly what it does offline.
+#
+# Prowlarr is a .NET app: it honours HTTPS_PROXY and, on Linux, trusts whatever
+# SSL_CERT_FILE names, so the proxy's certificate authority is minted here
+# (openssl) and mounted in, and the suites load the same files to sign with.
+# Until a suite starts, nothing listens on the proxy's port and every call is
+# refused at once, which is how Prowlarr starts: offline.
 
 set -euo pipefail
 
@@ -35,6 +42,11 @@ NAME="${PROWLARR_TEST_CONTAINER:-prowlarr-mcp-test}"
 # host.docker.internal: the Newznab and Torznab sites, and the applications
 INDEXER_PORT="${PROWLARR_TEST_INDEXER_PORT:-19691}"
 APP_PORT="${PROWLARR_TEST_APP_PORT:-19692}"
+# the port the suites' proxy listens on, reached the same way
+PROXY_PORT="${PROWLARR_TEST_PROXY_PORT:-19693}"
+# the proxy's certificate authority, shared by every container so one set of
+# files signs for both suites
+PROXY_CA="${PROWLARR_TEST_PROXY_CA:-${HOME}/.cache/prowlarr-mcp/testenv/proxy}"
 # not TMPDIR: on macOS that is /var/folders/..., which Docker Desktop and
 # Colima do not share by default, and the bind mounts silently come up empty
 DATA="${PROWLARR_TEST_DATA:-${HOME}/.cache/prowlarr-mcp/testenv/default}"
@@ -65,7 +77,7 @@ log() { echo "==> $*" >&2; }
 wipe_data() {
   [ -d "${DATA}" ] || return 0
   rm -rf "${DATA}" 2>/dev/null ||
-    docker run --rm -v "$(dirname "${DATA}"):/parent" alpine rm -rf "/parent/$(basename "${DATA}")"
+    docker run --rm -v "$(dirname "${DATA}"):/parent" mirror.gcr.io/library/alpine:3 rm -rf "/parent/$(basename "${DATA}")"
 }
 
 # config writes what Prowlarr reads on its first start: config.xml with the
@@ -94,6 +106,21 @@ config() {
   <AnalyticsEnabled>False</AnalyticsEnabled>
 </Config>
 EOF
+}
+
+# proxy_ca mints the certificate authority the suites' proxy signs with,
+# unless one is there with more than a day left in it.
+proxy_ca() {
+  if [ -f "${PROXY_CA}/ca.pem" ] && [ -f "${PROXY_CA}/ca.key" ] && openssl x509 -checkend 86400 -noout -in "${PROXY_CA}/ca.pem" >/dev/null 2>&1; then
+    return 0
+  fi
+  command -v openssl >/dev/null || { echo "openssl is required to mint the proxy CA" >&2; exit 1; }
+  log "minting the proxy CA under ${PROXY_CA}"
+  mkdir -p "${PROXY_CA}"
+  openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -nodes -days 30 \
+    -subj "/CN=prowlarr-mcp test proxy CA" \
+    -keyout "${PROXY_CA}/ca.key" -out "${PROXY_CA}/ca.pem" 2>/dev/null
+  chmod 644 "${PROXY_CA}/ca.pem"
 }
 
 # wait_for WHAT TRIES COMMAND
@@ -130,22 +157,24 @@ up() {
 
   down >/dev/null 2>&1 || true
   config
+  proxy_ca
 
   local host
   host="$(host_address)"
-  log "starting ${IMAGE} as ${NAME} on ${PORT} (fakes reached via ${host}, no internet)"
-  # the proxy is a closed port inside the container, so the definitions
-  # service and the update check fail at once and Prowlarr carries on
-  # offline; NO_PROXY lets the fakes on the host through
+  log "starting ${IMAGE} as ${NAME} on ${PORT} (fakes reached via ${host}, everything else proxied via ${host}:${PROXY_PORT})"
+  # NO_PROXY lets the fakes on the host through; the rest goes to the suites'
+  # proxy, whose certificates Prowlarr trusts through SSL_CERT_FILE
   docker run -d --name "$NAME" \
     -p "${PORT}:9696" \
     --hostname "$NAME" \
     --add-host "host.docker.internal:host-gateway" \
     -e "PUID=$(id -u)" -e "PGID=$(id -g)" -e "TZ=Etc/UTC" \
-    -e "HTTP_PROXY=http://127.0.0.1:9" -e "HTTPS_PROXY=http://127.0.0.1:9" \
-    -e "http_proxy=http://127.0.0.1:9" -e "https_proxy=http://127.0.0.1:9" \
+    -e "HTTP_PROXY=http://${host}:${PROXY_PORT}" -e "HTTPS_PROXY=http://${host}:${PROXY_PORT}" \
+    -e "http_proxy=http://${host}:${PROXY_PORT}" -e "https_proxy=http://${host}:${PROXY_PORT}" \
     -e "NO_PROXY=localhost,127.0.0.1,${NAME},${host}" \
     -e "no_proxy=localhost,127.0.0.1,${NAME},${host}" \
+    -e "SSL_CERT_FILE=/proxy/ca.pem" \
+    -v "${PROXY_CA}/ca.pem:/proxy/ca.pem:ro" \
     -v "${DATA}/config:/config" -v "${DATA}/downloads:/downloads" \
     "$IMAGE" >/dev/null
 
@@ -159,6 +188,8 @@ up() {
   echo "export PROWLARR_TEST_HOST='${host}'"
   echo "export PROWLARR_TEST_INDEXER_PORT='${INDEXER_PORT}'"
   echo "export PROWLARR_TEST_APP_PORT='${APP_PORT}'"
+  echo "export PROWLARR_TEST_PROXY_PORT='${PROXY_PORT}'"
+  echo "export PROWLARR_TEST_PROXY_CA='${PROXY_CA}'"
 }
 
 down() {

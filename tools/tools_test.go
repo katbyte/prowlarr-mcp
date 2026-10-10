@@ -1,14 +1,18 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
-	"reflect"
+	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -34,16 +38,182 @@ func register(t *testing.T, opts Options) []string {
 	return names
 }
 
-// kinds maps every tool to its kind, as registration queued it.
-func kinds() map[string]toolKind {
-	r := &registry{}
-	queueTools(r)
-	out := map[string]toolKind{}
-	for _, p := range r.pending {
-		out[p.name] = p.kind
+// registerEvery registers every tool a registry has queued, the delete tools
+// among them.
+func registerEvery(t *testing.T, r *registry, srv *mcp.Server) {
+	t.Helper()
+
+	if _, err := r.queued().Register(srv, mcpregistry.Selection{EnableDelete: true}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// queuedTools is every tool a registry has queued, by name: its kind, its
+// toolset and its description, as `prowlarr-mcp tools` prints them.
+func queuedTools(t *testing.T, r *registry) map[string]ToolInfo {
+	t.Helper()
+
+	infos, err := r.queued().Describe(mcpregistry.Selection{EnableDelete: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make(map[string]ToolInfo, len(infos))
+	for _, info := range infos {
+		out[info.Name] = info
 	}
 
 	return out
+}
+
+// Every tool tells a client what it changes, without the client reading the
+// text: a read tool says it changes nothing, every write tool says whether it
+// can take away what was there and whether a repeat changes more, from its
+// own entry rather than its kind, and every delete is destructive. Only a
+// tool that reaches past Prowlarr and what it manages says it is open world.
+// The ones that would read as additive, marked all alike, are named.
+func TestEveryWriteToolIsHinted(t *testing.T) {
+	t.Parallel()
+
+	srv := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "0"}, nil)
+	r := queuedFor(newTestClient(t), Options{EnableDelete: true})
+	kinds := map[string]string{}
+	for name, tool := range queuedTools(t, r) {
+		kinds[name] = tool.Kind
+	}
+
+	st, ct := mcp.NewInMemoryTransports()
+	registerEvery(t, r, srv)
+	if _, err := srv.Connect(t.Context(), st, nil); err != nil {
+		t.Fatal(err)
+	}
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil).Connect(t.Context(), ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	listed, err := session.ListTools(t.Context(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[string]bool{}
+	for _, tool := range listed.Tools {
+		a := tool.Annotations
+		if a == nil || a.DestructiveHint == nil || a.OpenWorldHint == nil {
+			t.Errorf("%s has no annotations", tool.Name)
+			continue
+		}
+		if *a.OpenWorldHint != toolHints[tool.Name].SendsOut {
+			t.Errorf("%s: open world %v", tool.Name, *a.OpenWorldHint)
+		}
+		switch kinds[tool.Name] {
+		case readTool.String():
+			if !a.ReadOnlyHint || *a.DestructiveHint {
+				t.Errorf("%s: read-only %v, destructive %v", tool.Name, a.ReadOnlyHint, *a.DestructiveHint)
+			}
+		case writeTool.String():
+			seen[tool.Name] = true
+			h, ok := toolHints[tool.Name]
+			if !ok {
+				t.Errorf("%s is a write tool with no hints of its own", tool.Name)
+				continue
+			}
+			if a.ReadOnlyHint || *a.DestructiveHint == h.Additive || a.IdempotentHint != h.Idempotent || h.WritesHere {
+				t.Errorf("%s: read-only %v, destructive %v, idempotent %v; want %+v", tool.Name, a.ReadOnlyHint, *a.DestructiveHint, a.IdempotentHint, h)
+			}
+		case deleteTool.String():
+			if a.ReadOnlyHint || !*a.DestructiveHint {
+				t.Errorf("%s deletes: read-only %v, destructive %v", tool.Name, a.ReadOnlyHint, *a.DestructiveHint)
+			}
+		default:
+			t.Errorf("%s has no kind", tool.Name)
+		}
+	}
+	for name, h := range toolHints {
+		switch {
+		case h.SendsOut && kinds[name] == readTool.String():
+			// notification_test sends a message and changes nothing here
+		case !seen[name]:
+			t.Errorf("toolHints names %s, which is no write tool", name)
+		default:
+		}
+	}
+	for _, name := range []string{"app_sync", "task_run", "tag_delete", "indexer_edit", "indexer_bulk_edit", "app_edit", "profile_edit", "proxy_edit", "downloadclient_edit"} {
+		if h, ok := toolHints[name]; !ok || h.Additive {
+			t.Errorf("%s can remove or overwrite what was there, and is marked additive", name)
+		}
+	}
+	if !toolHints["notification_test"].SendsOut || toolHints["release_grab"].SendsOut {
+		t.Error("a test notification leaves Prowlarr and a grab goes to its own download client; one of them no longer says so")
+	}
+}
+
+// A handler that panics answers its call with an error naming the tool and
+// logs the stack, rather than ending the session: the next call is served.
+// The recovery is go-kt's registry's; what is checked here is that this
+// application's tools go through it, and that the stack reaches the log this
+// registry was given.
+func TestAPanicInAToolIsAnErrorNotACrash(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu     sync.Mutex
+		logged strings.Builder
+	)
+	srv := mcp.NewServer(&mcp.Implementation{Name: "t", Version: "0"}, nil)
+	r := &registry{client: newTestClient(t), errorLog: func(format string, args ...any) {
+		mu.Lock()
+		defer mu.Unlock()
+		_, _ = fmt.Fprintf(&logged, format, args...)
+	}}
+	type none struct{}
+	add(r, writeTool, &mcp.Tool{Name: "zzyzx_panic"}, func(context.Context, *mcp.CallToolRequest, none) (*mcp.CallToolResult, none, error) {
+		var found map[string]*prowlarr.IndexerResource
+
+		return nil, none{}, errors.New(found["9"].Name) // a nil dereference
+	})
+	add(r, readTool, &mcp.Tool{Name: "zzyzx_fine"}, func(context.Context, *mcp.CallToolRequest, none) (*mcp.CallToolResult, none, error) {
+		return nil, none{}, nil
+	})
+	registerEvery(t, r, srv)
+
+	st, ct := mcp.NewInMemoryTransports()
+	ctx := t.Context()
+	if _, err := srv.Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	session, err := mcp.NewClient(&mcp.Implementation{Name: "test", Version: "0"}, nil).Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = session.Close() })
+
+	res, err := session.CallTool(ctx, &mcp.CallToolParams{Name: "zzyzx_panic", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatalf("the panic reached the session: %v", err)
+	}
+	var texts []string
+	for _, c := range res.Content {
+		if tc, ok := c.(*mcp.TextContent); ok {
+			texts = append(texts, tc.Text)
+		}
+	}
+	msg := strings.Join(texts, "; ")
+	if !res.IsError || !strings.Contains(msg, "internal error in zzyzx_panic") || !strings.Contains(msg, "nil pointer") {
+		t.Errorf("the answer = %q (error %v), want the tool and the panic named", msg, res.IsError)
+	}
+
+	mu.Lock()
+	log := logged.String()
+	mu.Unlock()
+	if !strings.Contains(log, "internal error in zzyzx_panic") || !strings.Contains(log, "goroutine") {
+		t.Errorf("the log = %q, want the panic and its stack", log)
+	}
+
+	res, err = session.CallTool(ctx, &mcp.CallToolParams{Name: "zzyzx_fine", Arguments: map[string]any{}})
+	if err != nil || res.IsError {
+		t.Fatalf("the call after the panic failed: %v %+v", err, res)
+	}
 }
 
 func TestRegisterAllKinds(t *testing.T) {
@@ -89,10 +259,10 @@ func TestRegisterAllKinds(t *testing.T) {
 func TestDeleteToolsAreMarked(t *testing.T) {
 	t.Parallel()
 
-	for name, kind := range kinds() {
+	for name, tool := range queuedTools(t, queuedFor(newTestClient(t), Options{})) {
 		isDelete := strings.HasSuffix(name, "_delete") && name != "tag_delete"
-		if isDelete != (kind == deleteTool) {
-			t.Errorf("%s is kind %d; the tools that delete, and only those, are delete tools", name, kind)
+		if isDelete != (tool.Kind == deleteTool.String()) {
+			t.Errorf("%s is a %s tool; the tools that delete, and only those, are delete tools", name, tool.Kind)
 		}
 	}
 }
@@ -118,6 +288,21 @@ func TestRegisterAllFilters(t *testing.T) {
 	}
 	if !slices.Contains(got, "indexer_list") || !slices.Contains(got, "app_list") {
 		t.Errorf("allow list not honoured: %v", got)
+	}
+
+	// an allow list beside a toolset adds to it, and a deny list narrows what both asked for
+	got = register(t, Options{Toolsets: []string{"grab"}, Allow: []string{"tag_list"}, Deny: []string{"downloadclient_*"}})
+	want = append(slices.Clone(Toolsets["core"]), "release_grab", "tag_list")
+	slices.Sort(want)
+	if !slices.Equal(got, want) {
+		t.Errorf("grab with tag_list allowed and the download clients denied = %v, want %v", got, want)
+	}
+
+	// the documented way to turn every destructive tool off has to reach all of them
+	for _, name := range register(t, Options{EnableDelete: true, Deny: []string{"*_delete"}}) {
+		if strings.HasSuffix(name, "_delete") {
+			t.Errorf("%s registered with *_delete denied", name)
+		}
 	}
 
 	if _, err := RegisterAll(mcp.NewServer(&mcp.Implementation{Name: "t", Version: "0"}, nil), newTestClient(t), Options{Allow: []string{"bogus_*"}}); err == nil {
@@ -290,52 +475,6 @@ func TestAuditsAreAllInAuditAll(t *testing.T) {
 	}
 	if len(inTable) != 16 {
 		t.Errorf("%d audits, the README lists 16 beside audit_all: %v", len(inTable), inTable)
-	}
-}
-
-func TestMatchPattern(t *testing.T) {
-	t.Parallel()
-
-	for _, tc := range []struct {
-		pattern, name string
-		want          bool
-	}{
-		{"indexer_get", "indexer_get", true},
-		{"indexer_get", "indexer_gets", false},
-		{"indexer_*", "indexer_get", true},
-		{"indexer_*", "audit_indexers", false},
-		{"*_delete", "indexer_delete", true},
-		// the documented way to turn every destructive tool off has to reach these
-		{"*_delete", "downloadclient_delete", true},
-		{"*", "anything", true},
-	} {
-		if got := matchPattern(tc.pattern, tc.name); got != tc.want {
-			t.Errorf("matchPattern(%q, %q) = %v", tc.pattern, tc.name, got)
-		}
-	}
-}
-
-// A nil slice in a result must serialise as [], so a client can tell "none"
-// from "not fetched".
-func TestEmptyNilSlices(t *testing.T) {
-	t.Parallel()
-
-	type inner struct{ Tags []string }
-	type out struct {
-		Items  []inner
-		Ptr    *inner
-		Names  []string
-		Nested [][]string
-		Keep   []string
-	}
-	v := out{Items: []inner{{}}, Ptr: &inner{}, Keep: []string{"x"}}
-	emptyNilSlices(reflect.ValueOf(&v).Elem())
-
-	if v.Names == nil || v.Nested == nil || v.Items[0].Tags == nil || v.Ptr.Tags == nil {
-		t.Errorf("nil slices survived: %+v", v)
-	}
-	if len(v.Keep) != 1 {
-		t.Error("a populated slice was touched")
 	}
 }
 

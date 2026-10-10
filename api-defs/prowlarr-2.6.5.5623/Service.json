@@ -1,0 +1,19 @@
+{
+  "Name": "prowlarr",
+  "Package": "prowlarr",
+  "Title": "Prowlarr",
+  "ApiVersion": "1.0.0",
+  "Source": "api-defs/prowlarr-openapi-2.6.5.5623.json",
+  "Auth": "APIKey",
+  "Workarounds": [
+    "prowlarr-ui-routes",
+    "prowlarr-undeclared-responses",
+    "prowlarr-undeclared-write-responses",
+    "prowlarr-created-accepted",
+    "prowlarr-put-id-integer",
+    "prowlarr-test-all-results",
+    "prowlarr-command-body",
+    "prowlarr-bulk-answer-lists",
+    "prowlarr-host-settings"
+  ]
+}

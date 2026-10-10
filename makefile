@@ -97,19 +97,19 @@ docker: ## Build the prowlarr-mcp container image with version info from git
 
 tools: $(ACTIONLINT) $(GOFUMPT) $(GOLANGCI_LINT) $(GOLANGCI_LINT_MODULES) $(SHELLCHECK) $(YAMLLINT) $(ZIZMOR) ## Install all pinned dev tools into .tools/bin
 
-##@ SDK generation (internal/pandorest)
-generate: pandorest-import pandorest-generate ## Import the spec into api-definitions/, then generate lib/prowlarr from it
+##@ SDK generation (sdk/pandorest, on github.com/katbyte/pandorest)
+generate: pandorest-import pandorest-generate ## Import the spec into its definitions, then generate sdk/prowlarr from them
 
-pandorest-import: ## Import docs/prowlarr-openapi.json into api-definitions/, applying the workarounds
-	@echo "==> importing the OpenAPI spec into api-definitions/..."
-	go run ./internal/pandorest import
+pandorest-import: ## Import api-defs/prowlarr-openapi-<release>.json into api-defs/prowlarr-<release>/, applying the workarounds
+	@echo "==> importing the OpenAPI spec into api-defs/..."
+	go run ./sdk/pandorest import
 
-pandorest-generate: ## Generate lib/prowlarr from api-definitions/
-	@echo "==> generating lib/prowlarr from api-definitions/..."
-	go run ./internal/pandorest generate
+pandorest-generate: ## Generate sdk/prowlarr from the definitions in api-defs/
+	@echo "==> generating sdk/prowlarr from api-defs/..."
+	go run ./sdk/pandorest generate
 
-pandorest-diff: ## Report what the spec in docs/ changes against the checked-in api-definitions/
-	@go run ./internal/pandorest diff -quiet
+pandorest-diff: ## Report what the spec in api-defs/ changes against the checked-in definitions
+	@go run ./sdk/pandorest diff -quiet
 
 ##@ Formatting
 fmt: $(GOFUMPT) $(GOLANGCI_LINT) ## Fix Go formatting (gofmt, gofumpt, goimports)
@@ -150,13 +150,13 @@ zizmor: $(ZIZMOR) ## Audit GitHub workflows for security issues with zizmor
 	@$(ZIZMOR) .
 
 gencheck: generate ## Check that the definitions and generated SDK match the spec (regenerate, then diff)
-	@test -z "$$(git status --porcelain -- api-definitions lib/prowlarr)" || \
-		(git status --short -- api-definitions lib/prowlarr; echo; \
-		echo "api-definitions/ or lib/prowlarr is stale. Run 'make generate' and commit."; exit 1)
+	@test -z "$$(git status --porcelain -- api-defs sdk/prowlarr)" || \
+		(git status --short -- api-defs sdk/prowlarr; echo; \
+		echo "api-defs/ or sdk/prowlarr is stale. Run 'make generate' and commit."; exit 1)
 
-apicheck: ## Check that the definitions match the spec and every operation has a method in lib/prowlarr
-	@echo "==> Checking API coverage of lib/prowlarr..."
-	@go run ./internal/pandorest check -quiet
+apicheck: ## Check that the definitions match the spec and every operation has a method in sdk/prowlarr
+	@echo "==> Checking API coverage of sdk/prowlarr..."
+	@go run ./sdk/pandorest check -quiet
 
 depscheck: ## Check that go.mod/go.sum and vendor/ are in sync
 	@echo "==> Checking source code with go mod tidy..."
@@ -192,11 +192,13 @@ test: build ## Run tests
 PORT_acceptance=19696
 INDEXER_PORT_acceptance=19691
 APP_PORT_acceptance=19692
+PROXY_PORT_acceptance=19693
 PORT_integration=19796
 INDEXER_PORT_integration=19791
 APP_PORT_integration=19792
+PROXY_PORT_integration=19793
 
-test-integration: ## Run the SDK tests (lib/prowlarr) against an already-running Prowlarr
+test-integration: ## Run the SDK tests (sdk/prowlarr) against an already-running Prowlarr
 	@[ -n "${PROWLARR_SERVER}" ] && [ -n "${PROWLARR_TOKEN}" ] || \
 		(echo 'PROWLARR_SERVER and PROWLARR_TOKEN must be set; or use "make testacc"'; exit 1)
 	go test -tags integration -count=1 ./integration/... -timeout ${TEST_TIMEOUT} -v
@@ -215,7 +217,8 @@ define live
 			PROWLARR_TEST_DATA=$${HOME}/.cache/prowlarr-mcp/testenv/$(1) \
 			PROWLARR_TEST_PORT=$(PORT_$(1)) \
 			PROWLARR_TEST_INDEXER_PORT=$(INDEXER_PORT_$(1)) \
-			PROWLARR_TEST_APP_PORT=$(APP_PORT_$(1)); \
+			PROWLARR_TEST_APP_PORT=$(APP_PORT_$(1)) \
+			PROWLARR_TEST_PROXY_PORT=$(PROXY_PORT_$(1)); \
 		scripts/testenv.sh up | grep '^export' > "$$env"; \
 		trap 'st=$$?; [ $$st -eq 0 ] || scripts/testenv.sh logs; \
 			scripts/testenv.sh down; rm -f '"$$env"'; exit $$st' EXIT; \
@@ -237,20 +240,20 @@ testacc: testacc-integration testacc-acceptance ## Run both live suites, each in
 # directory and covdata merges them, which is stdlib tooling rather than a
 # third-party merger.
 COVERDIR?=.coverage
-COVERPKG=./tools/...,./lib/...,./cli/...,./internal/...
-SDKS=/lib/prowlarr/
+COVERPKG=./tools/...,./sdk/...,./lib/...,./cli/...,./internal/...
+SDKS=/sdk/prowlarr/
 COVERDIRS=$(COVERDIR)/unit,$(COVERDIR)/integration,$(COVERDIR)/acceptance
 
 cover: ## Run every suite with coverage and report the total
 	@rm -rf $(COVERDIR)
 	@mkdir -p $(COVERDIR)/unit $(COVERDIR)/integration $(COVERDIR)/acceptance
 	@echo "==> unit..."
-	@go test -count=1 -coverpkg=$(COVERPKG) ./tools/ ./cli/ ./lib/... ./internal/... \
+	@go test -count=1 -coverpkg=$(COVERPKG) ./tools/ ./cli/ ./sdk/... ./lib/... ./internal/... \
 		-args -test.gocoverdir=$(CURDIR)/$(COVERDIR)/unit >/dev/null
 	@$(MAKE) --no-print-directory cover-integration
 	@$(MAKE) --no-print-directory cover-acceptance
 	@go tool covdata textfmt -i=$(COVERDIRS) -o=$(COVERDIR)/coverage.all
-	@# lib/prowlarr is generated, one mechanical method per operation (122 of
+	@# sdk/prowlarr is generated, one mechanical method per operation (122 of
 	@# them); the suites exercise the ones the tools rely on, so the total is for
 	@# the hand-written code and the SDK gets a line of its own (the per-package
 	@# figures below include it)

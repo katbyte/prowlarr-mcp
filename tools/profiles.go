@@ -7,7 +7,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/katbyte/prowlarr-mcp/lib/prowlarr"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -44,12 +44,13 @@ func registerProfileTools(r *registry) {
 	pc := r.client
 
 	type listOut struct {
+		pageOut
 		Profiles []profileRow `json:"profiles"`
 	}
 	add(r, readTool, &mcp.Tool{
 		Name:        "profile_list",
 		Description: "The sync profiles, which decide what the applications use an indexer for - RSS, automatic search, interactive search - and the fewest seeders a torrent may have, with the indexers using each.",
-	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, listOut, error) {
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in pageIn) (*mcp.CallToolResult, listOut, error) {
 		res, err := pc.GetAppProfile(ctx)
 		if err != nil {
 			return nil, listOut{}, err
@@ -58,9 +59,10 @@ func registerProfileTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		out := listOut{}
-		for i := range res.Model {
-			out.Profiles = append(out.Profiles, projectProfile(&res.Model[i], idx))
+		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		out := listOut{pageOut: where}
+		for i := range page {
+			out.Profiles = append(out.Profiles, projectProfile(&page[i], idx))
 		}
 
 		return nil, out, nil
@@ -98,10 +100,22 @@ func registerProfileTools(r *registry) {
 		Name:        "profile_edit",
 		Description: "Change a sync profile: rename it, turn RSS, automatic or interactive search on or off for every indexer using it, or set the fewest seeders a torrent may have. The applications see the change on the next sync.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in editIn) (*mcp.CallToolResult, profileRow, error) {
-		p, err := r.resolveProfile(ctx, in.Profile)
+		found, err := r.resolveProfile(ctx, in.Profile)
 		if err != nil {
 			return nil, profileRow{}, err
 		}
+
+		// what is sent back is the whole profile, so it is read once no other
+		// edit of it can run
+		unlock := editing[prowlarr.AppProfileResource](r, found.Id, false)
+		defer unlock()
+
+		read, err := pc.GetAppProfileById(ctx, found.Id)
+		if err != nil {
+			return nil, profileRow{}, err
+		}
+		p := read.Model
+
 		if in.Name != "" {
 			p.Name = in.Name
 		}
@@ -120,9 +134,10 @@ func registerProfileTools(r *registry) {
 
 	add(r, deleteTool, &mcp.Tool{
 		Name:        "profile_delete",
-		Description: "Delete a sync profile no indexer uses. Prowlarr keeps at least one, and refuses to delete one in use: move its indexers to another first.",
+		Description: "Delete a sync profile no indexer uses. Prowlarr keeps at least one, and refuses to delete one in use: move its indexers to another first. Without confirm nothing changes and the answer says what would go.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in struct {
 		Profile string `json:"profile" jsonschema:"the profile to delete, by name or id"`
+		confirmIn
 	},
 	) (*mcp.CallToolResult, deletedOut, error) {
 		p, err := r.resolveProfile(ctx, in.Profile)
@@ -136,11 +151,15 @@ func registerProfileTools(r *registry) {
 		if row := projectProfile(p, idx); len(row.Indexers) > 0 {
 			return nil, deletedOut{}, fmt.Errorf("%s is used by %s; move them to another profile first (indexer_bulk_edit sync_profile)", p.Name, strings.Join(row.Indexers, ", "))
 		}
-		if _, err := pc.DeleteAppProfileById(ctx, p.Id); err != nil {
-			return nil, deletedOut{}, err
-		}
+		row := projectProfile(p, idx)
+		loses := []string{fmt.Sprintf("what it allows: RSS %t, automatic search %t, interactive search %t, at least %d seeders", row.RSS, row.AutomaticSearch, row.InteractiveSearch, row.MinimumSeeders)}
+		out, err := deleting(in.Confirm, p.Name, loses, "", func() error {
+			_, delErr := pc.DeleteAppProfileById(ctx, p.Id)
 
-		return nil, deletedOut{Deleted: p.Name}, nil
+			return delErr
+		})
+
+		return nil, out, err
 	})
 }
 
