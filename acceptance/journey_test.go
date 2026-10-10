@@ -292,6 +292,9 @@ type listTool struct {
 	// moves says why its rows come and go between two calls, so that only
 	// what each page says of itself can be held
 	moves string
+	// ticks are the fields of a row that move with the clock between two
+	// calls: the rows are compared without them
+	ticks []string
 }
 
 // Every list read a page at a time, following next_offset until there is
@@ -306,10 +309,13 @@ func TestJourneyEveryListAddsUpToItsTotal(t *testing.T) {
 	lists := map[string]listTool{
 		"indexer_list": {rows: "indexers"}, "app_list": {rows: "apps"}, "profile_list": {rows: "profiles"}, "proxy_list": {rows: "proxies"},
 		"downloadclient_list": {rows: "download_clients"}, "notification_list": {rows: "notifications"}, "tag_list": {rows: "tags"},
-		"category_list": {rows: "categories"}, "task_list": {rows: "tasks"}, "backup_list": {rows: "backups"}, "filter_list": {rows: "filters"},
-		"indexer_catalog": {rows: "entries"}, "indexer_stats": {rows: "indexers"}, "server_health": {rows: "checks"}, "server_logs": {rows: "files"},
+		"category_list": {rows: "categories"}, "backup_list": {rows: "backups"}, "filter_list": {rows: "filters"},
+		"indexer_catalog": {rows: "entries"}, "indexer_stats": {rows: "indexers"}, "server_health": {rows: "checks"},
 		"server_updates": {rows: "updates"},
-		"release_search": {rows: "releases", args: map[string]any{"indexers": []string{idxTorrent}}},
+		// a release's age is in tenths of an hour, a log file is written as Prowlarr works, and a task that comes due runs
+		"release_search": {rows: "releases", args: map[string]any{"indexers": []string{idxTorrent}}, ticks: []string{"age_hours"}},
+		"server_logs":    {rows: "files", ticks: []string{"modified"}},
+		"task_list":      {rows: "tasks", ticks: []string{"last_run", "last_duration", "next_run"}},
 		"history_list":   {rows: "events", grows: "every search and test the suite makes is one more event"},
 		"server_log":     {rows: "entries", grows: "Prowlarr logs as it works"},
 		"command_list":   {rows: "commands", grows: "a scheduled task queues one when it is due"},
@@ -344,46 +350,70 @@ func TestJourneyEveryListAddsUpToItsTotal(t *testing.T) {
 			return args
 		}
 
-		whole := suite.Call(t, tool.Name, with(map[string]any{"limit": 1000}))
-		all, count := append([]any{}, acc.RowsOfAny(whole[l.rows])...), acc.Num(t, whole[total], total)
-		if len(all) != count || whole["next_offset"] != nil {
-			t.Errorf("%s read whole: %d rows, a total of %d, next_offset %v", tool.Name, len(all), count, whole["next_offset"])
+		// walk reads the list whole and then a page at a time, and says what
+		// does not add up
+		walk := func() (problems []string) {
+			whole := suite.Call(t, tool.Name, with(map[string]any{"limit": 1000}))
+			all, count := append([]any{}, acc.RowsOfAny(whole[l.rows])...), acc.Num(t, whole[total], total)
+			if len(all) != count || whole["next_offset"] != nil {
+				problems = append(problems, fmt.Sprintf("%s read whole: %d rows, a total of %d, next_offset %v", tool.Name, len(all), count, whole["next_offset"]))
+			}
+
+			// in pages small enough that there are several, when there is that much
+			size := max(1, count/4)
+			walked := []any{}
+			offset, pages := 0, 0
+			for {
+				page := suite.Call(t, tool.Name, with(map[string]any{"limit": size, "offset": offset}))
+				rows := acc.RowsOfAny(page[l.rows])
+				if len(rows) > size || acc.Num(t, page["offset"], "offset") != offset {
+					problems = append(problems, fmt.Sprintf("%s limit %d offset %d answered %d rows from offset %v", tool.Name, size, offset, len(rows), page["offset"]))
+				}
+				walked = append(walked, rows...)
+				next, more := page["next_offset"].(float64)
+				if pages++; !more || pages > 2000 {
+					break
+				}
+				if int(next) != offset+len(rows) {
+					problems = append(problems, fmt.Sprintf("%s: next_offset %v after %d rows from %d", tool.Name, next, len(rows), offset))
+				}
+				offset = int(next)
+			}
+
+			switch {
+			case l.moves != "":
+				// each page was held to its limit, its offset and its next_offset above
+			case l.grows != "":
+				if len(walked) < count {
+					problems = append(problems, fmt.Sprintf("%s a page at a time is %d rows, fewer than the %d it had when read whole", tool.Name, len(walked), count))
+				}
+			default:
+				for _, row := range slices.Concat(all, walked) {
+					if fields, ok := row.(map[string]any); ok {
+						for _, field := range l.ticks {
+							delete(fields, field)
+						}
+					}
+				}
+				a, _ := json.Marshal(all)
+				b, _ := json.Marshal(walked)
+				if len(walked) != count || string(a) != string(b) {
+					problems = append(problems, fmt.Sprintf("%s a page at a time (%d rows in %d pages of %d) is not the list read whole (%d rows)", tool.Name, len(walked), pages, size, count))
+				}
+			}
+
+			return problems
 		}
 
-		// in pages small enough that there are several, when there is that much
-		size := max(1, count/4)
-		walked := []any{}
-		offset, pages := 0, 0
-		for {
-			page := suite.Call(t, tool.Name, with(map[string]any{"limit": size, "offset": offset}))
-			rows := acc.RowsOfAny(page[l.rows])
-			if len(rows) > size || acc.Num(t, page["offset"], "offset") != offset {
-				t.Errorf("%s limit %d offset %d answered %d rows from offset %v", tool.Name, size, offset, len(rows), page["offset"])
-			}
-			walked = append(walked, rows...)
-			next, more := page["next_offset"].(float64)
-			if pages++; !more || pages > 2000 {
-				break
-			}
-			if int(next) != offset+len(rows) {
-				t.Errorf("%s: next_offset %v after %d rows from %d", tool.Name, next, len(rows), offset)
-			}
-			offset = int(next)
+		// what a list holds can change under a walk of it - Prowlarr runs a
+		// health check again, a task comes due - so a walk that does not add
+		// up is made once more: a list that pages wrongly does so every time
+		problems := walk()
+		if len(problems) > 0 {
+			problems = walk()
 		}
-
-		switch {
-		case l.moves != "":
-			// each page was held to its limit, its offset and its next_offset above
-		case l.grows != "":
-			if len(walked) < count {
-				t.Errorf("%s a page at a time is %d rows, fewer than the %d it had when read whole", tool.Name, len(walked), count)
-			}
-		default:
-			a, _ := json.Marshal(all)
-			b, _ := json.Marshal(walked)
-			if len(walked) != count || string(a) != string(b) {
-				t.Errorf("%s a page at a time (%d rows in %d pages of %d) is not the list read whole (%d rows)", tool.Name, len(walked), pages, size, count)
-			}
+		for _, problem := range problems {
+			t.Error(problem)
 		}
 	}
 	for name := range lists {
