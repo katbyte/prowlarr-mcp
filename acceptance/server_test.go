@@ -310,10 +310,17 @@ func TestServerLogs(t *testing.T) {
 			t.Errorf("a %s entry among warnings", l)
 		}
 	}
-	// one file, narrowed to an indexer
-	lines := acc.Rows(t, suite.Call(t, "server_log", map[string]any{"file": acc.Str(files[0]["name"]), "contains": idxTorrent, "limit": 10})["entries"], "entries")
+	// one file, narrowed to an indexer. Prowlarr starts a new file when one
+	// is full, so the newest may not have got to this indexer yet: the
+	// newest that has is the one read
+	var lines []map[string]any
+	for _, file := range files {
+		if lines = acc.Rows(t, suite.Call(t, "server_log", map[string]any{"file": acc.Str(file["name"]), "contains": idxTorrent, "limit": 10})["entries"], "entries"); len(lines) > 0 {
+			break
+		}
+	}
 	if len(lines) == 0 {
-		t.Errorf("no lines mentioning %s", idxTorrent)
+		t.Errorf("no lines mentioning %s in any of %d log files", idxTorrent, len(files))
 	}
 	for _, l := range lines {
 		if !strings.Contains(acc.Str(l["message"]), idxTorrent) {
