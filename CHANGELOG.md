@@ -45,7 +45,7 @@
 - a tool that panics answers its call with an error naming the tool, and the session carries on
 - over HTTP, a session its client stopped using is closed after 30 minutes, and stopping the server no longer waits out a connected client
 - serving, the tool registry, the locks and the live suites' harness are go-kt's, shared with embyfin-mcp, abs-mcp and technitium-mcp
-- built with Go 1.27.2
+- built with Go 1.27.2, and `golang.org/x/text` moves to 0.43.0: the build is past the four known vulnerabilities a scan finds in the 0.1.0 binary, three in Go's own HTTP and TLS code and one in that library
 - the Docker image and the release build take their base images from Google's mirror of Docker Hub, and from Docker Hub itself when the mirror gives nothing
 
 ### Fixed
