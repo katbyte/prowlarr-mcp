@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -162,18 +163,28 @@ func TestCommands(t *testing.T) {
 	}
 	t.Cleanup(func() { acc.EventuallyWithin(2*time.Minute, idle) })
 
-	// a task is over in well under a second, so the queue is read straight
-	// after each is queued, and the whole thing tried again when none was
-	// caught waiting
+	// a task is over in well under a second, so every task is queued at the same moment and the queue read again and again while they go in;
+	// the whole thing is tried again when none was caught waiting
 	cancelled := false
 	for attempt := 0; attempt < 10 && !cancelled; attempt++ {
-		var queued []map[string]any
+		var sent sync.WaitGroup
 		for _, task := range tasks {
-			suite.Call(t, "task_run", map[string]any{"name": task, "wait": -1})
-			if queued = acc.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "queued"})["commands"], "commands"); len(queued) > 0 {
-				break
-			}
+			sent.Go(func() { _, _ = suite.Invoke("task_run", map[string]any{"name": task, "wait": -1}) })
 		}
+		done := make(chan struct{})
+		go func() { sent.Wait(); close(done) }()
+
+		var queued []map[string]any
+		for going := true; going && len(queued) == 0; {
+			select {
+			case <-done:
+				going = false
+			default:
+			}
+			queued = acc.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "queued"})["commands"], "commands")
+		}
+		<-done
+
 		for _, c := range queued {
 			out, err := suite.Invoke("command_cancel", map[string]any{"id": acc.Num(t, c["command_id"], "command_id")})
 			if err != nil {
