@@ -5,6 +5,7 @@ dist/
 prowlarr-mcp
 .tools/bin/
 .tools/venv/
+.tools/npm/
 .env
 .prowlarr-mcp
 .testenv*.sh
