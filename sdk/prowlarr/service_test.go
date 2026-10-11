@@ -1,10 +1,13 @@
 package prowlarr
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -123,5 +126,74 @@ func TestNewRefusesWhatIsNotAnAddress(t *testing.T) {
 	c, err := New("http://nas:9696/prowlarr/", "k")
 	if err != nil || c.Client.BaseURL != "http://nas:9696/prowlarr" {
 		t.Errorf("a URL base with a trailing slash = %v, %v", c, err)
+	}
+}
+
+// traced keeps what a client says it sent and was sent.
+type traced struct {
+	mu    sync.Mutex
+	lines []string
+}
+
+func (l *traced) Debugf(format string, args ...any) { l.Tracef(format, args...) }
+
+func (l *traced) Tracef(format string, args ...any) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.lines = append(l.lines, fmt.Sprintf(format, args...))
+}
+
+func (l *traced) all() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return strings.Join(l.lines, "\n")
+}
+
+// A trace shows every request and its answer, and no credential in either.
+// A provider's settings are sent, and sent back, as pairs of a name and a
+// value, so a tracker's key sits under "value", which no rule that goes by a
+// field's name can know for one; and the password typed a second time is a
+// password under a name that does not end as one.
+func TestATraceShowsNoCredential(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// what was sent is what comes back, as Prowlarr answers a save
+		body, _ := io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(map[string]int{http.MethodPost: http.StatusCreated, http.MethodPut: http.StatusAccepted}[r.Method])
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(srv.Close)
+	log := &traced{}
+	c, err := New(srv.URL, "prowlarrs-own-key", client.WithLog(log))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	indexer := IndexerResource{Name: "Site", Fields: []Field{{Name: "baseUrl", Value: "https://site.example"}, {Name: "apiKey", Value: "trackers-key-value"}, {Name: "cookie", Value: "trackers-cookie-value"}}}
+	if _, err := c.PostIndexer(t.Context(), indexer, PostIndexerOperationOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	host := HostConfigResource{Id: 1, Port: 9696, ApiKey: "a-new-key-value", Password: "a-password-value", PasswordConfirmation: "typed-again-value", ProxyPassword: "proxy-password-value", Username: "someone"} //nolint:gosec // made-up values: keeping them out of the trace is what the test checks
+	if _, err := c.PutConfigHostById(t.Context(), 1, host); err != nil {
+		t.Fatal(err)
+	}
+
+	said := log.all()
+	for _, secret := range []string{"prowlarrs-own-key", "trackers-key-value", "trackers-cookie-value", "a-new-key-value", "a-password-value", "typed-again-value", "proxy-password-value"} {
+		if strings.Contains(said, secret) {
+			t.Errorf("%q is in the trace", secret)
+		}
+	}
+	// and it is still a trace: what was asked, of what, and the names sent
+	for _, want := range []string{"POST", "/api/v1/indexer", "/api/v1/config/host/1", `"apiKey"`, `"cookie"`, "someone", "9696"} {
+		if !strings.Contains(said, want) {
+			t.Errorf("the trace does not show %s", want)
+		}
+	}
+	if t.Failed() {
+		t.Log("\n" + said)
 	}
 }

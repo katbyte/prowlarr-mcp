@@ -49,7 +49,7 @@ type appRow struct {
 func projectApp(a *prowlarr.ApplicationResource, idx []prowlarr.IndexerResource, tags map[int]string) appRow {
 	row := appRow{
 		ID: a.Id, Name: a.Name, Kind: a.Implementation, SyncLevel: string(a.SyncLevel), Tags: labels(a.Tags, tags),
-		BaseURL: fieldString(a.Fields, "baseUrl"), ProwlarrURL: fieldString(a.Fields, "prowlarrUrl"),
+		BaseURL: shownAddress(a.Fields, "baseUrl"), ProwlarrURL: shownAddress(a.Fields, "prowlarrUrl"),
 		SyncCategories: categoryRanges(appCategories(a)),
 	}
 	for i := range idx {
@@ -311,6 +311,9 @@ func registerAppTools(r *registry) {
 			return nil, editOut{}, err
 		}
 		a := read.Model
+		if a == nil {
+			return nil, editOut{}, errEmptyAnswer
+		}
 
 		changed, err := apply(a, &in.appIn)
 		if err != nil {

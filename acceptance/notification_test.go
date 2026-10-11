@@ -168,3 +168,56 @@ func TestNotifications(t *testing.T) {
 		t.Errorf("after deleting both = %v", left)
 	}
 }
+
+// A webhook's address is what posts to it, and Prowlarr marks neither
+// Discord's nor a plain webhook's as a credential. Discord's is named as set
+// and never shown; a plain webhook's is shown, which is how it is told from
+// another, without the value of what follows its "?". Both are given to the
+// suite to watch for, so no later answer may show them either.
+func TestANotificationsCredentialIsNamedNotShown(t *testing.T) {
+	h := newHook(t)
+	const chat, hooked = "Suite Chat", "Suite Token Hook"
+	suite.DeleteLaterIfThere(t, "notification_delete", map[string]any{"notification": chat, "confirm": true}, "no notification")
+	suite.DeleteLaterIfThere(t, "notification_delete", map[string]any{"notification": hooked, "confirm": true}, "no notification")
+
+	// forced, since nothing answers at the address
+	suite.Call(t, "notification_add", map[string]any{"kind": "Discord", "name": chat, "on": []string{"health_issue"}, "force": true, "settings": map[string]any{"webHookUrl": "https://discord.invalid/api/webhooks/1/" + suite.Secret("a-discord-webhooks-token"), "author": "the suite"}})
+	suite.Call(t, "notification_add", map[string]any{"kind": "Webhook", "name": hooked, "on": []string{"health_issue"}, "settings": map[string]any{"url": h.url + "?token=" + suite.Secret("a-plain-webhooks-token")}})
+	if got := h.got(); !slices.Equal(got, []string{"Test"}) {
+		t.Errorf("adding the hook sent %v, want the one test, so the token it was given is the one Prowlarr uses", got)
+	}
+
+	rows := map[string]map[string]any{}
+	for _, row := range acc.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications") {
+		rows[acc.Str(row["name"])] = row
+	}
+	if len(rows) != 2 {
+		t.Fatalf("notifications = %v", rows)
+	}
+
+	shown := acc.Object(t, rows[chat]["settings"], "settings")
+	if set := acc.Strs(t, rows[chat]["secrets_set"], "secrets_set"); !slices.Equal(set, []string{"webHookUrl"}) || shown["webHookUrl"] != nil || shown["author"] != "the suite" {
+		t.Errorf("Discord names %v as set and shows %v", set, shown)
+	}
+	if got := acc.Object(t, rows[hooked]["settings"], "settings")["url"]; got != h.url+"?token=REDACTED" {
+		t.Errorf("the hook's address is shown as %v", got)
+	}
+	// it is still sent to the address it was given, token and all
+	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hooked})["results"], "results"); len(res) != 1 || !acc.IsBool(res[0]["ok"], true) {
+		t.Errorf("testing the hook = %v", res)
+	}
+	// and an edit of something else keeps the address Prowlarr holds; forced
+	// for Discord's, which Prowlarr would test first and nothing answers
+	suite.Call(t, "notification_edit", map[string]any{"notification": chat, "force": true, "settings": map[string]any{"author": "the suite, again"}})
+	suite.Call(t, "notification_edit", map[string]any{"notification": hooked, "health_warnings": true})
+	before := len(h.got())
+	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hooked})["results"], "results"); len(res) != 1 || !acc.IsBool(res[0]["ok"], true) || len(h.got()) <= before {
+		t.Errorf("testing the hook after an edit = %v, and the hook has %v", res, h.got())
+	}
+
+	for _, n := range []string{chat, hooked} {
+		if gone := suite.Call(t, "notification_delete", map[string]any{"notification": n, "confirm": true}); acc.Str(gone["deleted"]) != n {
+			t.Errorf("deleting %s = %v", n, gone)
+		}
+	}
+}

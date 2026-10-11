@@ -26,6 +26,7 @@ type notificationRow struct {
 	ManualGrabs    bool           `json:"manual_grabs"    jsonschema:"a grab made from Prowlarr's own search is sent as well as the applications' grabs"`
 	Tags           []string       `json:"tags"`
 	Settings       map[string]any `json:"settings"        jsonschema:"without credentials"`
+	SecretsSet     []string       `json:"secrets_set"     jsonschema:"the credentials that are set, by name, without their values: a webhook's address is one"`
 }
 
 // notificationEvent is one thing a notification can be sent for: its switch
@@ -86,7 +87,7 @@ func sendError(what string, err error) error {
 
 func projectNotification(n *prowlarr.NotificationResource, tags map[int]string) notificationRow {
 	row := notificationRow{ID: n.Id, Name: n.Name, Kind: n.Implementation, On: sentFor(n), HealthWarnings: boolv(n.IncludeHealthWarnings), ManualGrabs: boolv(n.IncludeManualGrabs), Tags: labels(n.Tags, tags)}
-	row.Settings, _ = settings(n.Fields)
+	row.Settings, row.SecretsSet = settings(n.Fields)
 
 	return row
 }
@@ -236,6 +237,9 @@ func registerNotificationTools(r *registry) {
 			return nil, notificationRow{}, err
 		}
 		n := read.Model
+		if n == nil {
+			return nil, notificationRow{}, errEmptyAnswer
+		}
 
 		changed := in.Name != "" || len(in.Settings) > 0 || in.On != nil || len(in.AddOn)+len(in.RemoveOn) > 0 || in.HealthWarnings != nil || in.ManualGrabs != nil || in.Tags != nil || len(in.AddTags)+len(in.RemoveTags) > 0
 		if !changed {
@@ -311,22 +315,7 @@ func registerNotificationTools(r *registry) {
 		for _, n := range res.Model {
 			names[n.Id] = n.Name
 		}
-		// test sends a test through one notification. One that cannot be
-		// sent answers a 500 with why, where the other providers answer a
-		// 400: it is the test that failed, not the asking
-		test := func(n *prowlarr.NotificationResource) (testRow, error) {
-			_, testErr := pc.PostNotificationTest(ctx, *n, prowlarr.PostNotificationTestOperationOptions{ForceTest: new(true)})
-			row, testErr := testOne(n.Name, testErr)
-			if client.StatusCode(testErr) >= http.StatusInternalServerError {
-				row.Problems = outsideLines(client.Messages(testErr))
-				if len(row.Problems) == 0 {
-					row.Problems = []string{outsideSaid(testErr.Error())}
-				}
-				testErr = nil
-			}
-
-			return row, testErr
-		}
+		test := func(n *prowlarr.NotificationResource) (testRow, error) { return testNotification(ctx, pc, n) }
 
 		if in.Notification == "" {
 			all, allErr := pc.PostNotificationTestAll(ctx)
@@ -391,4 +380,21 @@ func registerNotificationTools(r *registry) {
 
 		return nil, out, err
 	})
+}
+
+// testNotification sends a test through one notification. One that cannot
+// be sent answers a 500 with why, where the other providers answer a 400: it
+// is the test that failed, not the asking.
+func testNotification(ctx context.Context, pc *prowlarr.Client, n *prowlarr.NotificationResource) (testRow, error) {
+	_, err := pc.PostNotificationTest(ctx, *n, prowlarr.PostNotificationTestOperationOptions{ForceTest: new(true)})
+	row, err := testOne(n.Name, err)
+	if client.StatusCode(err) >= http.StatusInternalServerError {
+		row.Problems = outsideLines(client.Messages(err))
+		if len(row.Problems) == 0 {
+			row.Problems = []string{outsideSaid(err.Error())}
+		}
+		err = nil
+	}
+
+	return row, err
 }

@@ -115,6 +115,9 @@ func registerProfileTools(r *registry) {
 			return nil, profileRow{}, err
 		}
 		p := read.Model
+		if p == nil {
+			return nil, profileRow{}, errEmptyAnswer
+		}
 
 		if in.Name != "" {
 			p.Name = in.Name

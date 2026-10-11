@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"math"
@@ -173,14 +174,31 @@ func fieldInts(fields []prowlarr.Field, name string) []int {
 	return out
 }
 
+// errEmptyAnswer is Prowlarr answering a read or a create with no record in it, which leaves nothing to send back or to name.
+var errEmptyAnswer = errors.New("the answer from Prowlarr had nothing in it")
+
 // secretNames are the settings a definition names that hold a credential.
 // Prowlarr marks the privacy of its native indexers' fields, but a catalogue
 // definition's own settings (a password, a cookie, an API key, a 2FA code)
 // all come back marked normal, so they are known by name as well.
+//
+// The last line is the settings Prowlarr's own kinds mark normal that are a
+// credential in themselves: whoever holds a Discord or Slack webhook's
+// address can post with it, an Apprise address carries the token of what it
+// posts to in its host and path, Apprise's configuration key opens what it
+// has stored, MyAnonamouse's id is its session, and a 2FA code signs in.
+// With them are three a catalogue definition names in a way of its own: a
+// session's token, the answer to a security question and a staff password.
 var secretNames = []string{
 	"username", "user", "password", "pass", "cookie", "cookies", "apikey", "api_key", "passkey", "pid", "uid",
 	"rsskey", "authkey", "token", "secret", "pin", "2facode", "2fa_code", "alt2fatoken", "hash", "key",
+	"webhookurl", "statelessurls", "configurationkey", "mamid", "twofactorauthcode", "csrf_token", "passan", "staffpass",
 }
+
+// secretTypes are the kinds of setting that hold a credential whatever they
+// are named. A list of pairs is a webhook's headers, where its token goes,
+// and nothing in a pair says which value is the secret.
+var secretTypes = []string{"password", "keyvaluelist"}
 
 // secret reports whether a field holds a credential: an API key, a password,
 // a user name, a cookie.
@@ -189,14 +207,22 @@ func secret(f *prowlarr.Field) bool {
 		return true
 	}
 
-	return strings.EqualFold(f.Type, "password") || slices.Contains(secretNames, strings.ToLower(f.Name))
+	return slices.Contains(secretTypes, strings.ToLower(f.Type)) || slices.Contains(secretNames, strings.ToLower(f.Name))
+}
+
+// shownAddress is a setting that holds an address, as an answer shows it:
+// without who it signs in as and without the values after its "?", which is
+// where a feed's passkey is. What it is sent to is read with fieldString.
+func shownAddress(fields []prowlarr.Field, name string) string {
+	return blankAddresses(fieldString(fields, name))
 }
 
 // settings are a provider's settings as a map, without the credentials and
 // without the empty ones: its URL, categories, seed goals, limits. A
 // credential that is set is listed by name in secretsSet, so a caller can see
 // that a key is there without seeing it. Info fields (the definition's notes
-// to the user) are left out.
+// to the user) are left out. An address in a setting that is shown is shown
+// as shownAddress shows one.
 func settings(fields []prowlarr.Field) (out map[string]any, secretsSet []string) {
 	out = map[string]any{}
 	for i := range fields {
@@ -212,6 +238,9 @@ func settings(fields []prowlarr.Field) (out map[string]any, secretsSet []string)
 			continue
 		}
 		out[f.Name] = f.Value
+		if text, ok := f.Value.(string); ok {
+			out[f.Name] = blankAddresses(text)
+		}
 	}
 	slices.Sort(secretsSet)
 
@@ -535,6 +564,9 @@ func (r *registry) resolveTags(ctx context.Context, refs []string, create bool) 
 			made, err := r.client.PostTag(ctx, prowlarr.TagResource{Label: strings.ToLower(ref)})
 			if err != nil {
 				return nil, fmt.Errorf("creating tag %q: %w", ref, err)
+			}
+			if made.Model == nil {
+				return nil, fmt.Errorf("creating tag %q: %w", ref, errEmptyAnswer)
 			}
 			id = made.Model.Id
 			res.Model = append(res.Model, *made.Model)

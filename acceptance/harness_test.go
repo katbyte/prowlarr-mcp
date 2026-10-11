@@ -96,6 +96,12 @@ func testMain(m *testing.M) {
 		}
 	}
 
+	// a key shown in any answer fails the run, whole or filtered
+	if leaks := suite.LeakReport(); leaks != "" {
+		fmt.Fprint(os.Stderr, "\n"+leaks)
+		code = 1
+	}
+
 	// every registered tool must have answered something above, not only
 	// refused it. Only a whole-suite run can say that, so a -run or -skip
 	// filter skips the check.
@@ -147,6 +153,15 @@ func start() error {
 	}
 	connected.NotReady = testenv.NotConfigured
 	suite = connected
+	// every key the suite gives Prowlarr, and Prowlarr's own: nothing a
+	// tool answers or refuses with may carry one (LeakReport, in testMain)
+	suite.Secret(testenv.Token())
+	for _, key := range siteKeys {
+		suite.Secret(key)
+	}
+	for _, key := range []string{"sonarrkey", "radarrkey", "lidarrkey", "milkiekey"} {
+		suite.Secret(key)
+	}
 
 	return seed()
 }

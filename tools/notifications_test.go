@@ -11,13 +11,15 @@ import (
 )
 
 // discord is a Discord notification as Prowlarr's schema and its list answer
-// one: it can be sent for a grab and for health, and not for an update.
+// one: it can be sent for a grab and for health, and not for an update. Its
+// webhook's address is marked as Prowlarr 2.6.5 marks it, which is not as a
+// credential, though whoever holds the address can post with it.
 func discord(id int, name string, on ...string) map[string]any {
 	n := map[string]any{
 		"id": id, "name": name, "implementation": "Discord", "tags": []any{},
 		"supportsOnGrab": true, "supportsOnHealthIssue": true, "supportsOnHealthRestored": true, "supportsOnApplicationUpdate": false,
 		"onGrab": false, "onHealthIssue": false, "onHealthRestored": false, "onApplicationUpdate": false,
-		"fields": []any{map[string]any{"name": "webHookUrl", "value": "", "type": "textbox", "privacy": "apiKey"}, map[string]any{"name": "username", "value": "", "type": "textbox"}},
+		"fields": []any{map[string]any{"name": "webHookUrl", "value": "", "type": "textbox", "privacy": "normal"}, map[string]any{"name": "username", "value": "", "type": "textbox", "privacy": "userName"}},
 	}
 	for _, event := range on {
 		n[map[string]string{"grab": "onGrab", "health_issue": "onHealthIssue", "health_restored": "onHealthRestored"}[event]] = true

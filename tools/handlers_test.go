@@ -44,13 +44,14 @@ func newFakeServer(t *testing.T) *fakeServer {
 	// what a new Prowlarr answers: nothing configured
 	for _, route := range []string{
 		"/api/v1/indexer", "/api/v1/indexerstatus", "/api/v1/applications", "/api/v1/indexerproxy", "/api/v1/downloadclient",
-		"/api/v1/tag", "/api/v1/tag/detail", "/api/v1/health", "/api/v1/history/indexer", "/api/v1/indexer/schema", "/api/v1/notification",
+		"/api/v1/tag", "/api/v1/tag/detail", "/api/v1/health", "/api/v1/history/indexer", "/api/v1/indexer/schema", "/api/v1/notification", "/api/v1/system/backup",
 	} {
 		f.answers["GET "+route] = []any{}
 	}
 	f.answers["GET /api/v1/appprofile"] = []any{map[string]any{"id": 1, "name": "Standard", "enableRss": true, "enableAutomaticSearch": true, "enableInteractiveSearch": true, "minimumSeeders": 1}}
 	f.answers["GET /api/v1/indexerstats"] = map[string]any{"indexers": []any{}, "userAgents": []any{}, "hosts": []any{}}
 	f.answers["GET /api/v1/system/status"] = map[string]any{"appName": "Prowlarr", "version": "2.6.5.5623", "osName": "alpine", "isDocker": true}
+	f.answers["GET /api/v1/config/host"] = hostSettings()
 
 	f.srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, _ := io.ReadAll(r.Body)
@@ -301,7 +302,7 @@ func objectOf(v any) map[string]any {
 }
 
 // torznab is a canned Torznab indexer.
-func torznab(id int, name, privacy string, fields ...map[string]any) map[string]any { //nolint:unparam // public indexers are built by hand; the parameter keeps the field visible
+func torznab(id int, name, privacy string, fields ...map[string]any) map[string]any {
 	all := make([]any, 0, 1+len(fields))
 	all = append(all, map[string]any{"name": "baseUrl", "value": "https://" + strings.ToLower(strings.ReplaceAll(name, " ", "")) + ".example/", "type": "textbox"})
 	for _, f := range fields {
@@ -615,7 +616,7 @@ func TestAuditAllCanned(t *testing.T) {
 	f.answer("GET /api/v1/indexer/schema", []any{})
 	out := mustCall(t, session(t, f, Options{}), "audit_all", nil)
 	rows, ok := out["audits"].([]any)
-	if !ok || len(rows) != 16 {
+	if !ok || len(rows) != 18 {
 		t.Fatalf("audits = %v", out["audits"])
 	}
 	counts := map[string]float64{}

@@ -176,6 +176,9 @@ func registerFilterTools(r *registry) {
 			return nil, filterRow{}, err
 		}
 		f := read.Model
+		if f == nil {
+			return nil, filterRow{}, errEmptyAnswer
+		}
 
 		if label := strings.TrimSpace(in.Label); label != "" {
 			f.Label = label

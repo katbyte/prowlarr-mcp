@@ -59,7 +59,7 @@ func TestBlankAddresses(t *testing.T) {
 		"HTTP request failed: [503:ServiceUnavailable] [GET] at [http://site.example:9117/api?t=search&extended=1&apikey=sekrit]": "HTTP request failed: [503:ServiceUnavailable] [GET] at [http://site.example:9117/api?t=REDACTED&extended=REDACTED&apikey=REDACTED]",
 		"cannot reach https://someone:hunter2@site.example/path?passkey=abc#frag/api?apikey=def now":                              "cannot reach https://REDACTED@site.example/path?passkey=REDACTED#REDACTED now",
 		"see https://wiki.servarr.com/prowlarr/system#indexers-are-unavailable (and https://site.example/a/b).":                   "see https://wiki.servarr.com/prowlarr/system#REDACTED (and https://site.example/a/b).",
-		"two: http://a.example/x?k=1 and \"http://b.example/?flag&k=2\"":                                                          "two: http://a.example/x?k=REDACTED and \"http://b.example/?flag&k=REDACTED\"",
+		"two: http://a.example/x?k=1 and \"http://b.example/?flag&k=2\"":                                                          "two: http://a.example/x?k=REDACTED and \"http://b.example/?REDACTED&k=REDACTED\"",
 		"no address in this at all": "no address in this at all",
 	} {
 		if got := blankAddresses(said); got != want {

@@ -162,12 +162,19 @@ func TestCommands(t *testing.T) {
 	}
 	t.Cleanup(func() { acc.EventuallyWithin(2*time.Minute, idle) })
 
+	// a task is over in well under a second, so the queue is read straight
+	// after each is queued, and the whole thing tried again when none was
+	// caught waiting
 	cancelled := false
-	for attempt := 0; attempt < 5 && !cancelled; attempt++ {
+	for attempt := 0; attempt < 10 && !cancelled; attempt++ {
+		var queued []map[string]any
 		for _, task := range tasks {
 			suite.Call(t, "task_run", map[string]any{"name": task, "wait": -1})
+			if queued = acc.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "queued"})["commands"], "commands"); len(queued) > 0 {
+				break
+			}
 		}
-		for _, c := range acc.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "queued"})["commands"], "commands") {
+		for _, c := range queued {
 			out, err := suite.Invoke("command_cancel", map[string]any{"id": acc.Num(t, c["command_id"], "command_id")})
 			if err != nil {
 				continue // it started between the listing and the cancel
@@ -184,7 +191,7 @@ func TestCommands(t *testing.T) {
 		}
 	}
 	if !cancelled {
-		t.Error("no command was ever caught waiting in the queue, in five tries of queueing every task at once")
+		t.Error("no command was ever caught waiting in the queue, in ten tries of queueing every task at once")
 	}
 }
 

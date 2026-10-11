@@ -18,7 +18,7 @@ When it quietly stops - a tracker disabled after failures, an indexer no applica
 receives, a definition the site has outgrown, a VIP membership that lapsed - nothing breaks
 loudly. Searches just find less, and the only sign is a download that never appears.
 
-This server wraps Prowlarr's API, but the reason it exists is the layer above: **17 audits**,
+This server wraps Prowlarr's API, but the reason it exists is the layer above: **19 audits**,
 each a sweep for one specific thing that goes wrong in a real setup, returning a worklist
 rather than a dump, and naming the tool that fixes it.
 
@@ -43,15 +43,14 @@ rather than a dump, and naming the tool that fixes it.
 | `audit_tags` | tags carried by nothing, and tags carried by an application that no indexer shares - which leaves that application with nothing through it |
 | `audit_profiles` | sync profiles that do nothing: RSS, automatic and interactive search all off, and profiles no indexer uses |
 | `audit_health` | Prowlarr's own health checks as a worklist, errors first, each with its wiki link and the audit or tool that deals with it |
+| `audit_notifications` | nobody is told when something breaks: no notification sent for a health issue, one sent for nothing, one sent for health issues without the warnings (which most of Prowlarr's checks are), and with `test=true` one that fails its test |
+| `audit_backups` | no way back: no backup at all, or the newest older than the schedule should allow, which means the scheduled backup is not running |
 
-The design principle: **detection is code, correction is judgment.** The server runs cheap
-deterministic checks over the whole setup and produces worklists; the AI reasons only about
-the anomalies. Every response is a trimmed projection of what a decision needs, never the raw
-API object - and an indexer's credentials are named, never shown, whatever a tool returns.
+The design principle: **detection is code, correction is judgment.** The server runs cheap deterministic checks over the whole setup and produces worklists; the AI reasons only about the anomalies. Every response is a trimmed projection of what a decision needs, never the raw API object - and a credential is never shown, whatever a tool returns: an indexer's key or cookie, an application's key and a webhook's address are named as set, and an address that is shown is shown without the values after its `?`.
 
 ### What else is in the box
 
-- **72 tools, in toolsets** (80 with the ones that delete). Browse and search the indexers, add one from the catalogue of definitions Prowlarr ships, edit one or many, test them, search and grab through them, read the history and the per-indexer statistics, wire up applications, sync profiles, proxies, download clients, notifications and tags, run tasks and see what they queued, read logs, change Prowlarr's own settings, back it up, put a backup back and restart it. Each sits in a toolset a session can load on its own, so a client spends about 1,300 tokens of context by default rather than fourteen thousand.
+- **74 tools, in toolsets** (82 with the ones that delete). Browse and search the indexers, add one from the catalogue of definitions Prowlarr ships, edit one or many, test them, search and grab through them, read the history and the per-indexer statistics, wire up applications, sync profiles, proxies, download clients, notifications and tags, run tasks and see what they queued, read logs, change Prowlarr's own settings, back it up, put a backup back and restart it. Each sits in a toolset a session can load on its own, so a client spends about 1,300 tokens of context by default rather than fourteen thousand.
 - **A Go SDK.** `sdk/prowlarr` is a complete typed client for the Prowlarr API - all 122
   operations, generated from Prowlarr's own OpenAPI document, standard library only, no
   knowledge of MCP. Useful on its own, whether or not you care about AI.
@@ -197,8 +196,8 @@ Tools are named resource-first (`indexer_*`, `app_*`, `audit_*`, `server_*`...) 
 | backups | `backup_list`, `backup_create`, `backup_restore` (puts one back over everything changed since; a restart finishes it), `backup_delete` |
 | tasks | `task_list`, `task_run` (waits for it, or queues it with `wait=-1`), `command_list` (what is queued, running and lately finished), `command_cancel` (one still queued) |
 | indexers | `indexer_list`, `indexer_get` (settings, categories, searches, which applications receive it and why not, failures, 30 days of statistics, last ten events), `indexer_catalog` (the definitions Prowlarr ships, searchable), `indexer_add`, `indexer_edit`, `indexer_bulk_edit` (priority, profile, tags, seed goals across many), `indexer_test`, `indexer_delete`, `indexer_stats`, `category_list` |
-| audits | the 17 audits in [the table above](#the-audits) |
-| releases | `release_search` (as an application would, by words and kind, narrowed to categories, indexers or protocol), `release_grab` (sends it to a download client) |
+| audits | the 19 audits in [the table above](#the-audits) |
+| releases | `release_search` (as an application would, by words and kind, narrowed to categories, indexers or protocol), `release_grab` (sends one, or several from one indexer at once, to a download client) |
 | applications | `app_list`, `app_get` (what it receives, what is held back, what it skips), `app_add`, `app_edit`, `app_test`, `app_sync`, `app_delete` |
 | profiles | `profile_list`, `profile_create`, `profile_edit`, `profile_delete` |
 | proxies | `proxy_list`, `proxy_add`, `proxy_edit`, `proxy_test`, `proxy_delete` |
@@ -213,7 +212,7 @@ The eight tools that delete (`indexer_delete`, `app_delete`, `profile_delete`, `
 ### Choosing which tools load
 
 **The default is `core`: six read-only tools, about 1,300 tokens.** The whole surface is
-around 14,500 tokens of tool definitions before anyone asks a question, which is a poor way to
+around 15,000 tokens of tool definitions before anyone asks a question, which is a poor way to
 spend a client's context by default. `--toolsets` / `PROWLARR_TOOLSETS` loads the groups a
 session actually needs, and `core` comes along with whatever else is asked for, because
 nothing else can find an indexer or read the history.
@@ -227,12 +226,12 @@ fixes what they find. `PROWLARR_TOOLSETS=all` restores every tool.
 | `grab` | 4 | 10 | 1,900 |
 | `setup` | 9 | 15 | 3,700 |
 | `admin` | 19 (27 with delete) | 25 | 4,600 |
-| `curation` | 34 | 40 | 8,100 |
-| `all` | 72 (80 with delete) | 72 | 14,500 |
+| `curation` | 36 | 42 | 8,500 |
+| `all` | 74 (82 with delete) | 74 | 15,000 |
 
 Tokens are what the model sees: each tool's name, description and input schema, measured over
 a real `tools/list` at four bytes a token. Every tool also carries an output schema, another
-19,300 tokens across `all`, but clients keep that to themselves to validate results rather
+20,100 tokens across `all`, but clients keep that to themselves to validate results rather
 than sending it to the model.
 
 `--toolsets` also takes a resource family - `indexer`, `app`, `audit`, `release`, `profile`,
@@ -302,7 +301,7 @@ for _, r := range res.Model { ... }
 all, err := c.GetHistoryComplete(ctx, prowlarr.GetHistoryOperationOptions{PageSize: new(250)}) // every page
 ```
 
-A number among the options is a pointer, so that 0 can be asked for; `new(50)` is Go 1.26's way to write one. A read is asked again when a gateway could not reach Prowlarr or the connection dropped, three times in all, and a write is sent once; a redirect is refused rather than followed; and `prowlarr.New(url, key, client.WithLog(logger))` traces every request and answer with the API key blanked.
+A number among the options is a pointer, so that 0 can be asked for; `new(50)` is Go 1.26's way to write one. A read is asked again when a gateway could not reach Prowlarr or the connection dropped, three times in all, and a write is sent once; a redirect is refused rather than followed; and `prowlarr.New(url, key, client.WithLog(logger))` traces every request and answer with the API key, every password and token, and the text of every provider's setting blanked: a tracker's key or cookie is one of those settings, so a trace shows which were set and not what to.
 
 It is generated from Prowlarr's own OpenAPI document (`api-defs/`, see [docs/README.md](docs/README.md)) by [pandorest](https://github.com/katbyte/pandorest), a generator modelled on [hashicorp/pandora](https://github.com/hashicorp/pandora) and shared with sonarr-mcp, radarr-mcp and embyfin-mcp: an importer normalises the spec into checked-in definitions (`api-defs/prowlarr-<release>/`, one file per tag) through named workarounds for the spec's known bugs, a differ reports what a spec refresh changes, and a generator writes one file per operation and model from the definitions. What is this repository's own is in `sdk/pandorest`: the service's settings and the workarounds for its document. That is **a method for every one of Prowlarr's 122 operations**, each with typed options, a typed body, a `{Model, HttpResponse}` result, the status codes the operation documents (anything else is an error), and a `Complete` pager on every paged list. `make apicheck` proves the coverage claim against the spec, `make gencheck` (and the unit tests) fail when the generated code is stale, and the integration suite proves the shapes **against a running Prowlarr** - which is the only thing that catches the server changing shape underneath a spec that says otherwise.
 
@@ -328,7 +327,7 @@ what you already believed. Two suites, each in its own container:
 | | Covers | Command |
 |---|---|---|
 | `integration/` | the `sdk/prowlarr` client: bespoke tests that the calls the tools rely on decode with their fields populated and do what they say (creates answer 201 and updates 202, a failed "test all" answers 400 with every result, the settings sections round-trip, the feed an application reads, paging and the `Complete` pager), and a sweep that calls every GET in the document against the server and classifies the two that cannot answer in a container | `make testacc-integration` |
-| `acceptance/` | the tools: name resolution, projections, audits, and journeys that chain them (an indexer added from the catalogue, synced into applications and grabbed from; every audit given something real to find, and then - for every one a tool can fix - the fix applied and the audit run again to prove the finding is gone; the built binary itself over stdio and HTTP - flags and environment reaching the server, nothing but protocol on stdout, the bearer check, clean shutdown, refusing to start without a token) | `make testacc-acceptance` |
+| `acceptance/` | the tools: name resolution, projections, audits, and journeys that chain them (a setup made from nothing with the tools alone, the two mistakes a first setup makes found by the audits and fixed with the tools they name, and everything taken down again until Prowlarr is as it was; an indexer added from the catalogue, synced into applications and grabbed from; every audit given something real to find, and then - for every one a tool can fix - the fix applied and the audit run again to prove the finding is gone; the built binary itself over stdio and HTTP - flags and environment reaching the server, nothing but protocol on stdout, the bearer check, clean shutdown, refusing to start without a token) | `make testacc-acceptance` |
 
 ```bash
 make testacc            # both suites, each in a throwaway container

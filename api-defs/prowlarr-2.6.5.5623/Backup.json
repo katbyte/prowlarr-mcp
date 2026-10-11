@@ -58,6 +58,12 @@
       "Name": "PostSystemBackupRestoreUpload",
       "Method": "POST",
       "Path": "/api/v1/system/backup/restore/upload",
+      "Request": {
+        "ContentType": "multipart/form-data",
+        "Type": {
+          "Type": "RawFile"
+        }
+      },
       "ExpectedStatusCodes": [
         200
       ]

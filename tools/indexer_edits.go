@@ -129,6 +129,9 @@ func registerIndexerEditTools(r *registry) {
 			return nil, editOut{}, err
 		}
 		i := read.Model
+		if i == nil {
+			return nil, editOut{}, errEmptyAnswer
+		}
 
 		var changed []string
 		if in.Name != "" && in.Name != i.Name {
@@ -367,16 +370,31 @@ func registerIndexerEditTools(r *registry) {
 	})
 
 	type deleteIn struct {
-		Indexer string `json:"indexer" jsonschema:"the indexer to delete, by name or id"`
+		Indexer  string   `json:"indexer,omitempty"  jsonschema:"the indexer to delete, by name or id"`
+		Indexers []string `json:"indexers,omitempty" jsonschema:"several to delete at once, by name or id: the ones an audit turned up"`
 		confirmIn
 	}
 	add(r, deleteTool, &mcp.Tool{
 		Name:        "indexer_delete",
-		Description: "Delete an indexer from Prowlarr, with its history and statistics. Applications that sync fully drop it on the next sync; disabling it instead keeps it and its history. Without confirm nothing changes and the answer says what would go.",
+		Description: "Delete an indexer from Prowlarr, or several at once, with its history and statistics. Applications that sync fully drop it on the next sync; disabling it instead keeps it and its history. Without confirm nothing changes and the answer says what would go.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in deleteIn) (*mcp.CallToolResult, deletedOut, error) {
-		i, err := r.resolveIndexer(ctx, in.Indexer)
-		if err != nil {
-			return nil, deletedOut{}, err
+		refs := slices.Clone(in.Indexers)
+		if in.Indexer != "" {
+			refs = append([]string{in.Indexer}, refs...)
+		}
+		if len(refs) == 0 {
+			return nil, deletedOut{}, errors.New("name the indexer to delete, or several as indexers")
+		}
+		// each is resolved on its own: an empty list would mean every one
+		var chosen []prowlarr.IndexerResource
+		for _, ref := range refs {
+			i, err := r.resolveIndexer(ctx, ref)
+			if err != nil {
+				return nil, deletedOut{}, err
+			}
+			if !slices.ContainsFunc(chosen, func(c prowlarr.IndexerResource) bool { return c.Id == i.Id }) {
+				chosen = append(chosen, *i)
+			}
 		}
 		apps, err := pc.GetApplications(ctx)
 		if err != nil {
@@ -386,18 +404,35 @@ func registerIndexerEditTools(r *registry) {
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
-		loses := []string{"its history and statistics: every query, grab and failure Prowlarr recorded for it", "its settings and credentials, as Prowlarr holds them"}
-		var receiving []string
-		for a := range apps.Model {
-			if syncs(&apps.Model[a], i, tags).Synced {
-				receiving = append(receiving, apps.Model[a].Name)
+		its := "its"
+		if len(chosen) > 1 {
+			its = "their"
+		}
+		loses := []string{its + " history and statistics: every query, grab and failure Prowlarr recorded", its + " settings and credentials, as Prowlarr holds them"}
+		var ids []int
+		var labels []string
+		for c := range chosen {
+			i := &chosen[c]
+			labels, ids = append(labels, i.Name), append(ids, i.Id)
+			var receiving []string
+			for a := range apps.Model {
+				if syncs(&apps.Model[a], i, tags).Synced {
+					receiving = append(receiving, apps.Model[a].Name)
+				}
+			}
+			if len(receiving) > 0 {
+				loses = append(loses, i.Name+"'s place in "+strings.Join(receiving, ", ")+": an application set to full sync drops it on the next sync")
 			}
 		}
-		if len(receiving) > 0 {
-			loses = append(loses, "its place in "+strings.Join(receiving, ", ")+": an application set to full sync drops it on the next sync")
-		}
-		out, err := deleting(in.Confirm, i.Name, loses, "indexer_edit enable=false retires it and keeps its history; after a delete, app_sync runs the sync now", func() error {
-			_, delErr := pc.DeleteIndexerById(ctx, i.Id)
+		out, err := deleting(in.Confirm, strings.Join(labels, ", "), loses, "indexer_edit enable=false retires it and keeps its history; after a delete, app_sync runs the sync now", func() error {
+			// one goes as Prowlarr's own page deletes one; several go in
+			// its one bulk delete
+			if len(ids) == 1 {
+				_, delErr := pc.DeleteIndexerById(ctx, ids[0])
+
+				return delErr
+			}
+			_, delErr := pc.DeleteIndexerBulk(ctx, prowlarr.IndexerBulkResource{Ids: ids})
 
 			return delErr
 		})

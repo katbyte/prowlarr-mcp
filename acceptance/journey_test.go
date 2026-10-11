@@ -147,14 +147,150 @@ func TestJourneyReadsChangeNothing(t *testing.T) {
 	}
 }
 
+// --- a setup from nothing, and back ----------------------------------------
+
+// What a person setting Prowlarr up for an application does, with the tools
+// alone and in the order they would: a tag and a sync profile, a tracker
+// added from the catalogue, a download client, the application with the tag,
+// a sync, a search and a grab through it, a hook to be told when something
+// breaks, a backup. Then the audits over the lot, which find the two things
+// a first setup gets wrong, each fixed with the tool the audit names until
+// the audits are clean of it; then every piece taken down again in the order
+// that lets each go, until Prowlarr is as it was.
+func TestJourneySetupAndTeardown(t *testing.T) {
+	if !suite.Ready {
+		t.Skip(testenv.NotConfigured)
+	}
+	if err := appsUp.Add(servarr.App{Name: "journey", Kind: servarr.Sonarr, APIKey: "journeykey"}); err != nil {
+		t.Fatal(err)
+	}
+	const tag, profile, indexer, client, app, hook, filter = "journey", "Journey Profile", "Journey Torrent", "Journey Blackhole", "Journey Sonarr", "Journey Hook", "Journey Filter"
+	// put back last to first: a profile in use cannot go before its indexer
+	for _, later := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"profile_delete", map[string]any{"profile": profile}}, {"downloadclient_delete", map[string]any{"client": client}}, {"indexer_delete", map[string]any{"indexer": indexer}},
+		{"app_delete", map[string]any{"app": app}}, {"filter_delete", map[string]any{"filter": filter}}, {"notification_delete", map[string]any{"notification": hook}},
+	} {
+		later.args["confirm"] = true
+		suite.DeleteLaterIfThere(t, later.tool, later.args, "no ")
+	}
+	t.Cleanup(func() { _, _ = suite.Invoke("tag_delete", map[string]any{"label": tag}) })
+	before := state(t)
+	h := newHook(t)
+
+	// set up
+	suite.Call(t, "tag_create", map[string]any{"label": tag})
+	suite.Call(t, "profile_create", map[string]any{"name": profile, "minimum_seeders": 2})
+	added := acc.Object(t, suite.Call(t, "indexer_add", map[string]any{"definition": "Generic Torznab", "name": indexer, "base_url": sitesUp.Indexer(siteAnime).URL(), "settings": map[string]any{"apiKey": siteKeys[siteAnime]}, "tags": []string{tag}, "sync_profile": profile})["indexer"], "indexer")
+	if acc.Str(added["sync_profile"]) != profile || !slices.Contains(acc.Strs(t, added["tags"], "tags"), tag) {
+		t.Fatalf("the indexer as added = %v", added)
+	}
+	suite.Call(t, "downloadclient_add", map[string]any{"kind": "TorrentBlackhole", "name": client, "settings": map[string]any{"torrentFolder": "/downloads/torrent"}})
+	// as a first setup has it: no seed goal on the private tracker, and the
+	// application told to reach Prowlarr at the default, localhost
+	suite.Call(t, "app_add", map[string]any{"kind": "Sonarr", "name": app, "base_url": appsUp.URL("journey"), "api_key": "journeykey", "tags": []string{tag}})
+	suite.Call(t, "notification_add", map[string]any{"kind": "Webhook", "name": hook, "on": []string{"health_issue", "health_restored"}, "health_warnings": true, "settings": map[string]any{"url": h.url}})
+	suite.Call(t, "filter_create", map[string]any{"label": filter, "page": "indexerIndex", "filters": []map[string]any{{"key": "tags", "type": "contains", "value": []string{tag}}}})
+
+	// the application receives the tagged tracker, and only that one
+	suite.Call(t, "app_sync", map[string]any{"force": true})
+	if got := acc.Strs(t, suite.Call(t, "app_get", map[string]any{"app": app})["synced"], "synced"); !slices.Equal(got, []string{indexer}) {
+		t.Errorf("%s receives %v, want only %s", app, got, indexer)
+	}
+	if !acc.EventuallyWithin(patience, func() bool {
+		return slices.ContainsFunc(appsUp.Indexers("journey"), func(i servarr.Indexer) bool { return strings.Contains(i.Name, indexer) })
+	}) {
+		t.Errorf("the fake Sonarr never received %s: %v", indexer, appsUp.Indexers("journey"))
+	}
+
+	// a search and a grab through it, which the history then shows
+	found := acc.Rows(t, search(t, "frieren", indexer)["releases"], "releases")
+	if len(found) == 0 {
+		t.Fatalf("nothing found on %s", indexer)
+	}
+	grabbed := suite.Call(t, "release_grab", map[string]any{"indexer": indexer, "guid": acc.Str(found[0]["guid"]), "download_client": client})
+	if got := acc.Strs(t, grabbed["grabbed"], "grabbed"); len(got) != 1 {
+		t.Errorf("grabbed = %v", grabbed)
+	}
+	if !acc.EventuallyWithin(patience, func() bool {
+		return len(acc.Rows(t, suite.Call(t, "history_list", map[string]any{"indexer": indexer, "event": "grab"})["events"], "events")) == 1
+	}) {
+		t.Errorf("the history does not show the grab from %s", indexer)
+	}
+
+	// told when something breaks: the hook hears Prowlarr's test, and a
+	// backup is the way back
+	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hook})["results"], "results"); len(res) != 1 || !acc.IsBool(res[0]["ok"], true) || !slices.Contains(h.got(), "Test") {
+		t.Errorf("the hook = %v, heard %v", res, h.got())
+	}
+	backup := acc.Str(acc.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
+	suite.DeleteLaterIfThere(t, "backup_delete", map[string]any{"backup": backup, "confirm": true}, "no backup")
+
+	// the audits over the lot: what they report of this journey's own
+	ownFindings := func() map[string][]string {
+		own := map[string][]string{}
+		for _, row := range acc.Rows(t, suite.Call(t, "audit_all", nil)["audits"], "audits") {
+			if acc.Num(t, row["findings"], "findings") == 0 {
+				continue
+			}
+			audit := acc.Str(row["audit"])
+			for _, f := range findings(t, suite.Call(t, audit, map[string]any{"limit": 1000})) {
+				if strings.HasPrefix(f, "Journey ") || strings.HasPrefix(f, tag+"/") {
+					own[audit] = append(own[audit], f)
+				}
+			}
+		}
+
+		return own
+	}
+	// a first setup gets two things wrong, and the audits say which
+	own := ownFindings()
+	if !slices.Equal(own["audit_seeding"], []string{indexer + "/no_seed_goal"}) || !slices.Equal(own["audit_apps"], []string{app + "/prowlarr_url_local"}) || len(own) != 2 {
+		t.Fatalf("the audits over a first setup report %v, want the tracker's missing seed goal and the application's localhost address and nothing else", own)
+	}
+	// each fixed with the tool its audit names
+	suite.Call(t, "indexer_edit", map[string]any{"indexer": indexer, "seed_ratio": 1})
+	suite.Call(t, "app_edit", map[string]any{"app": app, "prowlarr_url": "http://" + testenv.Container() + ":9696"})
+	suite.Call(t, "app_sync", map[string]any{"force": true})
+	if own := ownFindings(); len(own) != 0 {
+		t.Errorf("after the fixes the audits still report %v", own)
+	}
+
+	// take it down, each in the order that lets it go: what is in use
+	// cannot be deleted first
+	for _, step := range []struct {
+		tool string
+		args map[string]any
+	}{
+		{"notification_delete", map[string]any{"notification": hook}},
+		{"filter_delete", map[string]any{"filter": filter}},
+		{"app_delete", map[string]any{"app": app}},
+		{"indexer_delete", map[string]any{"indexer": indexer}},
+		{"downloadclient_delete", map[string]any{"client": client}},
+		{"profile_delete", map[string]any{"profile": profile}},
+		{"backup_delete", map[string]any{"backup": backup}},
+	} {
+		step.args["confirm"] = true
+		if gone := suite.Call(t, step.tool, step.args); acc.Str(gone["deleted"]) == "" {
+			t.Errorf("%s = %v", step.tool, gone)
+		}
+	}
+	suite.Call(t, "tag_delete", map[string]any{"label": tag})
+	if parts := changed(before, state(t)); len(parts) > 0 {
+		t.Errorf("after the teardown Prowlarr's %s differ from before the setup", strings.Join(parts, ", "))
+	}
+}
+
 // --- no answer shows a stored key -------------------------------------------
 
-// Every key the suite gave Prowlarr - each indexer's, each application's -
-// and Prowlarr's own are looked for in what the tools answer, with the
-// failing indexers made to fail afresh and then tested. That is when Prowlarr
-// quotes the whole address of the request that failed, key and all, in a
-// failed test, in its log and in the error it refuses a save with; none of
-// it may reach a client.
+// The failing indexers are made to fail afresh and then tested, and every
+// answer that can quote the request that failed is asked for. That is when
+// Prowlarr writes the whole address of the request, key and all, into a
+// failed test, its log and the error it refuses a save with. The harness
+// reads every answer for every key the suite gave Prowlarr (suite.Secret),
+// so the calls are what this journey makes, and the watch is what fails it.
 func TestJourneyNoAnswerShowsAStoredKey(t *testing.T) {
 	if !suite.Ready {
 		t.Skip(testenv.NotConfigured)
@@ -164,10 +300,6 @@ func TestJourneyNoAnswerShowsAStoredKey(t *testing.T) {
 	_, _ = suite.Invoke("release_search", map[string]any{"query": "a stored key", "indexers": []string{idxDown, idxRevoked, idxFlaky}})
 	suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})
 
-	keys := []string{testenv.Token(), "sonarrkey", "radarrkey", "lidarrkey", "milkiekey"}
-	for _, key := range siteKeys {
-		keys = append(keys, key)
-	}
 	calls := []struct {
 		tool string
 		args map[string]any
@@ -182,19 +314,10 @@ func TestJourneyNoAnswerShowsAStoredKey(t *testing.T) {
 		// a save Prowlarr refuses with a 500 that quotes the address it made of this one, the indexer's own key on the end
 		{"indexer_edit", map[string]any{"indexer": idxTorrent, "base_url": "https://someone:a-sign-in-word@site.example/path?passkey=a-pass-key#frag", "force": true}},
 	}
-	keys = append(keys, "a-sign-in-word", "a-pass-key")
+	suite.Secret("a-sign-in-word")
+	suite.Secret("a-pass-key")
 	for _, c := range calls {
-		out, err := suite.Invoke(c.tool, c.args)
-		raw, _ := json.Marshal(out)
-		text := string(raw)
-		if err != nil {
-			text += " " + err.Error()
-		}
-		for _, key := range keys {
-			if at := strings.Index(text, key); at >= 0 {
-				t.Errorf("%s %v shows the key %q: ...%s...", c.tool, c.args, key, text[max(0, at-200):min(len(text), at+len(key)+20)])
-			}
-		}
+		_, _ = suite.Invoke(c.tool, c.args)
 	}
 }
 

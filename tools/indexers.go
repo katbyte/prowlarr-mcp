@@ -58,7 +58,7 @@ func (l *lookups) indexerRow(i *prowlarr.IndexerResource) indexerRow {
 	row := indexerRow{
 		ID: i.Id, Name: i.Name, Definition: definitionOf(i), Protocol: string(i.Protocol), Privacy: string(i.Privacy),
 		Enabled: boolv(i.Enable), Priority: i.Priority, Tags: labels(i.Tags, l.tags), SyncProfile: l.profiles[i.AppProfileId],
-		BaseURL: fieldString(i.Fields, "baseUrl"),
+		BaseURL: shownAddress(i.Fields, "baseUrl"),
 	}
 	if s, ok := l.failing[i.Id]; ok {
 		row.FailingUntil = s.DisabledTill

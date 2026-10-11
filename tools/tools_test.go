@@ -461,6 +461,7 @@ func TestAuditsAreAllInAuditAll(t *testing.T) {
 	registerIndexerAudits(r, tbl)
 	registerRoutingAudits(r, tbl)
 	registerSettingAudits(r, tbl)
+	registerServerAudits(r, tbl)
 	inTable := make([]string, 0, len(tbl.list))
 	for _, a := range tbl.list {
 		inTable = append(inTable, a.name)
@@ -473,8 +474,8 @@ func TestAuditsAreAllInAuditAll(t *testing.T) {
 			t.Errorf("%s is not run by audit_all", name)
 		}
 	}
-	if len(inTable) != 16 {
-		t.Errorf("%d audits, the README lists 16 beside audit_all: %v", len(inTable), inTable)
+	if len(inTable) != 18 {
+		t.Errorf("%d audits, the README lists 18 beside audit_all: %v", len(inTable), inTable)
 	}
 }
 

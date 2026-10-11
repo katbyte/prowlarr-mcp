@@ -1,11 +1,6 @@
 package tools
 
-import (
-	"regexp"
-	"strings"
-
-	"github.com/katbyte/go-kt/outside"
-)
+import "github.com/katbyte/go-kt/outside"
 
 // Text that strangers wrote reaches a model through these tools: a release's
 // name as a public indexer gave it, what a site answered a test with, a line
@@ -44,47 +39,6 @@ func outsideLines(lines []string) []string {
 	return out
 }
 
-// addressIn finds an address in running text: it runs to a space, a quote or
-// a closing bracket.
-var addressIn = regexp.MustCompile(`https?://[^\s"'<>\])]+`)
-
 // blankAddresses is text with every address in it blanked of what may be a
-// credential (see blankAddress).
-func blankAddresses(s string) string {
-	return addressIn.ReplaceAllStringFunc(s, blankAddress)
-}
-
-// blankAddress is an address without what it may carry of a credential: who
-// it signs in as, the value of each of its parameters and what follows its
-// #. The parameters' names stay, which say what was asked without saying
-// with what. A credential in the path itself, as some trackers put a passkey,
-// cannot be told from the rest of the path and is left.
-func blankAddress(address string) string {
-	rest, fragment, _ := strings.Cut(address, "#")
-	rest, query, _ := strings.Cut(rest, "?")
-
-	scheme, after, _ := strings.Cut(rest, "://")
-	host, path, hasPath := strings.Cut(after, "/")
-	if at := strings.LastIndex(host, "@"); at >= 0 {
-		host = hidden + host[at:]
-	}
-	out := scheme + "://" + host
-	if hasPath {
-		out += "/" + path
-	}
-
-	if query != "" {
-		parameters := strings.Split(query, "&")
-		for i, parameter := range parameters {
-			if name, _, has := strings.Cut(parameter, "="); has {
-				parameters[i] = name + "=" + hidden
-			}
-		}
-		out += "?" + strings.Join(parameters, "&")
-	}
-	if fragment != "" {
-		out += "#" + hidden
-	}
-
-	return out
-}
+// credential: go-kt's rule, the one its registry applies to a failure.
+func blankAddresses(s string) string { return outside.BlankAddresses(s) }

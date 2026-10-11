@@ -192,6 +192,9 @@ func registerProxyTools(r *registry) {
 			return nil, proxyRow{}, err
 		}
 		p := read.Model
+		if p == nil {
+			return nil, proxyRow{}, errEmptyAnswer
+		}
 
 		if in.Name != "" {
 			p.Name = in.Name

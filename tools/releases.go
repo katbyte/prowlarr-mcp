@@ -132,50 +132,70 @@ func registerReleaseTools(r *registry) {
 	})
 
 	type grabIn struct {
-		Indexer        string `json:"indexer"                   jsonschema:"the release's indexer, by name or id (release_search's indexer_id)"`
-		GUID           string `json:"guid"                      jsonschema:"the release's guid from release_search, within half an hour of the search"`
-		DownloadClient string `json:"download_client,omitempty" jsonschema:"the download client to send it to, by name or id; default the indexer's own, then the first that takes its protocol"`
+		Indexer        string   `json:"indexer"                   jsonschema:"the releases' indexer, by name or id (release_search's indexer_id)"`
+		GUID           string   `json:"guid,omitempty"            jsonschema:"the release's guid from release_search, within half an hour of the search"`
+		GUIDs          []string `json:"guids,omitempty"           jsonschema:"several releases' guids from one indexer, grabbed in one call"`
+		DownloadClient string   `json:"download_client,omitempty" jsonschema:"the download client to send them to, by name or id; default the indexer's own, then the first that takes its protocol"`
 	}
 	type grabOut struct {
-		Grabbed string `json:"grabbed"`
-		Indexer string `json:"indexer"`
-		Note    string `json:"note"`
+		Grabbed []string `json:"grabbed" jsonschema:"what was sent, by name where the history records one and by guid where not"`
+		Indexer string   `json:"indexer"`
+		Note    string   `json:"note"`
 	}
 	add(r, writeTool, &mcp.Tool{
 		Name:        "release_grab",
-		Description: "Send a release found by release_search to a download client, the way Prowlarr's own search page does: Prowlarr fetches it from the indexer and hands it over, and the grab shows in the history and statistics. The release must come from a search in the last half hour.",
+		Description: "Send a release found by release_search, or several from one indexer at once, to a download client, the way Prowlarr's own search page does: Prowlarr fetches it from the indexer and hands it over, and the grab shows in the history and statistics. The release must come from a search in the last half hour.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in grabIn) (*mcp.CallToolResult, grabOut, error) {
 		i, err := r.resolveIndexer(ctx, in.Indexer)
 		if err != nil {
 			return nil, grabOut{}, err
 		}
-		if strings.TrimSpace(in.GUID) == "" {
-			return nil, grabOut{}, errors.New("give the release's guid, from release_search")
-		}
-		body := prowlarr.ReleaseResource{IndexerId: i.Id, Guid: in.GUID}
-		if in.DownloadClient != "" {
-			var dc *prowlarr.DownloadClientResource
-			if dc, err = r.resolveDownloadClient(ctx, in.DownloadClient); err != nil {
-				return nil, grabOut{}, err
+		var guids []string
+		for _, guid := range append([]string{in.GUID}, in.GUIDs...) {
+			if guid = strings.TrimSpace(guid); guid != "" && !slices.Contains(guids, guid) {
+				guids = append(guids, guid)
 			}
-			body.DownloadClientId = dc.Id
 		}
-		if _, err := pc.PostSearch(ctx, body); err != nil {
+		if len(guids) == 0 {
+			return nil, grabOut{}, errors.New("give the release's guid, or several guids, from release_search")
+		}
+		var client int
+		if in.DownloadClient != "" {
+			dc, dcErr := r.resolveDownloadClient(ctx, in.DownloadClient)
+			if dcErr != nil {
+				return nil, grabOut{}, dcErr
+			}
+			client = dc.Id
+		}
+		releases := make([]prowlarr.ReleaseResource, 0, len(guids))
+		for _, guid := range guids {
+			releases = append(releases, prowlarr.ReleaseResource{IndexerId: i.Id, Guid: guid, DownloadClientId: client})
+		}
+		// one goes as Prowlarr's search page sends one; several go as its
+		// bulk grab sends them, in one call
+		if len(releases) == 1 {
+			_, err = pc.PostSearch(ctx, releases[0])
+		} else {
+			_, err = pc.PostSearchBulk(ctx, releases)
+		}
+		if err != nil {
 			return nil, grabOut{}, err
 		}
-		// the answer is the release as sent, a guid and an indexer; the
-		// grab's own record in the history names what was fetched
-		title := in.GUID
-		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), EventType: prowlarr.HistoryEventTypeReleaseGrabbed, Limit: new(5)})
+		// the answer is the releases as sent, guids and an indexer; the
+		// grabs' own records in the history name what was fetched
+		out := grabOut{Grabbed: slices.Clone(guids), Indexer: i.Name, Note: "sent to the download client; history_list event=grab shows them"}
+		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), EventType: prowlarr.HistoryEventTypeReleaseGrabbed, Limit: new(len(guids) + 5)})
 		if err == nil {
 			events := hist.Model
 			slices.SortStableFunc(events, func(a, b prowlarr.HistoryResource) int { return strings.Compare(b.Date, a.Date) })
-			if len(events) > 0 && data(&events[0], "grabTitle") != "" {
-				title = data(&events[0], "grabTitle")
+			for n := 0; n < len(guids) && n < len(events); n++ {
+				if title := data(&events[n], "grabTitle"); title != "" {
+					out.Grabbed[len(guids)-1-n] = outsideName(title)
+				}
 			}
 		}
 
-		return nil, grabOut{Grabbed: title, Indexer: i.Name, Note: "sent to the download client; history_list event=grab shows it"}, nil
+		return nil, out, nil
 	})
 }
 

@@ -77,6 +77,7 @@ type snapshot struct {
 
 	mu      sync.Mutex
 	health  []prowlarr.HealthResource
+	notes   []prowlarr.NotificationResource
 	stats   map[string]*prowlarr.IndexerStatsResource
 	details []tagRow
 }
@@ -271,6 +272,7 @@ func registerAuditTools(r *registry) {
 	registerIndexerAudits(r, t)
 	registerRoutingAudits(r, t)
 	registerSettingAudits(r, t)
+	registerServerAudits(r, t)
 	registerAuditAll(r, t)
 }
 
@@ -292,7 +294,7 @@ type auditAllOut struct {
 func registerAuditAll(r *registry, t *auditTable) {
 	add(r, readTool, &mcp.Tool{
 		Name: "audit_all",
-		Description: "Run every audit and report only the counts, so one call says where Prowlarr needs work: failing, unreliable, slow and unused indexers, indexers no application receives, applications that are misconfigured, duplicates, private trackers with no seed goal, limits and VIP running out, retired definitions and addresses, missing FlareSolverr, broken download clients, stray tags and profiles, and Prowlarr's own health checks. " +
+		Description: "Run every audit and report only the counts, so one call says where Prowlarr needs work: failing, unreliable, slow and unused indexers, indexers no application receives, applications that are misconfigured, duplicates, private trackers with no seed goal, limits and VIP running out, retired definitions and addresses, missing FlareSolverr, broken download clients, stray tags and profiles, Prowlarr's own health checks, nobody told of a health issue, and no way back. " +
 			"Start here, then call the audit whose count is not zero for its worklist. Nothing is tested against a site or an application: the audits that can test (audit_failing, audit_apps, audit_proxies, audit_download_clients) do so only when asked.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ any) (*mcp.CallToolResult, auditAllOut, error) {
 		s, err := r.snap(ctx)

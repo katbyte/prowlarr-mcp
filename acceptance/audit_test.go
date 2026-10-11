@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	acc "github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/prowlarr-mcp/lib/testenv"
@@ -445,6 +446,94 @@ func TestAuditProfiles(t *testing.T) {
 		_, _ = suite.Invoke("profile_create", map[string]any{"name": profileSpare})
 	})
 	cleared(t, "audit_profiles", nil, profileNothing, profileSpare)
+}
+
+// Nobody is told of a health issue until a notification is sent for one; a
+// hook sent for nothing, and one sent for health issues without the
+// warnings, are each named, and with test=true one that cannot be reached.
+func TestAuditNotifications(t *testing.T) {
+	// the suite's notifications are all gone between tests: none is sent
+	// for a health issue
+	out := suite.Call(t, "audit_notifications", nil)
+	if _, ok := finding(t, out, "notifications", "no_health_notification"); !ok {
+		t.Errorf("with no notifications nothing says a health issue goes unheard: %v", findings(t, out))
+	}
+
+	h := newHook(t)
+	for name, args := range map[string]map[string]any{
+		"Audit Quiet":   {"kind": "Webhook", "name": "Audit Quiet", "on": []string{"grab"}, "settings": map[string]any{"url": h.url}},
+		"Audit Health":  {"kind": "Webhook", "name": "Audit Health", "on": []string{"health_issue"}, "settings": map[string]any{"url": h.url}},
+		"Audit Nowhere": {"kind": "Webhook", "name": "Audit Nowhere", "on": []string{"health_issue"}, "health_warnings": true, "settings": map[string]any{"url": "http://" + testenv.Host() + ":1/hook"}, "force": true},
+	} {
+		suite.DeleteLaterIfThere(t, "notification_delete", map[string]any{"notification": name, "confirm": true}, "no notification")
+		suite.Call(t, "notification_add", args)
+	}
+	// the tools refuse to make one sent for nothing; the web interface
+	// does not, so one is switched off behind their back
+	suite.Call(t, "notification_edit", map[string]any{"notification": "Audit Quiet", "remove_on": []string{"grab"}})
+	out = suite.Call(t, "audit_notifications", nil)
+	got := findings(t, out)
+	for _, want := range []string{"Audit Quiet/sent_for_nothing", "Audit Health/health_warnings_off"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("%s is not reported: %v", want, got)
+		}
+	}
+	noneOf(t, got, "notifications", "Audit Nowhere")
+	if acc.Num(t, out["scanned"], "scanned") != 3 {
+		t.Errorf("scanned %v, want the three", out["scanned"])
+	}
+
+	// test=true sends a test through each that is sent for something: the
+	// one nothing answers fails, and the hook hears the other
+	before := len(h.got())
+	out = suite.Call(t, "audit_notifications", map[string]any{"test": true})
+	if detail, ok := finding(t, out, "Audit Nowhere", "test_failed"); !ok || !strings.Contains(detail, "test fails") {
+		t.Errorf("the hook nothing answers is not reported failing: %v", findings(t, out))
+	}
+	if _, failed := finding(t, out, "Audit Health", "test_failed"); failed {
+		t.Errorf("the hook that answers is reported failing: %v", findings(t, out))
+	}
+	if got := h.got(); len(got) != before+1 || got[len(got)-1] != "Test" {
+		t.Errorf("after the audit's test the hook has %v", got)
+	}
+
+	// the fix
+	suite.Call(t, "notification_edit", map[string]any{"notification": "Audit Health", "health_warnings": true})
+	suite.Call(t, "notification_edit", map[string]any{"notification": "Audit Quiet", "on": []string{"grab"}})
+	cleared(t, "audit_notifications", nil, "Audit Health", "Audit Quiet", "notifications")
+}
+
+// No backup is no way back, and one older than the schedule allows means
+// the scheduled backup is not running: the file's own time is what Prowlarr
+// reports, so one is aged on disk.
+func TestAuditBackups(t *testing.T) {
+	for _, b := range acc.Rows(t, suite.Call(t, "backup_list", map[string]any{"limit": 1000})["backups"], "backups") {
+		suite.Call(t, "backup_delete", map[string]any{"backup": acc.Str(b["name"]), "confirm": true})
+	}
+	out := suite.Call(t, "audit_backups", nil)
+	if detail, ok := finding(t, out, "backups", "no_backup"); !ok || !strings.Contains(detail, "every") {
+		t.Errorf("with no backup = %v", findings(t, out))
+	}
+
+	made := acc.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")
+	name := acc.Str(made["name"])
+	suite.DeleteLaterIfThere(t, "backup_delete", map[string]any{"backup": name, "confirm": true}, "no backup")
+	cleared(t, "audit_backups", nil, "backups")
+
+	// aged past the schedule
+	path := filepath.Join(testenv.DataDir(), "config", "Backups", acc.Str(made["type"]), name)
+	old := time.Now().Add(-40 * 24 * time.Hour)
+	if err := os.Chtimes(path, old, old); err != nil {
+		t.Fatal(err)
+	}
+	out = suite.Call(t, "audit_backups", nil)
+	if detail, ok := finding(t, out, "backups", "backup_stale"); !ok || !strings.Contains(detail, "days old") {
+		t.Errorf("with a backup aged 40 days = %v", findings(t, out))
+	}
+	// and the fix is a fresh one
+	fresh := acc.Str(acc.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
+	suite.DeleteLaterIfThere(t, "backup_delete", map[string]any{"backup": fresh, "confirm": true}, "no backup")
+	cleared(t, "audit_backups", nil, "backups")
 }
 
 func TestAuditHealth(t *testing.T) {

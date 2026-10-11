@@ -43,6 +43,7 @@
 //   - prowlarr-put-id-integer
 //   - prowlarr-test-all-results
 //   - prowlarr-command-body
+//   - prowlarr-restore-upload-body
 //   - prowlarr-bulk-answer-lists
 //   - prowlarr-host-settings
 package prowlarr

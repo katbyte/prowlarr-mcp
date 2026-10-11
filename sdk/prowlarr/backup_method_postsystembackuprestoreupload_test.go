@@ -4,6 +4,7 @@ package prowlarr
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/katbyte/pandorest/client"
@@ -13,20 +14,25 @@ func TestOperationPostSystemBackupRestoreUpload(t *testing.T) {
 	t.Parallel()
 
 	c, s := newOperationServer(t, 200, "", "")
-	result, err := c.PostSystemBackupRestoreUpload(t.Context())
+	result, err := c.PostSystemBackupRestoreUpload(t.Context(), strings.NewReader("raw bytes"), "multipart/form-data")
 	if err != nil {
 		t.Fatal(err)
 	}
 	r, body := s.only(t)
-	_ = body
 	expectRequest(t, r, http.MethodPost, "/api/v1/system/backup/restore/upload")
+	if got := r.Header.Get("Content-Type"); got != "multipart/form-data" {
+		t.Errorf("Content-Type = %q, want %q", got, "multipart/form-data")
+	}
+	if body != "raw bytes" {
+		t.Errorf("body = %q, want the raw bytes", body)
+	}
 	if result.HttpResponse == nil || result.HttpResponse.StatusCode != 200 {
 		t.Fatalf("HttpResponse = %+v", result.HttpResponse)
 	}
 
 	// a status the operation does not document is an error, with the response
 	c, _ = newOperationServer(t, 418, "text/plain", "no")
-	result, err = c.PostSystemBackupRestoreUpload(t.Context())
+	result, err = c.PostSystemBackupRestoreUpload(t.Context(), strings.NewReader("raw bytes"), "multipart/form-data")
 	if client.StatusCode(err) != 418 || result.HttpResponse == nil {
 		t.Errorf("an undocumented status = %v, %+v", err, result.HttpResponse)
 	}

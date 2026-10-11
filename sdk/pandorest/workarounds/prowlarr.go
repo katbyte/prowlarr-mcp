@@ -101,6 +101,7 @@ var All = []workarounds.Workaround{
 	prowlarrPutIDInteger{},
 	prowlarrTestAllResults{},
 	prowlarrCommandBody{},
+	prowlarrRestoreUploadBody{},
 
 	// the bulk writes whose action is declared as ActionResult<TResource>
 	// and answers a list: ProviderControllerBase's bulk update, Accepted(the
@@ -253,6 +254,35 @@ func (prowlarrTestAllResults) Apply(spec *openapi.Spec) error {
 		}
 		ok.Content = results()
 		op.Responses["400"] = &openapi.Response{Description: "At least one provider failed its test", Content: results()}
+	}
+
+	return nil
+}
+
+// prowlarrRestoreUploadBody declares the file a restore from an upload takes.
+type prowlarrRestoreUploadBody struct{}
+
+const restoreUpload = "/api/v1/system/backup/restore/upload"
+
+func (prowlarrRestoreUploadBody) Name() string    { return "prowlarr-restore-upload-body" }
+func (prowlarrRestoreUploadBody) Service() string { return prowlarr }
+func (prowlarrRestoreUploadBody) Bug() string {
+	return "POST /api/v1/system/backup/restore/upload declares no request body, but BackupController reads the backup from a multipart form (Request.Form.Files), and answers a 500 to a request with no Content-Type: a client built from the document cannot send the file"
+}
+
+func (prowlarrRestoreUploadBody) Apply(spec *openapi.Spec) error {
+	op, err := workarounds.Operation(spec, http.MethodPost, restoreUpload)
+	if err != nil {
+		return err
+	}
+	if op.RequestBody != nil {
+		return fmt.Errorf("POST %s declares a body now", restoreUpload)
+	}
+	// a multipart form with the backup (a .zip) as a file field, sent with
+	// the form's own Content-Type and its boundary
+	op.RequestBody = &openapi.RequestBody{
+		Required: true,
+		Content:  map[string]*openapi.MediaType{"multipart/form-data": {Schema: &openapi.Schema{Type: openapi.TypeString, Format: "binary"}}},
 	}
 
 	return nil

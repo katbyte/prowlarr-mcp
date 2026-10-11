@@ -205,13 +205,13 @@ func registerSettingAudits(r *registry, t *auditTable) {
 			case slices.ContainsFunc(i.LegacyUrls, func(u string) bool { return sameURL(u, base) }):
 				out.report(finding{
 					Subject: i.Name, Kind: "indexer", Problem: "retired_url",
-					Detail: fmt.Sprintf("it uses %s, an address the site has moved away from; current: %s", base, strings.Join(urls, ", ")),
+					Detail: fmt.Sprintf("it uses %s, an address the site has moved away from; current: %s", blankAddresses(base), strings.Join(urls, ", ")),
 					Fix:    "indexer_edit base_url=" + urls[0],
 				})
 			case !slices.ContainsFunc(urls, func(u string) bool { return sameURL(u, base) }):
 				out.report(finding{
 					Subject: i.Name, Kind: "indexer", Problem: "unlisted_url",
-					Detail: fmt.Sprintf("it uses %s, which its definition does not list (it knows %s): a mirror, or a typo", base, strings.Join(urls, ", ")),
+					Detail: fmt.Sprintf("it uses %s, which its definition does not list (it knows %s): a mirror, or a typo", blankAddresses(base), strings.Join(urls, ", ")),
 					Fix:    fmt.Sprintf("indexer_edit base_url=%s, unless the mirror is deliberate", urls[0]),
 				})
 			}

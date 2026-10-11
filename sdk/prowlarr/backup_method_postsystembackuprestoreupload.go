@@ -4,6 +4,7 @@ package prowlarr
 
 import (
 	"context"
+	"io"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
@@ -15,8 +16,11 @@ type PostSystemBackupRestoreUploadOperationResponse struct {
 }
 
 // PostSystemBackupRestoreUpload calls POST /api/v1/system/backup/restore/upload.
-func (c Client) PostSystemBackupRestoreUpload(ctx context.Context) (result PostSystemBackupRestoreUploadOperationResponse, err error) {
+//
+// input is sent as contentType, or as multipart/form-data when that is empty.
+func (c Client) PostSystemBackupRestoreUpload(ctx context.Context, input io.Reader, contentType string) (result PostSystemBackupRestoreUploadOperationResponse, err error) {
 	opts := client.RequestOptions{
+		ContentType: "multipart/form-data",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
@@ -26,6 +30,10 @@ func (c Client) PostSystemBackupRestoreUpload(ctx context.Context) (result PostS
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
+		return
+	}
+
+	if err = req.SetBody(input, contentType); err != nil {
 		return
 	}
 

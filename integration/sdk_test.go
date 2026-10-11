@@ -3,9 +3,13 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"io"
+	"mime/multipart"
 	"net/http"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -450,22 +454,121 @@ func TestLogs(t *testing.T) {
 }
 
 // prowlarr-undeclared-write-responses: a provider's action answers JSON of
-// its own shape - here the options a Cardigann definition's setting offers.
-func TestProviderAction(t *testing.T) {
+// its own shape, the options a settings field offers. Every kind of provider
+// has the route, and an action the provider does not have answers an empty
+// object, still JSON.
+func TestProviderActions(t *testing.T) {
 	need(t)
 
+	isJSON := func(what string, raw json.RawMessage, err error) {
+		t.Helper()
+
+		if err != nil {
+			t.Errorf("%s: %v", what, err)
+
+			return
+		}
+		var v any
+		if err := json.Unmarshal(raw, &v); err != nil {
+			t.Errorf("%s answered something that is not JSON: %q", what, raw)
+		}
+	}
+	idx, err := sdk.GetIndexerById(ctx, fx.torrent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := sdk.PostIndexerActionByName(ctx, "nothing", *idx.Model)
+	isJSON("an indexer's action", res.Model, err)
 	app, err := sdk.GetApplicationsById(ctx, fx.app)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// an action the provider does not have answers an empty object, still JSON
-	res, err := sdk.PostApplicationsActionByName(ctx, "nothing", *app.Model)
+	res2, err := sdk.PostApplicationsActionByName(ctx, "nothing", *app.Model)
+	isJSON("an application's action", res2.Model, err)
+	dc, err := sdk.GetDownloadClientById(ctx, fx.client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var v any
-	if err := json.Unmarshal(res.Model, &v); err != nil {
-		t.Errorf("the answer is not JSON: %q", res.Model)
+	res3, err := sdk.PostDownloadClientActionByName(ctx, "nothing", *dc.Model)
+	isJSON("a download client's action", res3.Model, err)
+	px, err := sdk.GetIndexerProxyById(ctx, fx.proxy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res4, err := sdk.PostIndexerProxyActionByName(ctx, "nothing", *px.Model)
+	isJSON("a proxy's action", res4.Model, err)
+	note, err := sdk.GetNotificationById(ctx, fx.webhook)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res5, err := sdk.PostNotificationActionByName(ctx, "nothing", *note.Model)
+	isJSON("a notification's action", res5.Model, err)
+}
+
+// prowlarr-bulk-answer-lists is for the bulk updates; the bulk deletes take
+// the same body, ids and all, and answer nothing. One of each kind is made
+// to be deleted that way: an indexer, an application and a download client.
+func TestBulkDeletes(t *testing.T) {
+	need(t)
+
+	schema, err := sdk.GetIndexerSchema(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(schema.Model, func(x prowlarr.IndexerResource) bool { return x.Name == "Generic Torznab" })
+	idx := schema.Model[i]
+	idx.Name, idx.Enable, idx.Presets, idx.AppProfileId = "Bulk Torznab", new(false), nil, fx.profile
+	setField(idx.Fields, "baseUrl", sites.Indexer(torrentSite).URL())
+	setField(idx.Fields, "apiKey", siteKey)
+	madeIdx, err := sdk.PostIndexer(ctx, idx, prowlarr.PostIndexerOperationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sdk.DeleteIndexerBulk(ctx, prowlarr.IndexerBulkResource{Ids: []int{madeIdx.Model.Id}}); err != nil {
+		t.Errorf("deleting indexers in bulk: %v", err)
+	}
+	if _, err := sdk.GetIndexerById(ctx, madeIdx.Model.Id); client.StatusCode(err) != http.StatusNotFound {
+		t.Errorf("after the bulk delete the indexer answers %v, want a 404", err)
+	}
+
+	appSchema, err := sdk.GetApplicationsSchema(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i = slices.IndexFunc(appSchema.Model, func(x prowlarr.ApplicationResource) bool { return x.Implementation == "Sonarr" })
+	app := appSchema.Model[i]
+	app.Name, app.Presets, app.SyncLevel, app.Tags = "Bulk Sonarr", nil, prowlarr.ApplicationSyncLevelDisabled, []int{}
+	setField(app.Fields, "baseUrl", apps.URL(fakeSonarr))
+	setField(app.Fields, "apiKey", fakeSonarrKey)
+	setField(app.Fields, "prowlarrUrl", "http://prowlarr:9696")
+	madeApp, err := sdk.PostApplications(ctx, app, prowlarr.PostApplicationsOperationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sdk.DeleteApplicationsBulk(ctx, prowlarr.ApplicationBulkResource{Ids: []int{madeApp.Model.Id}}); err != nil {
+		t.Errorf("deleting applications in bulk: %v", err)
+	}
+	if _, err := sdk.GetApplicationsById(ctx, madeApp.Model.Id); client.StatusCode(err) != http.StatusNotFound {
+		t.Errorf("after the bulk delete the application answers %v, want a 404", err)
+	}
+
+	clients, err := sdk.GetDownloadClientSchema(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	i = slices.IndexFunc(clients.Model, func(x prowlarr.DownloadClientResource) bool { return x.Implementation == "TorrentBlackhole" })
+	dc := clients.Model[i]
+	dc.Name, dc.Enable, dc.Presets = "Bulk Blackhole", new(false), nil
+	setField(dc.Fields, "torrentFolder", "/downloads/torrent")
+	madeDC, err := sdk.PostDownloadClient(ctx, dc, prowlarr.PostDownloadClientOperationOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sdk.DeleteDownloadClientBulk(ctx, prowlarr.DownloadClientBulkResource{Ids: []int{madeDC.Model.Id}}); err != nil {
+		t.Errorf("deleting download clients in bulk: %v", err)
+	}
+	if _, err := sdk.GetDownloadClientById(ctx, madeDC.Model.Id); client.StatusCode(err) != http.StatusNotFound {
+		t.Errorf("after the bulk delete the download client answers %v, want a 404", err)
 	}
 }
 
@@ -528,5 +631,74 @@ func TestUpdates(t *testing.T) {
 	t.Cleanup(func() { home.SetDown(false) })
 	if _, err := sdk.GetUpdate(ctx); client.StatusCode(err) != http.StatusInternalServerError {
 		t.Errorf("with the update server down the read answered %v, want a 500", err)
+	}
+}
+
+// prowlarr-restore-upload-body: a backup is uploaded as a multipart form and
+// restored, which Prowlarr applies when it next starts; then Prowlarr is shut
+// down. In the test container its supervisor starts it again, which is how a
+// shutdown can be tested at all, and how the restore takes effect. On a real
+// install nothing starts it again. This runs last: everything after it would
+// run against a Prowlarr just restarted, and the backup is of the state the
+// tests above left, so the clean-up after finds what it expects.
+func TestRestoreUploadAndShutdown(t *testing.T) {
+	need(t)
+
+	if cmd := runCommand(t, map[string]any{"name": "Backup"}); cmd.Status != prowlarr.CommandStatusCompleted {
+		t.Fatalf("backup = %+v", cmd)
+	}
+	backups, err := sdk.GetSystemBackup(ctx)
+	if err != nil || len(backups.Model) == 0 {
+		t.Fatalf("backups = %v, %v", backups.Model, err)
+	}
+	newest := backups.Model[0]
+	// the file itself is not served by the API; the suite reads it from the
+	// container's data directory, which it mounts
+	data, err := os.ReadFile(filepath.Join(testenv.DataDir(), "config", "Backups", string(newest.Type), newest.Name))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var form bytes.Buffer
+	w := multipart.NewWriter(&form)
+	part, err := w.CreateFormFile("restore", newest.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sdk.PostSystemBackupRestoreUpload(ctx, &form, w.FormDataContentType()); err != nil {
+		t.Fatalf("restoring from an upload: %v", err)
+	}
+	// and with no form, Prowlarr's 500 saying so, as the document would
+	// have every client send it
+	if _, err := sdk.PostSystemBackupRestoreUpload(ctx, nil, ""); client.StatusCode(err) != http.StatusInternalServerError || !strings.Contains(err.Error(), "Content-Type") {
+		t.Errorf("a restore with no form = %v, want Prowlarr's 500 about the Content-Type", err)
+	}
+
+	before, err := sdk.GetSystemStatus(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sdk.PostSystemShutdown(ctx); err != nil {
+		t.Fatalf("shutdown: %v", err)
+	}
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		after, err := sdk.GetSystemStatus(ctx)
+		if err == nil && after.Model.StartTime != before.Model.StartTime {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("Prowlarr did not come back within two minutes of the shutdown (last: %v)", err)
+		}
+		time.Sleep(2 * time.Second)
+	}
+	// the restore took effect: what the tests left is still there
+	if _, err := sdk.GetIndexerById(ctx, fx.torrent); err != nil {
+		t.Errorf("after the restore and the restart the torrent indexer answers %v", err)
 	}
 }

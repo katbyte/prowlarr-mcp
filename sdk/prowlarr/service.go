@@ -24,6 +24,14 @@ var service = client.Service{
 	WebPageAdvice:  "check the server url and its URL base",
 	Messages:       errorMessages,
 	Note:           note,
+	// A trace hides a field by its name, and two of Prowlarr's credentials
+	// are under names that say nothing: a provider's settings are sent, and
+	// sent back, as pairs of a name and a value, so a tracker's key or
+	// cookie is under "value"; and the password typed a second time is
+	// under a name that does not end as a password's. Naming "value" blanks
+	// every setting's text in a trace, an address along with a key, which
+	// is blunt, and leaves the names, which say what was set.
+	SecretNames: []string{"value", "passwordConfirmation"},
 }
 
 // note is what is known of a failure on a Prowlarr.

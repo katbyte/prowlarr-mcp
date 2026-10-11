@@ -149,7 +149,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 			if slices.Contains(localHosts, hostOf(prowlarrURL)) && !slices.Contains(localHosts, hostOf(base)) {
 				out.report(finding{
 					Subject: app.Name, Kind: "app", Problem: "prowlarr_url_local",
-					Detail: fmt.Sprintf("it is at %s but told to reach Prowlarr at %s, which from anywhere but Prowlarr's own host is itself: every indexer it receives points there", base, prowlarrURL),
+					Detail: fmt.Sprintf("it is at %s but told to reach Prowlarr at %s, which from anywhere but Prowlarr's own host is itself: every indexer it receives points there", blankAddresses(base), blankAddresses(prowlarrURL)),
 					Fix:    "app_edit prowlarr_url to Prowlarr's address as the application sees it, then app_sync force=true",
 				})
 			}
@@ -163,7 +163,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 				if other := &s.apps[b]; sameURL(fieldString(other.Fields, "baseUrl"), base) {
 					out.report(finding{
 						Subject: app.Name, Kind: "app", Problem: "duplicate",
-						Detail: fmt.Sprintf("it and %s are the same application at %s: each pushes its own copy of every indexer into it", other.Name, base),
+						Detail: fmt.Sprintf("it and %s are the same application at %s: each pushes its own copy of every indexer into it", other.Name, blankAddresses(base)),
 						Fix:    "app_delete one of them",
 					})
 				}

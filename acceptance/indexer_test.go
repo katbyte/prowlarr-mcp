@@ -228,12 +228,21 @@ func TestIndexerAddAndDelete(t *testing.T) {
 		t.Errorf("an unknown definition = %q", msg)
 	}
 
-	del := suite.Call(t, "indexer_delete", map[string]any{"indexer": name, "confirm": true})
-	if acc.Str(del["deleted"]) != name {
+	// a second, so that both go at once in Prowlarr's bulk delete
+	const other = "Temporary Too"
+	suite.Call(t, "indexer_add", map[string]any{"definition": "Generic Torznab", "name": other, "base_url": sitesUp.Indexer(siteAnime).URL(), "settings": map[string]any{"apiKey": siteKeys[siteAnime]}})
+	would := suite.Call(t, "indexer_delete", map[string]any{"indexers": []string{name, other}})
+	if acc.Str(would["would_delete"]) != name+", "+other || would["deleted"] != nil {
+		t.Errorf("two deletes without confirm = %v", would)
+	}
+	del := suite.Call(t, "indexer_delete", map[string]any{"indexers": []string{name, other}, "confirm": true})
+	if acc.Str(del["deleted"]) != name+", "+other {
 		t.Errorf("deleted = %v", del)
 	}
-	if msg := suite.CallErr(t, "indexer_get", map[string]any{"indexer": name}); !strings.Contains(msg, "no indexer") {
-		t.Errorf("after the delete = %q", msg)
+	for _, gone := range []string{name, other} {
+		if msg := suite.CallErr(t, "indexer_get", map[string]any{"indexer": gone}); !strings.Contains(msg, "no indexer") {
+			t.Errorf("after the delete %s = %q", gone, msg)
+		}
 	}
 	_, _ = suite.Invoke("tag_delete", map[string]any{"label": "temp-tag"})
 }

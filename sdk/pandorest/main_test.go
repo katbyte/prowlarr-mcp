@@ -169,7 +169,7 @@ func TestWorkarounds(t *testing.T) {
 	if err := workarounds.Verify(generator.Workarounds, load); err != nil {
 		t.Error(err)
 	}
-	if len(generator.Workarounds) != 9 {
-		t.Errorf("%d workarounds, the docs count 9", len(generator.Workarounds))
+	if len(generator.Workarounds) != 10 {
+		t.Errorf("%d workarounds, the docs count 10", len(generator.Workarounds))
 	}
 }

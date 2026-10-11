@@ -176,6 +176,9 @@ func registerDownloadClientTools(r *registry) {
 			return nil, downloadClientRow{}, err
 		}
 		c := read.Model
+		if c == nil {
+			return nil, downloadClientRow{}, errEmptyAnswer
+		}
 
 		if in.Name != "" {
 			c.Name = in.Name

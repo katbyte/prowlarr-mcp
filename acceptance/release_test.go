@@ -73,7 +73,7 @@ func TestReleaseSearch(t *testing.T) {
 func TestReleaseGrab(t *testing.T) {
 	before := len(sitesUp.Indexer(siteTorrent).Grabbed())
 	out := grabFrom(t, idxTorrent, "arrival")
-	if !strings.Contains(acc.Str(out["grabbed"]), "Arrival") || acc.Str(out["indexer"]) != idxTorrent {
+	if grabbed := acc.Strs(t, out["grabbed"], "grabbed"); len(grabbed) != 1 || !strings.Contains(grabbed[0], "Arrival") || acc.Str(out["indexer"]) != idxTorrent {
 		t.Errorf("grabbed = %v", out)
 	}
 	// Prowlarr fetched it from the site and the blackhole wrote it out
@@ -88,8 +88,22 @@ func TestReleaseGrab(t *testing.T) {
 		t.Errorf("no Arrival torrent in %s", dir)
 	}
 
+	// several at once, in Prowlarr's one bulk grab: each is fetched and named
+	found := acc.Rows(t, search(t, "severance", idxTorrent)["releases"], "releases")
+	if len(found) < 2 {
+		t.Fatalf("severance on %s found %d releases, want two to grab", idxTorrent, len(found))
+	}
+	fetched := len(sitesUp.Indexer(siteTorrent).Grabbed())
+	several := suite.Call(t, "release_grab", map[string]any{"indexer": idxTorrent, "guids": []string{acc.Str(found[0]["guid"]), acc.Str(found[1]["guid"])}})
+	if grabbed := acc.Strs(t, several["grabbed"], "grabbed"); len(grabbed) != 2 || !strings.Contains(grabbed[0], "Severance") || !strings.Contains(grabbed[1], "Severance") {
+		t.Errorf("two grabbed = %v", several)
+	}
+	if got := len(sitesUp.Indexer(siteTorrent).Grabbed()); got != fetched+2 {
+		t.Errorf("the site was asked for %d torrents by the bulk grab, want 2", got-fetched)
+	}
+
 	// a usenet grab always redirects, which a blackhole cannot take
-	found := acc.Rows(t, search(t, "arrival", idxUsenet)["releases"], "releases")
+	found = acc.Rows(t, search(t, "arrival", idxUsenet)["releases"], "releases")
 	if msg := suite.CallErr(t, "release_grab", map[string]any{"indexer": idxUsenet, "guid": acc.Str(found[0]["guid"]), "download_client": clientUsenet}); !strings.Contains(msg, "redirect") {
 		t.Errorf("a usenet grab to a blackhole = %q", msg)
 	}

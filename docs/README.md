@@ -57,6 +57,8 @@ import once it is not.
   list of everything they changed.
 - `prowlarr-host-settings` - `HostConfigResource` does not list `allowedHosts` or `trustedNetworks`, which the server sends with the host settings and reads back from them. A client built from the document sends neither, and Prowlarr refuses host settings whose allowed hosts are empty unless every request has to sign in, so on a server that lets local addresses in unasked no host setting could be changed at all. Both are added, and are always sent.
 
+- `prowlarr-restore-upload-body` - `POST /api/v1/system/backup/restore/upload` declares no request body, but the controller reads the backup from a multipart form, and answers a 500 about the missing Content-Type to a request without one. The body is declared as a file, so the generated method takes the form and its Content-Type (`multipart/form-data; boundary=...`), which the caller builds.
+
 ## Conventions worth knowing
 
 - Auth is an API key in `X-Api-Key` (Settings → General → Security). The key
@@ -107,6 +109,7 @@ import once it is not.
   true of FlareSolverr, which is why an indexer behind Cloudflare with no
   FlareSolverr sharing its tag fails every query.
 - **Prowlarr takes some settings and does not keep them.** A username sent with the host settings while sign-in is handled outside Prowlarr (authentication method `External`) is accepted without complaint and read back empty. So `server_settings_edit` reads the section back after saving, and answers what held as `changed` and what did not as `not_kept`.
+- **Shutting Prowlarr down inside the container does not keep it down.** The test image's supervisor starts it again within seconds, with a new start time, which is how the suites can test a shutdown, and how a restore from an upload (applied at the next start) takes effect in them. A real install stays down.
 - Usenet indexers always redirect their downloads, so a usenet blackhole
   download client can never take a grab from Prowlarr.
 - VIP expiry is a setting on Newznab and Torznab indexers

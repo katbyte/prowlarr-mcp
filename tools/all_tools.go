@@ -14,9 +14,6 @@
 package tools
 
 import (
-	"context"
-	"errors"
-
 	"github.com/katbyte/go-kt/lock"
 	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
@@ -73,7 +70,7 @@ var Toolsets = map[string][]string{
 	"curation": {
 		"audit_all", "audit_failing", "audit_unreliable", "audit_slow", "audit_unused", "audit_unsynced", "audit_apps",
 		"audit_duplicates", "audit_seeding", "audit_limits", "audit_vip", "audit_definitions", "audit_proxies",
-		"audit_download_clients", "audit_tags", "audit_health", "audit_profiles",
+		"audit_download_clients", "audit_tags", "audit_health", "audit_profiles", "audit_notifications", "audit_backups",
 		"indexer_test", "indexer_edit", "indexer_bulk_edit", "indexer_stats",
 		"app_get", "app_test", "app_edit", "app_sync", "profile_list", "profile_edit",
 		"proxy_list", "proxy_test", "proxy_edit", "tag_list", "tag_edit", "tag_delete", "server_health",
@@ -147,7 +144,7 @@ type registry struct {
 	// own log, which writes to stderr
 	errorLog func(format string, args ...any)
 	// writeLog is where the line for each call of a write or a delete tool
-	// is written (see writelog.go); nil is the process's own log
+	// is written; nil is the process's own log
 	writeLog func(format string, args ...any)
 
 	// the catalogue of trackers Prowlarr can add, read once and kept a
@@ -248,7 +245,14 @@ func (r *registry) queued() *mcpregistry.Registry {
 			Essential: EssentialTools,
 			Hints:     toolHints,
 			LogError:  r.errorLog,
-			LogWrite:  r.logWrite,
+			LogWrite:  r.writeLog,
+			// Prowlarr's own settings are shown in the line for a write: what
+			// a port was changed to is the point of it, and its credentials
+			// are blanked by name
+			ShownArguments: map[string][]string{"server_settings_edit": {"settings"}},
+			// the password typed a second time is a password under a name
+			// that does not end as one
+			SecretArguments: []string{"passwordConfirmation"},
 		})
 	}
 
@@ -261,22 +265,12 @@ func (r *registry) queued() *mcpregistry.Registry {
 // handler into an ordinary tool error, and sends empty collections as []
 // rather than null: an AI client reading "findings": null cannot tell "none"
 // from "not fetched", and Go leaves un-appended slices nil.
-//
-// An error a tool answers with is Prowlarr's own words as often as not, and
-// Prowlarr quotes the whole address of a request that failed, an indexer's
-// API key among its parameters. So an error reaches a client with every
-// address in it blanked, as what a tool shows of a failure is (outsideSaid).
+// An error a tool answers with reaches a client with every address in it
+// blanked of what may be a credential, which the registry does around every
+// tool: Prowlarr quotes the whole address of a request that failed, an
+// indexer's API key among its parameters.
 func add[In, Out any](r *registry, kind mcpregistry.Kind, t *mcp.Tool, h mcp.ToolHandlerFor[In, Out]) {
-	mcpregistry.Add(r.queued(), kind, t, func(ctx context.Context, req *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
-		res, out, err := h(ctx, req, in)
-		if err != nil {
-			if said := blankAddresses(err.Error()); said != err.Error() {
-				err = errors.New(said)
-			}
-		}
-
-		return res, out, err
-	})
+	mcpregistry.Add(r.queued(), kind, t, h)
 }
 
 // queuedFor is every tool queued for these options: registration never calls

@@ -126,8 +126,8 @@ func TestEveryListPagesAndEveryDeleteConfirms(t *testing.T) {
 			}
 		}
 	}
-	if lists != 36 || deletes != 8 {
-		t.Errorf("%d lists and %d deletes were checked, want 36 and 8: a tool was added or renamed, so count it here", lists, deletes)
+	if lists != 38 || deletes != 8 {
+		t.Errorf("%d lists and %d deletes were checked, want 38 and 8: a tool was added or renamed, so count it here", lists, deletes)
 	}
 	for _, name := range listTools {
 		if _, ok := kinds[name]; !ok {
@@ -165,5 +165,31 @@ func TestAListAnswersAPageAndWhereItSits(t *testing.T) {
 	}
 	if out = mustCall(t, cs, "tag_list", nil); num(t, out["total"], "total") != 5 || out["next_offset"] != nil {
 		t.Errorf("with no limit = %v, want all five and no next_offset", out)
+	}
+}
+
+// Several indexers named at once are deleted in Prowlarr's one bulk delete,
+// after confirm says what every one of them would lose.
+func TestSeveralIndexersAreDeletedAtOnce(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeServer(t)
+	f.answer("GET /api/v1/indexer", []any{torznab(4, "Gone Soon", "private"), torznab(5, "Gone Too", "public")})
+	f.answerOK("DELETE /api/v1/indexer/bulk", map[string]any{})
+	cs := session(t, f, Options{EnableDelete: true})
+
+	out := mustCall(t, cs, "indexer_delete", map[string]any{"indexers": []string{"Gone Soon", "Gone Too"}})
+	if out["would_delete"] != "Gone Soon, Gone Too" || out["deleted"] != nil || len(f.requested("DELETE /api/v1/indexer/bulk")) != 0 {
+		t.Errorf("without confirm = %v", out)
+	}
+	out = mustCall(t, cs, "indexer_delete", map[string]any{"indexers": []string{"Gone Soon", "5"}, "confirm": true})
+	if out["deleted"] != "Gone Soon, Gone Too" || len(f.requested("DELETE /api/v1/indexer/4")) != 0 {
+		t.Errorf("with confirm = %v", out)
+	}
+	if sent := f.sent("DELETE /api/v1/indexer/bulk"); len(sent) != 1 || !strings.Contains(sent[0], `"ids":[4,5]`) {
+		t.Errorf("the bulk delete sent %v", sent)
+	}
+	if msg := callError(t, cs, "indexer_delete", map[string]any{"confirm": true}); !strings.Contains(msg, "name the indexer") {
+		t.Errorf("a delete of nothing = %q", msg)
 	}
 }
