@@ -91,7 +91,7 @@ const (
 	idxFlaky       = "Flaky Torrent"
 	idxSlow        = "Slow Torrent"
 	idxRevoked     = "Revoked Usenet"
-	// the catalogue's own definitions, seeded by scripts/testenv.sh; the
+	// the catalogue's own definitions, seeded by .scripts/testenv.sh; the
 	// container has no internet, so these are added with force and never
 	// searched
 	idx1337x  = "1337x"

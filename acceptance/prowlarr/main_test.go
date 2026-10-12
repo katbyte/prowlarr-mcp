@@ -14,9 +14,9 @@
 //
 //	make testacc-sdk                 # container started and torn down
 //
-//	eval "$(scripts/testenv.sh up)"          # or drive it by hand
+//	eval "$(.scripts/testenv.sh up)"          # or drive it by hand
 //	go test -tags acceptance ./acceptance/prowlarr/...
-//	scripts/testenv.sh down
+//	.scripts/testenv.sh down
 package prowlarr_test
 
 import (

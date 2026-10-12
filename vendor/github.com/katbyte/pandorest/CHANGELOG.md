@@ -1,3 +1,7 @@
+## v0.8.2 (2026-10-12)
+
+- **A name in both `Names` and `Joined` imports.** Prowlarr's `tags` is a joined string parameter and a field of fifteen models; v0.8.1 claimed the parameter by name first and then refused the `Joined` entry as reaching nothing, and without the entry refused the parameter as a string. The parameter is claimed as joined before it is claimed by name.
+
 ## v0.8.1 (2026-10-11)
 
 - **`doc.go` carries no generated header after all.** A linter skips a file marked generated and then misses the package comment, and flags the hand-written file beside it as lacking one, which sonarr's move found; the comment's first line says what wrote it, and every check knows that form.

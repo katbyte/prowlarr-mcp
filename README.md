@@ -345,14 +345,14 @@ all 122.
 
 **Every tool is exercised.** Tool coverage is enforced rather than claimed: the tool suite records every tool it calls and fails if the server registered one that nothing saw answer, whether it was never called or only ever refused, so a new tool cannot ship untested.
 
-The environment is built by `scripts/testenv.sh`: a Prowlarr container with **no internet at all**, seeded with three real tracker definitions so the catalogue has something in it, and a known API key. The indexers, applications, profiles, proxies, download clients and tags are the suites' own job, through `indexer_add`, `app_add` and the rest, so those tools are exercised rather than bypassed. What Prowlarr talks to are fakes the suites run on the host (`internal/fakes`): Newznab and Torznab sites serving a real RSS feed, real `.nzb` files and valid bencoded torrents, which can be told to fail, to answer slowly, or to refuse their key; and Sonarr, Radarr, Lidarr and Readarr instances that record what Prowlarr syncs into them.
+The environment is built by `.scripts/testenv.sh`: a Prowlarr container with **no internet at all**, seeded with three real tracker definitions so the catalogue has something in it, and a known API key. The indexers, applications, profiles, proxies, download clients and tags are the suites' own job, through `indexer_add`, `app_add` and the rest, so those tools are exercised rather than bypassed. What Prowlarr talks to are fakes the suites run on the host (`internal/fakes`): Newznab and Torznab sites serving a real RSS feed, real `.nzb` files and valid bencoded torrents, which can be told to fail, to answer slowly, or to refuse their key; and Sonarr, Radarr, Lidarr and Readarr instances that record what Prowlarr syncs into them.
 
 Everything else Prowlarr reaches for goes to a proxy the suites run (go-kt's `test/replayproxy`, whose certificates the container is made to trust). Through it the suites play Prowlarr's own services: its update server, the clock it checks its own against and its notices, so its health checks run the same on any day and `server_updates` has releases to report; and its definitions service, which is down, so it reads the definitions seeded on its disk. Nothing is recorded, and a request to anywhere else fails the run, naming it. Requires docker, curl and openssl; the suites skip when `PROWLARR_SERVER` and `PROWLARR_TOKEN` are unset, so they never fail for want of a daemon.
 
 ```bash
-eval "$(scripts/testenv.sh up)"   # start it and export the environment
-scripts/testenv.sh logs           # what Prowlarr wrote, for a failing run
-scripts/testenv.sh down           # remove it
+eval "$(.scripts/testenv.sh up)"   # start it and export the environment
+.scripts/testenv.sh logs           # what Prowlarr wrote, for a failing run
+.scripts/testenv.sh down           # remove it
 ```
 
 Dev tools are pinned in `.tools/go.mod` (actionlint in `.tools/actionlint/go.mod`) and built

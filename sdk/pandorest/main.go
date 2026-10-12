@@ -58,8 +58,7 @@ var generator = pandorest.Config{
 		IDs: []config.ID{
 			{Name: "IndexerID", Of: []string{"IndexerResource"}, Names: []string{"indexerId", "indexerIds"}, In: []string{"IndexerBulkResource .ids"}, Joined: []string{"indexers"}},
 			{Name: "AppProfileID", Of: []string{"AppProfileResource"}, Names: []string{"appProfileId"}},
-			// each tags field is listed by place because pandorest 0.8.1 refuses a name that is both in Names and Joined; from 0.8.2 this is Names: tags again
-			{Name: "TagID", Of: []string{"TagResource"}, In: []string{"TagDetailsResource .id", "ApplicationBulkResource .tags", "ApplicationResource .tags", "DownloadClientBulkResource .tags", "DownloadClientResource .tags", "IndexerBulkResource .tags", "IndexerProxyResource .tags", "IndexerResource .tags", "NotificationResource .tags"}, Joined: []string{"tags"}},
+			{Name: "TagID", Of: []string{"TagResource"}, Names: []string{"tags"}, In: []string{"TagDetailsResource .id"}, Joined: []string{"tags"}},
 			{Name: "DownloadClientID", Of: []string{"DownloadClientResource"}, Names: []string{"downloadClientId"}, In: []string{"DownloadClientBulkResource .ids"}},
 		},
 		// left plain on purpose: other services' ids, which only pass through, a release's and a grab's own text ids, and the id of a thing nothing else refers to

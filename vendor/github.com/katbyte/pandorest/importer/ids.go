@@ -270,14 +270,15 @@ func claims(k *idKind, p *place, groups map[string]*definitions.Group, inUsed, e
 	}
 	inferred := ""
 	switch {
-	case slices.ContainsFunc(k.cfg.Names, func(n string) bool { return strings.EqualFold(n, p.name) }):
-		inferred = "name"
 	case p.option != nil && slices.ContainsFunc(k.cfg.Joined, func(n string) bool { return strings.EqualFold(n, p.name) }):
-		// a joined string is a parameter's shape alone, so a field of the name is not claimed by it
+		// a joined string is a parameter's shape alone, so a field of the name is not claimed by it; this goes before Names so a name in
+		// both lists (prowlarr's tags, a joined parameter and fifteen fields) still counts the parameter as the Joined entry's use
 		if k.joinedUsed == nil {
 			k.joinedUsed = map[string]bool{}
 		}
 		k.joinedUsed[strings.ToLower(p.name)] = true
+		inferred = "name"
+	case slices.ContainsFunc(k.cfg.Names, func(n string) bool { return strings.EqualFold(n, p.name) }):
 		inferred = "name"
 	case strings.EqualFold(p.name, "id") && p.model != "" && slices.ContainsFunc(k.cfg.Of, func(n string) bool { return typeName(n) == p.model }):
 		inferred = "Of"

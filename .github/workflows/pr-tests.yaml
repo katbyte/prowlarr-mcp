@@ -11,8 +11,8 @@ on:
       - 'go.sum'
       - 'vendor/**'
       - 'makefile'
-      - 'scripts/testenv.sh'
-      - 'scripts/testdata/**'
+      - '.scripts/testenv.sh'
+      - '.scripts/testdata/**'
       - 'acceptance/**'
       # sdk/pandorest's tests re-import the spec and regenerate the SDK,
       # failing when the definitions in api-defs/ or sdk/prowlarr is stale
@@ -64,7 +64,7 @@ jobs:
         run: |
           PROWLARR_TEST_CONTAINER=prowlarr-mcp-sdk \
             PROWLARR_TEST_DATA="$HOME/.cache/prowlarr-mcp/testenv/sdk" \
-            scripts/testenv.sh down || true
+            .scripts/testenv.sh down || true
 
   acceptance-tools:
     name: acceptance (tools against a real Prowlarr)
@@ -86,4 +86,4 @@ jobs:
         run: |
           PROWLARR_TEST_CONTAINER=prowlarr-mcp-tools \
             PROWLARR_TEST_DATA="$HOME/.cache/prowlarr-mcp/testenv/tools" \
-            scripts/testenv.sh down || true
+            .scripts/testenv.sh down || true

@@ -1,6 +1,6 @@
 //go:build acceptance
 
-// The harness: scripts/testenv.sh brings the container up and exports
+// The harness: .scripts/testenv.sh brings the container up and exports
 // PROWLARR_SERVER, PROWLARR_TOKEN and PROWLARR_TEST_*; the suite starts the
 // fakes Prowlarr talks to, then builds every fixture through the MCP tools
 // rather than the HTTP API, so the setup is itself a test of indexer_add,

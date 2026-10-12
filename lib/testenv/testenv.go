@@ -1,5 +1,5 @@
 // Package testenv is what the two live suites share that is this
-// application's own: the environment scripts/testenv.sh hands them, and how
+// application's own: the environment .scripts/testenv.sh hands them, and how
 // the proxy everything Prowlarr reaches for beyond the suites' fakes goes
 // through is set up. The machinery is go-kt's (test/env and
 // test/replayproxy).
@@ -21,9 +21,9 @@ import (
 )
 
 // NotConfigured is what a test says when it skips for want of a container.
-const NotConfigured = "PROWLARR_SERVER and PROWLARR_TOKEN are not set; run: eval \"$(scripts/testenv.sh up)\""
+const NotConfigured = "PROWLARR_SERVER and PROWLARR_TOKEN are not set; run: eval \"$(.scripts/testenv.sh up)\""
 
-// environment is what scripts/testenv.sh writes, every variable of which
+// environment is what .scripts/testenv.sh writes, every variable of which
 // begins PROWLARR_.
 var environment = env.New("PROWLARR")
 
@@ -41,7 +41,7 @@ func Token() string  { return environment.Token() }
 // definition away. It is "" when PROWLARR_TEST_DATA is not set.
 func DataDir() string { return environment.DataDir() }
 
-// Container is the name of the container scripts/testenv.sh started, which is
+// Container is the name of the container .scripts/testenv.sh started, which is
 // also the name Prowlarr is reached by from inside it.
 func Container() string { return environment.Container() }
 
@@ -86,7 +86,7 @@ const (
 type Proxy = env.Proxy
 
 // StartProxy brings up the proxy the container's HTTPS_PROXY already points
-// at, signing with the CA scripts/testenv.sh minted and mounted into the
+// at, signing with the CA .scripts/testenv.sh minted and mounted into the
 // container, and proves the container can reach it.
 //
 // Prowlarr's own services are played by the suite through it: home is the

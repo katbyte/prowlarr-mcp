@@ -157,7 +157,7 @@ yamllint: $(YAMLLINT) ## Check YAML files with yamllint (config in .yamllint.yml
 
 shellcheck: $(SHELLCHECK) ## Check shell scripts with shellcheck
 	@echo "==> Checking shell scripts with shellcheck..."
-	@$(SHELLCHECK) scripts/*.sh
+	@$(SHELLCHECK) .scripts/*.sh
 
 zizmor: $(ZIZMOR) ## Audit GitHub workflows for security issues with zizmor
 	@echo "==> Auditing workflows with zizmor..."
@@ -243,9 +243,9 @@ define live
 			PROWLARR_TEST_INDEXER_PORT=$(INDEXER_PORT_$(1)) \
 			PROWLARR_TEST_APP_PORT=$(APP_PORT_$(1)) \
 			PROWLARR_TEST_PROXY_PORT=$(PROXY_PORT_$(1)); \
-		scripts/testenv.sh up | grep '^export' > "$$env"; \
-		trap 'st=$$?; [ $$st -eq 0 ] || scripts/testenv.sh logs; \
-			scripts/testenv.sh down; rm -f '"$$env"'; exit $$st' EXIT; \
+		.scripts/testenv.sh up | grep '^export' > "$$env"; \
+		trap 'st=$$?; [ $$st -eq 0 ] || .scripts/testenv.sh logs; \
+			.scripts/testenv.sh down; rm -f '"$$env"'; exit $$st' EXIT; \
 		. ./"$$env"; \
 		go test -tags acceptance -count=1 ./$(DIR_$(1))/... -timeout ${TEST_TIMEOUT} -v $(2)
 endef
@@ -299,10 +299,10 @@ cover-html: cover ## Run every suite with coverage and open the HTML report
 	@go tool cover -html=$(COVERDIR)/coverage.out
 
 testenv-up: ## Start a throwaway Prowlarr and print the environment the live suites need
-	@scripts/testenv.sh up
+	@.scripts/testenv.sh up
 
 testenv-down: ## Remove the throwaway Prowlarr
-	@scripts/testenv.sh down
+	@.scripts/testenv.sh down
 
 check-all: build test testacc lint actionlint yamllint shellcheck typos markdownlint depscheck gencheck apicheck ## Run build + tests (incl. live) + all linters + depscheck
 

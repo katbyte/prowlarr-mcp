@@ -4,9 +4,9 @@
 # known catalogue of tracker definitions, and print the environment the live
 # test suites need.
 #
-#   eval "$(scripts/testenv.sh up)"   # start, export PROWLARR_*
-#   scripts/testenv.sh down           # stop and remove everything
-#   scripts/testenv.sh logs           # what Prowlarr wrote, for a failing run
+#   eval "$(.scripts/testenv.sh up)"   # start, export PROWLARR_*
+#   .scripts/testenv.sh down           # stop and remove everything
+#   .scripts/testenv.sh logs           # what Prowlarr wrote, for a failing run
 #
 # This script only does what prowlarr-mcp cannot: write the config Prowlarr
 # reads its API key from, seed the definitions, and run the container. The
@@ -22,7 +22,7 @@
 # server, its definitions service - goes to a proxy the suites run (go-kt's
 # test/replayproxy), which answers Prowlarr's own services from the suite and
 # refuses the rest, so a run needs no network and Prowlarr falls back to the
-# definitions seeded here (scripts/testdata/definitions, three real ones from
+# definitions seeded here (.scripts/testdata/definitions, three real ones from
 # Prowlarr's definitions repository), which is exactly what it does offline.
 #
 # Prowlarr is a .NET app: it honours HTTPS_PROXY and, on Linux, trusts whatever
@@ -183,7 +183,7 @@ up() {
 
   wait_for "Prowlarr to answer /api/v1/system/status" 90 "curl -fsS -H 'X-Api-Key: ${API_KEY}' ${URL}/api/v1/system/status"
 
-  # consumed with eval "$(scripts/testenv.sh up)"
+  # consumed with eval "$(.scripts/testenv.sh up)"
   echo "export PROWLARR_SERVER='${URL}'"
   echo "export PROWLARR_TOKEN='${API_KEY}'"
   echo "export PROWLARR_TEST_DATA='${DATA}'"

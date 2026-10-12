@@ -59,7 +59,7 @@ Requirements: bash, go, docker
 This section describes the various files used in the code generation process.
 It also contains instructions on how to modify these files to add a new
 architecture/OS or to add additional syscalls, types, or constants. Note that
-if you are using the new build system, the scripts/programs cannot be called normally.
+if you are using the new build system, the .scripts/programs cannot be called normally.
 They must be called from within the docker container.
 
 ### asm files
