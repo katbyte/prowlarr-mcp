@@ -147,6 +147,9 @@ logs() {
   # what went wrong is usually well above it
   echo "==> ${f} (errors)" >&2
   grep -iE 'error|warn|exception|refused|timed out' "$f" | grep -v 'indexers.prowlarr.com\|prowlarr.servarr.com' | tail -60 >&2
+  # and what it was doing: a restart or a restore is only ever logged as information
+  echo "==> ${f} (what it did last)" >&2
+  grep -F '|Info|' "$f" | tail -40 >&2
   echo "==> ${f} (tail)" >&2
   tail -40 "$f" >&2
 }

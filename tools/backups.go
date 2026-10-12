@@ -179,7 +179,7 @@ func registerBackupTools(r *registry) {
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
-		loses := []string{fmt.Sprintf("the file itself: %d bytes, taken %s (%s), and the way back to Prowlarr as it was then", b.Size, b.Time, b.Type)}
+		loses := []string{fmt.Sprintf("the file itself: %d bytes, taken %s (%s), and the way back to Prowlarr as it was then", b.Size, shownTime(b.Time), b.Type)}
 		out, err := deleting(in.Confirm, b.Name, loses, "", func() error {
 			_, delErr := pc.DeleteSystemBackupById(ctx, b.Id)
 

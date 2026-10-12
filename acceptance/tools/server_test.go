@@ -440,7 +440,7 @@ func TestBackupRestoreAndRestart(t *testing.T) {
 	// the restored database is the one in use: what was made since is gone,
 	// and what was there is there
 	if has() {
-		t.Error("the tag made after the backup is still there after the restore")
+		t.Errorf("the tag made after the backup is still there after the restore: restored %v, restarted %v", restored, back)
 	}
 	if got := acctest.Num(t, suite.Call(t, "indexer_list", nil)["total"], "total"); got != indexersBefore {
 		t.Errorf("%d indexers after the restore, %d before the backup", got, indexersBefore)
