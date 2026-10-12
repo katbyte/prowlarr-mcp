@@ -27,7 +27,7 @@ type profileRow struct {
 
 func projectProfile(p *prowlarr.AppProfileResource, idx []prowlarr.IndexerResource) profileRow {
 	row := profileRow{
-		ID: p.Id, Name: p.Name, RSS: boolv(p.EnableRss), AutomaticSearch: boolv(p.EnableAutomaticSearch),
+		ID: int(p.Id), Name: p.Name, RSS: boolv(p.EnableRss), AutomaticSearch: boolv(p.EnableAutomaticSearch),
 		InteractiveSearch: boolv(p.EnableInteractiveSearch), MinimumSeeders: p.MinimumSeeders,
 	}
 	for _, i := range idx {
@@ -59,7 +59,7 @@ func registerProfileTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		page, where := paged(res.Answer, in.Limit, in.Offset, defaultLimit)
 		out := listOut{pageOut: where}
 		for i := range page {
 			out.Profiles = append(out.Profiles, projectProfile(&page[i], idx))
@@ -88,7 +88,7 @@ func registerProfileTools(r *registry) {
 			return nil, profileRow{}, err
 		}
 
-		return nil, projectProfile(res.Model, nil), nil
+		return nil, projectProfile(res.Answer, nil), nil
 	})
 
 	type editIn struct {
@@ -107,14 +107,14 @@ func registerProfileTools(r *registry) {
 
 		// what is sent back is the whole profile, so it is read once no other
 		// edit of it can run
-		unlock := editing[prowlarr.AppProfileResource](r, found.Id, false)
+		unlock := editing[prowlarr.AppProfileResource](r, int(found.Id), false)
 		defer unlock()
 
 		read, err := pc.GetAppProfileById(ctx, found.Id)
 		if err != nil {
 			return nil, profileRow{}, err
 		}
-		p := read.Model
+		p := read.Answer
 		if p == nil {
 			return nil, profileRow{}, errEmptyAnswer
 		}
@@ -132,7 +132,7 @@ func registerProfileTools(r *registry) {
 			return nil, profileRow{}, err
 		}
 
-		return nil, projectProfile(res.Model, idx), nil
+		return nil, projectProfile(res.Answer, idx), nil
 	})
 
 	add(r, deleteTool, &mcp.Tool{

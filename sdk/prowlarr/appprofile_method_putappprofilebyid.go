@@ -4,27 +4,53 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PutAppProfileByIdOperationResponse is the result of PutAppProfileById.
-type PutAppProfileByIdOperationResponse struct {
+// PutAppProfileByIdResponse is the result of PutAppProfileById.
+//
+// Answer is the AppProfileResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PutAppProfileByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *AppProfileResource
+	Answer       *AppProfileResource
+	*AppProfileResource
+}
+
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PutAppProfileByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the AppProfileResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PutAppProfileByIdResponse) Record() (AppProfileResource, error) {
+	if r.Answer == nil {
+		return AppProfileResource{}, errors.New("PutAppProfileById answered no AppProfileResource")
+	}
+
+	return *r.Answer, nil
 }
 
 // PutAppProfileById calls PUT /api/v1/appprofile/{id}.
-func (c Client) PutAppProfileById(ctx context.Context, id int, input AppProfileResource) (result PutAppProfileByIdOperationResponse, err error) {
+func (c Client) PutAppProfileById(ctx context.Context, id AppProfileID, input AppProfileResource) (result PutAppProfileByIdResponse, err error) {
+	result.AppProfileResource = &AppProfileResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusAccepted,
 		},
 		HTTPMethod: http.MethodPut,
-		Path:       fmt.Sprintf("/api/v1/appprofile/%d", id),
+		Operation:  "PutAppProfileById",
+		Path:       fmt.Sprintf("/api/v1/appprofile/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
@@ -45,11 +71,12 @@ func (c Client) PutAppProfileById(ctx context.Context, id int, input AppProfileR
 		return
 	}
 
-	var model AppProfileResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer AppProfileResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.AppProfileResource = result.Answer
 
 	return
 }

@@ -2,6 +2,8 @@
 
 package prowlarr
 
+import "slices"
+
 // HistoryEventType is the "HistoryEventType" enum.
 type HistoryEventType string
 
@@ -25,4 +27,9 @@ func PossibleValuesForHistoryEventType() []string {
 		string(HistoryEventTypeIndexerAuth),
 		string(HistoryEventTypeIndexerInfo),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v HistoryEventType) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForHistoryEventType(), string(v))
 }

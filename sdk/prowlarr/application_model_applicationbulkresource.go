@@ -7,5 +7,5 @@ type ApplicationBulkResource struct {
 	ApplyTags ApplyTags            `json:"applyTags,omitempty"`
 	Ids       []int                `json:"ids,omitzero"`
 	SyncLevel ApplicationSyncLevel `json:"syncLevel,omitempty"`
-	Tags      []int                `json:"tags,omitzero"`
+	Tags      []TagID              `json:"tags,omitzero"`
 }

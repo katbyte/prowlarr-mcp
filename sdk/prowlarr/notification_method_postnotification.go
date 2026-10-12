@@ -4,31 +4,54 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostNotificationOperationResponse is the result of PostNotification.
-type PostNotificationOperationResponse struct {
+// PostNotificationResponse is the result of PostNotification.
+//
+// Answer is the NotificationResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PostNotificationResponse struct {
 	HttpResponse *http.Response
-	Model        *NotificationResource
+	Answer       *NotificationResource
+	*NotificationResource
 }
 
-// PostNotificationOperationOptions holds the query and header parameters of PostNotification.
-type PostNotificationOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PostNotificationResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the NotificationResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PostNotificationResponse) Record() (NotificationResource, error) {
+	if r.Answer == nil {
+		return NotificationResource{}, errors.New("PostNotification answered no NotificationResource")
+	}
+
+	return *r.Answer, nil
+}
+
+// PostNotificationOptions holds the query and header parameters of PostNotification.
+type PostNotificationOptions struct {
 	ForceSave *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PostNotificationOperationOptions) ToHeaders() *client.Headers {
+func (o PostNotificationOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PostNotificationOperationOptions) ToQuery() *client.QueryParams {
+func (o PostNotificationOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceSave != nil {
 		out.Append("forceSave", strconv.FormatBool(*o.ForceSave))
@@ -37,14 +60,25 @@ func (o PostNotificationOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PostNotification calls POST /api/v1/notification.
-func (c Client) PostNotification(ctx context.Context, input NotificationResource, options PostNotificationOperationOptions) (result PostNotificationOperationResponse, err error) {
+func (c Client) PostNotification(ctx context.Context, input NotificationResource, forceSave ...bool) (result PostNotificationResponse, err error) {
+	var option PostNotificationOptions
+	if len(forceSave) > 1 {
+		err = fmt.Errorf("PostNotification takes one forceSave at most, not %d", len(forceSave))
+		return
+	}
+	if len(forceSave) == 1 {
+		option.ForceSave = &forceSave[0]
+	}
+
+	result.NotificationResource = &NotificationResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusCreated,
 		},
 		HTTPMethod:    http.MethodPost,
-		OptionsObject: options,
+		Operation:     "PostNotification",
+		OptionsObject: option,
 		Path:          "/api/v1/notification",
 	}
 
@@ -66,11 +100,12 @@ func (c Client) PostNotification(ctx context.Context, input NotificationResource
 		return
 	}
 
-	var model NotificationResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer NotificationResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.NotificationResource = result.Answer
 
 	return
 }

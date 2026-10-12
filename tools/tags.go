@@ -41,7 +41,7 @@ func (r *registry) tagDetails(ctx context.Context) ([]tagRow, error) {
 		return nil, err
 	}
 
-	return r.tagRows(ctx, idx, apps.Model, proxies.Model)
+	return r.tagRows(ctx, idx, apps.Answer, proxies.Answer)
 }
 
 // tagRows reads the tags and names what carries each, given the indexers,
@@ -55,16 +55,6 @@ func (r *registry) tagRows(ctx context.Context, idx []prowlarr.IndexerResource, 
 	if err != nil {
 		return nil, err
 	}
-	names := func(ids []int, byID map[int]string) []string {
-		out := make([]string, 0, len(ids))
-		for _, id := range ids {
-			if n, ok := byID[id]; ok {
-				out = append(out, n)
-			}
-		}
-		slices.Sort(out)
-		return out
-	}
 	appNames, proxyNames, noteNames := map[int]string{}, map[int]string{}, map[int]string{}
 	for _, a := range apps {
 		appNames[a.Id] = a.Name
@@ -72,14 +62,14 @@ func (r *registry) tagRows(ctx context.Context, idx []prowlarr.IndexerResource, 
 	for _, p := range proxies {
 		proxyNames[p.Id] = p.Name
 	}
-	for _, n := range notes.Model {
+	for _, n := range notes.Answer {
 		noteNames[n.Id] = n.Name
 	}
-	out := make([]tagRow, 0, len(res.Model))
-	for _, t := range res.Model {
+	out := make([]tagRow, 0, len(res.Answer))
+	for _, t := range res.Answer {
 		row := tagRow{
-			ID: t.Id, Label: t.Label, Indexers: names(t.IndexerIds, indexerNames(idx)), Apps: names(t.ApplicationIds, appNames),
-			Proxies: names(t.IndexerProxyIds, proxyNames), Notifications: names(t.NotificationIds, noteNames),
+			ID: int(t.Id), Label: t.Label, Indexers: namesOf(t.IndexerIds, indexerNames(idx)), Apps: namesOf(t.ApplicationIds, appNames),
+			Proxies: namesOf(t.IndexerProxyIds, proxyNames), Notifications: namesOf(t.NotificationIds, noteNames),
 		}
 		row.Unused = len(row.Indexers)+len(row.Apps)+len(row.Proxies)+len(row.Notifications) == 0
 		out = append(out, row)
@@ -130,7 +120,7 @@ func registerTagTools(r *registry) {
 		if err != nil {
 			return nil, tagRow{}, err
 		}
-		if slices.ContainsFunc(res.Model, func(t prowlarr.TagResource) bool { return strings.EqualFold(t.Label, label) }) {
+		if slices.ContainsFunc(res.Answer, func(t prowlarr.TagResource) bool { return strings.EqualFold(t.Label, label) }) {
 			return nil, tagRow{}, fmt.Errorf("tag %q already exists", label)
 		}
 		made, err := pc.PostTag(ctx, prowlarr.TagResource{Label: label})
@@ -138,7 +128,7 @@ func registerTagTools(r *registry) {
 			return nil, tagRow{}, err
 		}
 
-		return nil, tagRow{ID: made.Model.Id, Label: made.Model.Label, Unused: true}, nil
+		return nil, tagRow{ID: int(made.Answer.Id), Label: made.Answer.Label, Unused: true}, nil
 	})
 
 	add(r, writeTool, &mcp.Tool{
@@ -164,18 +154,20 @@ func registerTagTools(r *registry) {
 			return nil, tagRow{}, err
 		}
 		ref := strings.TrimSpace(in.Tag)
-		i := slices.IndexFunc(res.Model, func(t prowlarr.TagResource) bool { return strings.EqualFold(t.Label, ref) || strconv.Itoa(t.Id) == ref })
+		i := slices.IndexFunc(res.Answer, func(t prowlarr.TagResource) bool {
+			return strings.EqualFold(t.Label, ref) || strconv.Itoa(int(t.Id)) == ref
+		})
 		if i < 0 {
-			have := make([]string, 0, len(res.Model))
-			for _, t := range res.Model {
+			have := make([]string, 0, len(res.Answer))
+			for _, t := range res.Answer {
 				have = append(have, t.Label)
 			}
 			slices.Sort(have)
 
 			return nil, tagRow{}, fmt.Errorf("no tag %q (have: %s)", in.Tag, strings.Join(have, ", "))
 		}
-		tag := res.Model[i]
-		if slices.ContainsFunc(res.Model, func(t prowlarr.TagResource) bool { return t.Id != tag.Id && strings.EqualFold(t.Label, label) }) {
+		tag := res.Answer[i]
+		if slices.ContainsFunc(res.Answer, func(t prowlarr.TagResource) bool { return t.Id != tag.Id && strings.EqualFold(t.Label, label) }) {
 			return nil, tagRow{}, fmt.Errorf("tag %q already exists: two tags cannot share a label, and what carries %q would have to be moved to it one thing at a time", label, tag.Label)
 		}
 		tag.Label = label
@@ -188,7 +180,7 @@ func registerTagTools(r *registry) {
 		if err != nil {
 			return nil, tagRow{}, err
 		}
-		if j := slices.IndexFunc(rows, func(row tagRow) bool { return row.ID == tag.Id }); j >= 0 {
+		if j := slices.IndexFunc(rows, func(row tagRow) bool { return row.ID == int(tag.Id) }); j >= 0 {
 			return nil, rows[j], nil
 		}
 
@@ -225,10 +217,23 @@ func registerTagTools(r *registry) {
 			}
 			return nil, deletedOut{}, fmt.Errorf("tag %q is carried by %s; take it off them first", t.Label, strings.Join(users, ", "))
 		}
-		if _, err := pc.DeleteTagById(ctx, t.ID); err != nil {
+		if _, err := pc.DeleteTagById(ctx, prowlarr.TagID(t.ID)); err != nil {
 			return nil, deletedOut{}, err
 		}
 
 		return nil, deletedOut{Deleted: t.Label}, nil
 	})
+}
+
+// namesOf is the names of the ids that have one, sorted.
+func namesOf[K comparable](ids []K, byID map[K]string) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if n, ok := byID[id]; ok {
+			out = append(out, n)
+		}
+	}
+	slices.Sort(out)
+
+	return out
 }

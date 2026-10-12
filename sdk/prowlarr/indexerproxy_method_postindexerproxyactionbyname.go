@@ -12,20 +12,25 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostIndexerProxyActionByNameOperationResponse is the result of PostIndexerProxyActionByName.
-type PostIndexerProxyActionByNameOperationResponse struct {
+// PostIndexerProxyActionByNameResponse is the result of PostIndexerProxyActionByName.
+type PostIndexerProxyActionByNameResponse struct {
 	HttpResponse *http.Response
-	Model        json.RawMessage
+	Answer       json.RawMessage
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PostIndexerProxyActionByNameResponse) Answered() bool { return r.Answer != nil }
+
 // PostIndexerProxyActionByName calls POST /api/v1/indexerproxy/action/{name}.
-func (c Client) PostIndexerProxyActionByName(ctx context.Context, name string, input IndexerProxyResource) (result PostIndexerProxyActionByNameOperationResponse, err error) {
+func (c Client) PostIndexerProxyActionByName(ctx context.Context, name string, input IndexerProxyResource) (result PostIndexerProxyActionByNameResponse, err error) {
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodPost,
+		Operation:  "PostIndexerProxyActionByName",
 		Path:       fmt.Sprintf("/api/v1/indexerproxy/action/%s", url.PathEscape(name)),
 	}
 
@@ -47,7 +52,7 @@ func (c Client) PostIndexerProxyActionByName(ctx context.Context, name string, i
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

@@ -5,30 +5,35 @@ package prowlarr
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetFileSystemTypeOperationResponse is the result of GetFileSystemType.
-type GetFileSystemTypeOperationResponse struct {
+// GetFileSystemTypeResponse is the result of GetFileSystemType.
+type GetFileSystemTypeResponse struct {
 	HttpResponse *http.Response
-	Model        json.RawMessage
+	Answer       json.RawMessage
 }
 
-// GetFileSystemTypeOperationOptions holds the query and header parameters of GetFileSystemType.
-type GetFileSystemTypeOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetFileSystemTypeResponse) Answered() bool { return r.Answer != nil }
+
+// GetFileSystemTypeOptions holds the query and header parameters of GetFileSystemType.
+type GetFileSystemTypeOptions struct {
 	Path string
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o GetFileSystemTypeOperationOptions) ToHeaders() *client.Headers {
+func (o GetFileSystemTypeOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o GetFileSystemTypeOperationOptions) ToQuery() *client.QueryParams {
+func (o GetFileSystemTypeOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.Path != "" {
 		out.Append("path", o.Path)
@@ -37,13 +42,23 @@ func (o GetFileSystemTypeOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // GetFileSystemType calls GET /api/v1/filesystem/type.
-func (c Client) GetFileSystemType(ctx context.Context, options GetFileSystemTypeOperationOptions) (result GetFileSystemTypeOperationResponse, err error) {
+func (c Client) GetFileSystemType(ctx context.Context, path ...string) (result GetFileSystemTypeResponse, err error) {
+	var option GetFileSystemTypeOptions
+	if len(path) > 1 {
+		err = fmt.Errorf("GetFileSystemType takes one path at most, not %d", len(path))
+		return
+	}
+	if len(path) == 1 {
+		option.Path = path[0]
+	}
+
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod:    http.MethodGet,
-		OptionsObject: options,
+		Operation:     "GetFileSystemType",
+		OptionsObject: option,
 		Path:          "/api/v1/filesystem/type",
 	}
 
@@ -61,7 +76,7 @@ func (c Client) GetFileSystemType(ctx context.Context, options GetFileSystemType
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

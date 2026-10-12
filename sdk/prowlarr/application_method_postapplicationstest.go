@@ -4,30 +4,31 @@ package prowlarr
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostApplicationsTestOperationResponse is the result of PostApplicationsTest.
-type PostApplicationsTestOperationResponse struct {
+// PostApplicationsTestResponse is the result of PostApplicationsTest.
+type PostApplicationsTestResponse struct {
 	HttpResponse *http.Response
 }
 
-// PostApplicationsTestOperationOptions holds the query and header parameters of PostApplicationsTest.
-type PostApplicationsTestOperationOptions struct {
+// PostApplicationsTestOptions holds the query and header parameters of PostApplicationsTest.
+type PostApplicationsTestOptions struct {
 	ForceTest *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PostApplicationsTestOperationOptions) ToHeaders() *client.Headers {
+func (o PostApplicationsTestOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PostApplicationsTestOperationOptions) ToQuery() *client.QueryParams {
+func (o PostApplicationsTestOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceTest != nil {
 		out.Append("forceTest", strconv.FormatBool(*o.ForceTest))
@@ -36,14 +37,24 @@ func (o PostApplicationsTestOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PostApplicationsTest calls POST /api/v1/applications/test.
-func (c Client) PostApplicationsTest(ctx context.Context, input ApplicationResource, options PostApplicationsTestOperationOptions) (result PostApplicationsTestOperationResponse, err error) {
+func (c Client) PostApplicationsTest(ctx context.Context, input ApplicationResource, forceTest ...bool) (result PostApplicationsTestResponse, err error) {
+	var option PostApplicationsTestOptions
+	if len(forceTest) > 1 {
+		err = fmt.Errorf("PostApplicationsTest takes one forceTest at most, not %d", len(forceTest))
+		return
+	}
+	if len(forceTest) == 1 {
+		option.ForceTest = &forceTest[0]
+	}
+
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod:    http.MethodPost,
-		OptionsObject: options,
+		Operation:     "PostApplicationsTest",
+		OptionsObject: option,
 		Path:          "/api/v1/applications/test",
 	}
 

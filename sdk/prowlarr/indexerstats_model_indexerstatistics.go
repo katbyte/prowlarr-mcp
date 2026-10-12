@@ -4,16 +4,16 @@ package prowlarr
 
 // IndexerStatistics is the "IndexerStatistics" schema.
 type IndexerStatistics struct {
-	AverageGrabResponseTime   int    `json:"averageGrabResponseTime,omitempty"`
-	AverageResponseTime       int    `json:"averageResponseTime,omitempty"`
-	IndexerId                 int    `json:"indexerId,omitempty"`
-	IndexerName               string `json:"indexerName,omitempty"`
-	NumberOfAuthQueries       int    `json:"numberOfAuthQueries,omitempty"`
-	NumberOfFailedAuthQueries int    `json:"numberOfFailedAuthQueries,omitempty"`
-	NumberOfFailedGrabs       int    `json:"numberOfFailedGrabs,omitempty"`
-	NumberOfFailedQueries     int    `json:"numberOfFailedQueries,omitempty"`
-	NumberOfFailedRssQueries  int    `json:"numberOfFailedRssQueries,omitempty"`
-	NumberOfGrabs             int    `json:"numberOfGrabs,omitempty"`
-	NumberOfQueries           int    `json:"numberOfQueries,omitempty"`
-	NumberOfRssQueries        int    `json:"numberOfRssQueries,omitempty"`
+	AverageGrabResponseTime   int       `json:"averageGrabResponseTime,omitempty"`
+	AverageResponseTime       int       `json:"averageResponseTime,omitempty"`
+	IndexerId                 IndexerID `json:"indexerId,omitempty"`
+	IndexerName               string    `json:"indexerName,omitempty"`
+	NumberOfAuthQueries       int       `json:"numberOfAuthQueries,omitempty"`
+	NumberOfFailedAuthQueries int       `json:"numberOfFailedAuthQueries,omitempty"`
+	NumberOfFailedGrabs       int       `json:"numberOfFailedGrabs,omitempty"`
+	NumberOfFailedQueries     int       `json:"numberOfFailedQueries,omitempty"`
+	NumberOfFailedRssQueries  int       `json:"numberOfFailedRssQueries,omitempty"`
+	NumberOfGrabs             int       `json:"numberOfGrabs,omitempty"`
+	NumberOfQueries           int       `json:"numberOfQueries,omitempty"`
+	NumberOfRssQueries        int       `json:"numberOfRssQueries,omitempty"`
 }

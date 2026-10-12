@@ -83,7 +83,7 @@ func TestWhatFailedIsShownWithoutTheIndexersKey(t *testing.T) {
 		}
 	}
 
-	rows := testResults([]prowlarr.ProviderTestAllResult{{Id: 1, IsValid: new(false), ValidationFailures: []prowlarr.ValidationFailure{{ErrorMessage: quoted}}}}, map[int]string{1: "Site"})
+	rows := testResults([]prowlarr.ProviderTestAllResult{{Id: 1, IsValid: false, ValidationFailures: []prowlarr.ValidationFailure{{ErrorMessage: quoted}}}}, map[int]string{1: "Site"})
 	shown("a row of testing every one", rows[0].Problems[0])
 
 	row, err := testOne("Site", refused(http.StatusBadRequest, quoted))

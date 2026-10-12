@@ -4,9 +4,9 @@ package prowlarr
 
 // IndexerStatusResource is the "IndexerStatusResource" schema.
 type IndexerStatusResource struct {
-	DisabledTill      string `json:"disabledTill,omitempty"`
-	Id                int    `json:"id,omitempty"`
-	IndexerId         int    `json:"indexerId,omitempty"`
-	InitialFailure    string `json:"initialFailure,omitempty"`
-	MostRecentFailure string `json:"mostRecentFailure,omitempty"`
+	DisabledTill      Time      `json:"disabledTill,omitzero"`
+	Id                int       `json:"id,omitempty"`
+	IndexerId         IndexerID `json:"indexerId,omitempty"`
+	InitialFailure    Time      `json:"initialFailure,omitzero"`
+	MostRecentFailure Time      `json:"mostRecentFailure,omitzero"`
 }

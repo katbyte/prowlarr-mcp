@@ -9,19 +9,24 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetAppProfileOperationResponse is the result of GetAppProfile.
-type GetAppProfileOperationResponse struct {
+// GetAppProfileResponse is the result of GetAppProfile.
+type GetAppProfileResponse struct {
 	HttpResponse *http.Response
-	Model        []AppProfileResource
+	Answer       []AppProfileResource
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetAppProfileResponse) Answered() bool { return r.Answer != nil }
+
 // GetAppProfile calls GET /api/v1/appprofile.
-func (c Client) GetAppProfile(ctx context.Context) (result GetAppProfileOperationResponse, err error) {
+func (c Client) GetAppProfile(ctx context.Context) (result GetAppProfileResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetAppProfile",
 		Path:       "/api/v1/appprofile",
 	}
 
@@ -39,7 +44,7 @@ func (c Client) GetAppProfile(ctx context.Context) (result GetAppProfileOperatio
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

@@ -74,7 +74,8 @@
           "Type": {
             "Type": "List",
             "NestedItem": {
-              "Type": "Integer"
+              "Type": "ID",
+              "ReferenceName": "IndexerID"
             }
           }
         }
@@ -111,7 +112,8 @@
           "Field": "IndexerId",
           "In": "Query",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         },
         {
@@ -156,7 +158,7 @@
           "Field": "Date",
           "In": "Query",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {
@@ -204,7 +206,7 @@
           "Name": "Date",
           "JsonName": "date",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {
@@ -234,7 +236,8 @@
           "Name": "IndexerId",
           "JsonName": "indexerId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         },
         {

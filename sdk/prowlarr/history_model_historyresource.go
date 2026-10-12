@@ -5,10 +5,10 @@ package prowlarr
 // HistoryResource is the "HistoryResource" schema.
 type HistoryResource struct {
 	Data       map[string]string `json:"data,omitzero"`
-	Date       string            `json:"date,omitempty"`
+	Date       Time              `json:"date,omitzero"`
 	DownloadId string            `json:"downloadId,omitempty"`
 	EventType  HistoryEventType  `json:"eventType,omitempty"`
 	Id         int               `json:"id,omitempty"`
-	IndexerId  int               `json:"indexerId,omitempty"`
-	Successful *bool             `json:"successful,omitempty"`
+	IndexerId  IndexerID         `json:"indexerId,omitempty"`
+	Successful bool              `json:"successful"`
 }

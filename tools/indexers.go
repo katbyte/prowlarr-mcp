@@ -32,9 +32,9 @@ type indexerRow struct {
 
 // lookups are the names a projection needs, read once per call.
 type lookups struct {
-	tags     map[int]string
-	profiles map[int]string
-	failing  map[int]prowlarr.IndexerStatusResource
+	tags     map[prowlarr.TagID]string
+	profiles map[prowlarr.AppProfileID]string
+	failing  map[prowlarr.IndexerID]prowlarr.IndexerStatusResource
 }
 
 func (r *registry) lookups(ctx context.Context) (*lookups, error) {
@@ -56,12 +56,12 @@ func (r *registry) lookups(ctx context.Context) (*lookups, error) {
 
 func (l *lookups) indexerRow(i *prowlarr.IndexerResource) indexerRow {
 	row := indexerRow{
-		ID: i.Id, Name: i.Name, Definition: definitionOf(i), Protocol: string(i.Protocol), Privacy: string(i.Privacy),
+		ID: int(i.Id), Name: i.Name, Definition: definitionOf(i), Protocol: string(i.Protocol), Privacy: string(i.Privacy),
 		Enabled: boolv(i.Enable), Priority: i.Priority, Tags: labels(i.Tags, l.tags), SyncProfile: l.profiles[i.AppProfileId],
 		BaseURL: shownAddress(i.Fields, "baseUrl"),
 	}
 	if s, ok := l.failing[i.Id]; ok {
-		row.FailingUntil = s.DisabledTill
+		row.FailingUntil = shownTime(s.DisabledTill)
 	}
 
 	return row
@@ -229,15 +229,15 @@ func registerIndexerTools(r *registry) {
 			case clientErr != nil:
 				return nil, getOut{}, clientErr
 			default:
-				out.DownloadClient = dc.Model.Name
+				out.DownloadClient = dc.Answer.Name
 			}
 		}
 		proxies, err := pc.GetIndexerProxy(ctx)
 		if err != nil {
 			return nil, getOut{}, err
 		}
-		for _, p := range proxies.Model {
-			if slices.ContainsFunc(p.Tags, func(t int) bool { return slices.Contains(i.Tags, t) }) {
+		for _, p := range proxies.Answer {
+			if slices.ContainsFunc(p.Tags, func(t prowlarr.TagID) bool { return slices.Contains(i.Tags, t) }) {
 				out.Proxies = append(out.Proxies, p.Name)
 			}
 		}
@@ -245,20 +245,20 @@ func registerIndexerTools(r *registry) {
 		if err != nil {
 			return nil, getOut{}, err
 		}
-		for a := range apps.Model {
-			v := syncs(&apps.Model[a], i, l.tags)
-			out.Apps = append(out.Apps, appSync{App: apps.Model[a].Name, Synced: v.Synced, Why: v.Reason})
+		for a := range apps.Answer {
+			v := syncs(&apps.Answer[a], i, l.tags)
+			out.Apps = append(out.Apps, appSync{App: apps.Answer[a].Name, Synced: v.Synced, Why: v.Reason})
 		}
 		st, err := pc.GetIndexerStatus(ctx)
 		if err != nil {
 			return nil, getOut{}, err
 		}
-		for _, s := range st.Model {
+		for _, s := range st.Answer {
 			if s.IndexerId == i.Id {
-				out.Status = &statusOut{DisabledTill: s.DisabledTill, InitialFailure: s.InitialFailure, MostRecentFailure: s.MostRecentFailure}
+				out.Status = &statusOut{DisabledTill: shownTime(s.DisabledTill), InitialFailure: shownTime(s.InitialFailure), MostRecentFailure: shownTime(s.MostRecentFailure)}
 			}
 		}
-		stats, err := r.indexerStats(ctx, 30, []int{i.Id})
+		stats, err := r.indexerStats(ctx, 30, []prowlarr.IndexerID{i.Id})
 		if err != nil {
 			return nil, getOut{}, err
 		}
@@ -272,12 +272,12 @@ func registerIndexerTools(r *registry) {
 				}
 			}
 		}
-		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), Limit: new(10)})
+		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOptions{IndexerId: i.Id, Limit: new(10)})
 		if err != nil {
 			return nil, getOut{}, err
 		}
-		names := map[int]string{i.Id: i.Name}
-		for _, h := range hist.Model {
+		names := map[prowlarr.IndexerID]string{i.Id: i.Name}
+		for _, h := range hist.Answer {
 			out.Recent = append(out.Recent, projectHistory(&h, names))
 		}
 		slices.SortStableFunc(out.Recent, func(a, b historyRow) int { return strings.Compare(b.Date, a.Date) })
@@ -300,13 +300,12 @@ func registerIndexerTools(r *registry) {
 			return nil, testOut{}, err
 		}
 		if in.Indexer == "" {
-			var results []prowlarr.ProviderTestAllResult
 			res, testErr := pc.PostIndexerTestAll(ctx)
-			if results, err = testAllAnswer(res.HttpResponse, res.Model, testErr); err != nil {
-				return nil, testOut{}, err
+			if testErr != nil {
+				return nil, testOut{}, testErr
 			}
 
-			return nil, testOut{Results: testResults(results, indexerNames(all))}, nil
+			return nil, testOut{Results: testResults(res.Answer, indexerNames(all))}, nil
 		}
 		i, err := find(all, in.Indexer, "indexer")
 		if err != nil {
@@ -320,7 +319,7 @@ func registerIndexerTools(r *registry) {
 
 // testIndexer tests one indexer as it is saved.
 func (r *registry) testIndexer(ctx context.Context, i *prowlarr.IndexerResource) (testRow, error) {
-	_, err := r.client.PostIndexerTest(ctx, *i, prowlarr.PostIndexerTestOperationOptions{ForceTest: new(true)})
+	_, err := r.client.PostIndexerTest(ctx, *i, true)
 
 	return testOne(i.Name, err)
 }
@@ -339,23 +338,23 @@ func nonEmpty(list []string) []string {
 
 // indexerStats reads the traffic statistics of the last days days, for some
 // indexers or every one.
-func (r *registry) indexerStats(ctx context.Context, days int, ids []int) (*prowlarr.IndexerStatsResource, error) {
-	opts := prowlarr.GetIndexerStatsOperationOptions{
-		StartDate: stampUTC(time.Now().AddDate(0, 0, -days)),
-		EndDate:   stampUTC(time.Now().Add(time.Minute)),
+func (r *registry) indexerStats(ctx context.Context, days int, ids []prowlarr.IndexerID) (*prowlarr.IndexerStatsResource, error) {
+	opts := prowlarr.GetIndexerStatsOptions{
+		StartDate: prowlarr.Time{Time: time.Now().AddDate(0, 0, -days)},
+		EndDate:   prowlarr.Time{Time: time.Now().Add(time.Minute)},
 	}
 	if len(ids) > 0 {
-		opts.Indexers = client.CSV(ids)
+		opts.Indexers = ids
 	}
 	res, err := r.client.GetIndexerStats(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
-	if res.Model == nil {
+	if res.Answer == nil {
 		return &prowlarr.IndexerStatsResource{}, nil
 	}
 
-	return res.Model, nil
+	return res.Answer, nil
 }
 
 // Provider tests ---------------------------------------------------------------
@@ -368,10 +367,10 @@ type testRow struct {
 }
 
 // testResults names the outcome of testing every provider of a kind.
-func testResults(results []prowlarr.ProviderTestAllResult, names map[int]string) []testRow {
+func testResults[K ~int](results []prowlarr.ProviderTestAllResult, names map[K]string) []testRow {
 	out := make([]testRow, 0, len(results))
 	for _, res := range results {
-		row := testRow{Name: names[res.Id], OK: boolv(res.IsValid)}
+		row := testRow{Name: names[K(res.Id)], OK: res.IsValid}
 		if row.Name == "" {
 			row.Name = fmt.Sprintf("id %d", res.Id)
 		}
@@ -387,24 +386,6 @@ func testResults(results []prowlarr.ProviderTestAllResult, names map[int]string)
 	slices.SortFunc(out, func(a, b testRow) int { return strings.Compare(a.Name, b.Name) })
 
 	return out
-}
-
-// testAllAnswer reads what testing every provider of a kind answered: the
-// results on a 200, and on the 400 Prowlarr answers when any provider
-// failed, the same results in the body, which comes back with the error.
-func testAllAnswer(resp *http.Response, model []prowlarr.ProviderTestAllResult, err error) ([]prowlarr.ProviderTestAllResult, error) {
-	if err == nil {
-		return model, nil
-	}
-	if client.StatusCode(err) != http.StatusBadRequest || resp == nil || resp.Body == nil {
-		return nil, err
-	}
-	var out []prowlarr.ProviderTestAllResult
-	if json.NewDecoder(resp.Body).Decode(&out) != nil {
-		return nil, err
-	}
-
-	return out, nil
 }
 
 // testOne is the outcome of testing one provider: a validation failure is an

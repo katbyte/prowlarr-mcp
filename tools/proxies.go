@@ -26,11 +26,11 @@ type proxyRow struct {
 	Indexers []string       `json:"indexers" jsonschema:"the indexers that use it"`
 }
 
-func projectProxy(p *prowlarr.IndexerProxyResource, idx []prowlarr.IndexerResource, tags map[int]string) proxyRow {
+func projectProxy(p *prowlarr.IndexerProxyResource, idx []prowlarr.IndexerResource, tags map[prowlarr.TagID]string) proxyRow {
 	row := proxyRow{ID: p.Id, Name: p.Name, Kind: p.Implementation, Tags: labels(p.Tags, tags)}
 	row.Settings, _ = settings(p.Fields)
 	for _, i := range idx {
-		if slices.ContainsFunc(p.Tags, func(t int) bool { return slices.Contains(i.Tags, t) }) {
+		if slices.ContainsFunc(p.Tags, func(t prowlarr.TagID) bool { return slices.Contains(i.Tags, t) }) {
 			row.Indexers = append(row.Indexers, i.Name)
 		}
 	}
@@ -45,7 +45,7 @@ func (r *registry) resolveProxy(ctx context.Context, ref string) (*prowlarr.Inde
 		return nil, err
 	}
 
-	return find(res.Model, ref, "proxy")
+	return find(res.Answer, ref, "proxy")
 }
 
 func registerProxyTools(r *registry) {
@@ -71,7 +71,7 @@ func registerProxyTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		page, where := paged(res.Answer, in.Limit, in.Offset, defaultLimit)
 		out := listOut{pageOut: where}
 		for i := range page {
 			out.Proxies = append(out.Proxies, projectProxy(&page[i], idx, tags))
@@ -98,12 +98,12 @@ func registerProxyTools(r *registry) {
 			return nil, proxyRow{}, err
 		}
 		var p *prowlarr.IndexerProxyResource
-		kinds := make([]string, 0, len(schema.Model))
-		for i := range schema.Model {
-			if strings.EqualFold(schema.Model[i].Implementation, in.Kind) {
-				p = &schema.Model[i]
+		kinds := make([]string, 0, len(schema.Answer))
+		for i := range schema.Answer {
+			if strings.EqualFold(schema.Answer[i].Implementation, in.Kind) {
+				p = &schema.Answer[i]
 			}
-			kinds = append(kinds, schema.Model[i].Implementation)
+			kinds = append(kinds, schema.Answer[i].Implementation)
 		}
 		if p == nil {
 			return nil, proxyRow{}, fmt.Errorf("no proxy kind %q (have: %s)", in.Kind, strings.Join(kinds, ", "))
@@ -135,19 +135,19 @@ func registerProxyTools(r *registry) {
 		tagged := p.Tags
 		made, err := forcedAdd(in.Force,
 			func(on bool) {
-				p.Tags = []int{}
+				p.Tags = []prowlarr.TagID{}
 				if on {
 					p.Tags = tagged
 				}
 			},
 			func() (*prowlarr.IndexerProxyResource, error) {
-				res, addErr := pc.PostIndexerProxy(ctx, *p, prowlarr.PostIndexerProxyOperationOptions{ForceSave: new(in.Force)})
-				return res.Model, addErr
+				res, addErr := pc.PostIndexerProxy(ctx, *p, in.Force)
+				return res.Answer, addErr
 			},
 			func(created *prowlarr.IndexerProxyResource) (*prowlarr.IndexerProxyResource, error) {
 				p.Id = created.Id
-				res, saveErr := pc.PutIndexerProxyById(ctx, created.Id, *p, prowlarr.PutIndexerProxyByIdOperationOptions{ForceSave: new(true)})
-				return res.Model, saveErr
+				res, saveErr := pc.PutIndexerProxyById(ctx, created.Id, *p, true)
+				return res.Answer, saveErr
 			})
 		if err != nil {
 			return nil, proxyRow{}, saveError("the proxy", err)
@@ -191,7 +191,7 @@ func registerProxyTools(r *registry) {
 		if err != nil {
 			return nil, proxyRow{}, err
 		}
-		p := read.Model
+		p := read.Answer
 		if p == nil {
 			return nil, proxyRow{}, errEmptyAnswer
 		}
@@ -200,7 +200,7 @@ func registerProxyTools(r *registry) {
 			p.Name = in.Name
 		}
 		if in.Tags != nil || in.AddTags != nil || in.RemoveTags != nil {
-			var set, addIDs, removeIDs []int
+			var set, addIDs, removeIDs []prowlarr.TagID
 			if set, err = r.resolveTags(ctx, in.Tags, true); err != nil {
 				return nil, proxyRow{}, err
 			}
@@ -215,7 +215,7 @@ func registerProxyTools(r *registry) {
 		if err := setFields(p.Fields, in.Settings); err != nil {
 			return nil, proxyRow{}, fmt.Errorf("%s: %w", p.Name, err)
 		}
-		res, err := pc.PutIndexerProxyById(ctx, p.Id, *p, prowlarr.PutIndexerProxyByIdOperationOptions{ForceSave: new(in.Force)})
+		res, err := pc.PutIndexerProxyById(ctx, p.Id, *p, in.Force)
 		if err != nil {
 			return nil, proxyRow{}, saveError(p.Name, err)
 		}
@@ -228,7 +228,7 @@ func registerProxyTools(r *registry) {
 			return nil, proxyRow{}, err
 		}
 
-		return nil, projectProxy(res.Model, idx, tags), nil
+		return nil, projectProxy(res.Answer, idx, tags), nil
 	})
 
 	type testOut struct {
@@ -246,23 +246,22 @@ func registerProxyTools(r *registry) {
 			return nil, testOut{}, err
 		}
 		names := map[int]string{}
-		for _, p := range res.Model {
+		for _, p := range res.Answer {
 			names[p.Id] = p.Name
 		}
 		if in.Proxy == "" {
-			var results []prowlarr.ProviderTestAllResult
 			all, testErr := pc.PostIndexerProxyTestAll(ctx)
-			if results, err = testAllAnswer(all.HttpResponse, all.Model, testErr); err != nil {
-				return nil, testOut{}, err
+			if testErr != nil {
+				return nil, testOut{}, testErr
 			}
 
-			return nil, testOut{Results: testResults(results, names)}, nil
+			return nil, testOut{Results: testResults(all.Answer, names)}, nil
 		}
-		p, err := find(res.Model, in.Proxy, "proxy")
+		p, err := find(res.Answer, in.Proxy, "proxy")
 		if err != nil {
 			return nil, testOut{}, err
 		}
-		_, err = pc.PostIndexerProxyTest(ctx, *p, prowlarr.PostIndexerProxyTestOperationOptions{ForceTest: new(true)})
+		_, err = pc.PostIndexerProxyTest(ctx, *p, true)
 		row, err := testOne(p.Name, err)
 
 		return nil, testOut{Results: []testRow{row}}, err

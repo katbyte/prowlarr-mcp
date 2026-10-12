@@ -4,10 +4,10 @@ package prowlarr
 
 // TagDetailsResource is the "TagDetailsResource" schema.
 type TagDetailsResource struct {
-	ApplicationIds  []int  `json:"applicationIds,omitzero"`
-	Id              int    `json:"id,omitempty"`
-	IndexerIds      []int  `json:"indexerIds,omitzero"`
-	IndexerProxyIds []int  `json:"indexerProxyIds,omitzero"`
-	Label           string `json:"label,omitempty"`
-	NotificationIds []int  `json:"notificationIds,omitzero"`
+	ApplicationIds  []int       `json:"applicationIds,omitzero"`
+	Id              TagID       `json:"id,omitempty"`
+	IndexerIds      []IndexerID `json:"indexerIds,omitzero"`
+	IndexerProxyIds []int       `json:"indexerProxyIds,omitzero"`
+	Label           string      `json:"label,omitempty"`
+	NotificationIds []int       `json:"notificationIds,omitzero"`
 }

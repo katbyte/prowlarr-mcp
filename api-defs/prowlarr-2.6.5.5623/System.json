@@ -103,7 +103,7 @@
           "Name": "BuildTime",
           "JsonName": "buildTime",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {
@@ -276,7 +276,7 @@
           "Name": "StartTime",
           "JsonName": "startTime",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {

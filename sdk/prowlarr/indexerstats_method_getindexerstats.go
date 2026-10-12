@@ -4,61 +4,95 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetIndexerStatsOperationResponse is the result of GetIndexerStats.
-type GetIndexerStatsOperationResponse struct {
+// GetIndexerStatsResponse is the result of GetIndexerStats.
+//
+// Answer is the IndexerStatsResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type GetIndexerStatsResponse struct {
 	HttpResponse *http.Response
-	Model        *IndexerStatsResource
+	Answer       *IndexerStatsResource
+	*IndexerStatsResource
 }
 
-// GetIndexerStatsOperationOptions holds the query and header parameters of GetIndexerStats.
-type GetIndexerStatsOperationOptions struct {
-	StartDate string
-	EndDate   string
-	Indexers  string
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetIndexerStatsResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the IndexerStatsResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r GetIndexerStatsResponse) Record() (IndexerStatsResource, error) {
+	if r.Answer == nil {
+		return IndexerStatsResource{}, errors.New("GetIndexerStats answered no IndexerStatsResource")
+	}
+
+	return *r.Answer, nil
+}
+
+// GetIndexerStatsOptions holds the query and header parameters of GetIndexerStats.
+type GetIndexerStatsOptions struct {
+	StartDate Time
+	EndDate   Time
+	Indexers  []IndexerID
 	Protocols string
-	Tags      string
+	Tags      []TagID
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o GetIndexerStatsOperationOptions) ToHeaders() *client.Headers {
+func (o GetIndexerStatsOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o GetIndexerStatsOperationOptions) ToQuery() *client.QueryParams {
+func (o GetIndexerStatsOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
-	if o.StartDate != "" {
-		out.Append("startDate", o.StartDate)
+	if !o.StartDate.IsZero() {
+		out.Append("startDate", o.StartDate.As(sendDateAs("GetIndexerStats", "startDate")))
 	}
-	if o.EndDate != "" {
-		out.Append("endDate", o.EndDate)
+	if !o.EndDate.IsZero() {
+		out.Append("endDate", o.EndDate.As(sendDateAs("GetIndexerStats", "endDate")))
 	}
-	if o.Indexers != "" {
-		out.Append("indexers", o.Indexers)
+	if len(o.Indexers) > 0 {
+		out.Append("indexers", client.Joined(o.Indexers))
 	}
 	if o.Protocols != "" {
 		out.Append("protocols", o.Protocols)
 	}
-	if o.Tags != "" {
-		out.Append("tags", o.Tags)
+	if len(o.Tags) > 0 {
+		out.Append("tags", client.Joined(o.Tags))
 	}
 	return &out
 }
 
 // GetIndexerStats calls GET /api/v1/indexerstats.
-func (c Client) GetIndexerStats(ctx context.Context, options GetIndexerStatsOperationOptions) (result GetIndexerStatsOperationResponse, err error) {
+func (c Client) GetIndexerStats(ctx context.Context, options ...GetIndexerStatsOptions) (result GetIndexerStatsResponse, err error) {
+	if len(options) > 1 {
+		err = fmt.Errorf("GetIndexerStats takes one options struct at most, not %d", len(options))
+		return
+	}
+	var option GetIndexerStatsOptions
+	if len(options) == 1 {
+		option = options[0]
+	}
+
+	result.IndexerStatsResource = &IndexerStatsResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod:    http.MethodGet,
-		OptionsObject: options,
+		Operation:     "GetIndexerStats",
+		OptionsObject: option,
 		Path:          "/api/v1/indexerstats",
 	}
 
@@ -76,11 +110,12 @@ func (c Client) GetIndexerStats(ctx context.Context, options GetIndexerStatsOper
 		return
 	}
 
-	var model IndexerStatsResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer IndexerStatsResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.IndexerStatsResource = result.Answer
 
 	return
 }

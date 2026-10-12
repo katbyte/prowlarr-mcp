@@ -3,6 +3,78 @@
   "Tag": "Command",
   "Operations": [
     {
+      "Name": "ApplicationIndexerSync",
+      "Method": "POST",
+      "Path": "/api/v1/command",
+      "Description": "Queues the ApplicationIndexerSync command.",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "ApplicationIndexerSyncCommand"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "CommandResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        201
+      ],
+      "Command": "ApplicationIndexerSync"
+    },
+    {
+      "Name": "Backup",
+      "Method": "POST",
+      "Path": "/api/v1/command",
+      "Description": "Queues the Backup command.",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "BackupCommand"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "CommandResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        201
+      ],
+      "Command": "Backup"
+    },
+    {
+      "Name": "CheckHealth",
+      "Method": "POST",
+      "Path": "/api/v1/command",
+      "Description": "Queues the CheckHealth command.",
+      "Request": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "CheckHealthCommand"
+        }
+      },
+      "Response": {
+        "ContentType": "application/json",
+        "Type": {
+          "Type": "Reference",
+          "ReferenceName": "CommandResource"
+        }
+      },
+      "ExpectedStatusCodes": [
+        201
+      ],
+      "Command": "CheckHealth"
+    },
+    {
       "Name": "DeleteCommandById",
       "Method": "DELETE",
       "Path": "/api/v1/command/{id}",
@@ -80,10 +152,79 @@
       },
       "ExpectedStatusCodes": [
         201
-      ]
+      ],
+      "Commands": {
+        "Get": "GetCommandById",
+        "Status": "status",
+        "Finished": [
+          "completed",
+          "failed",
+          "aborted",
+          "cancelled",
+          "orphaned"
+        ],
+        "Failed": [
+          "failed",
+          "aborted",
+          "cancelled",
+          "orphaned"
+        ]
+      }
     }
   ],
   "Models": [
+    {
+      "Name": "ApplicationIndexerSyncCommand",
+      "SchemaName": "ApplicationIndexerSyncCommand",
+      "Description": "The ApplicationIndexerSync command, as POST /api/v1/command queues it.",
+      "Fields": [
+        {
+          "Name": "ForceSync",
+          "JsonName": "forceSync",
+          "Type": {
+            "Type": "Boolean"
+          }
+        },
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Description": "The command's name, which the method sets.",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "BackupCommand",
+      "SchemaName": "BackupCommand",
+      "Description": "The Backup command, as POST /api/v1/command queues it.",
+      "Fields": [
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Description": "The command's name, which the method sets.",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ]
+    },
+    {
+      "Name": "CheckHealthCommand",
+      "SchemaName": "CheckHealthCommand",
+      "Description": "The CheckHealth command, as POST /api/v1/command queues it.",
+      "Fields": [
+        {
+          "Name": "Name",
+          "JsonName": "name",
+          "Description": "The command's name, which the method sets.",
+          "Type": {
+            "Type": "String"
+          }
+        }
+      ]
+    },
     {
       "Name": "Command",
       "SchemaName": "Command",
@@ -122,7 +263,7 @@
           "Name": "LastExecutionTime",
           "JsonName": "lastExecutionTime",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },
@@ -130,7 +271,7 @@
           "Name": "LastStartTime",
           "JsonName": "lastStartTime",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },
@@ -220,7 +361,7 @@
           "Name": "Ended",
           "JsonName": "ended",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },
@@ -243,7 +384,7 @@
           "Name": "LastExecutionTime",
           "JsonName": "lastExecutionTime",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },
@@ -275,7 +416,7 @@
           "Name": "Queued",
           "JsonName": "queued",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {
@@ -289,7 +430,7 @@
           "Name": "Started",
           "JsonName": "started",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },
@@ -297,7 +438,7 @@
           "Name": "StateChangeTime",
           "JsonName": "stateChangeTime",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },

@@ -4,9 +4,9 @@ package prowlarr
 
 // DownloadClientBulkResource is the "DownloadClientBulkResource" schema.
 type DownloadClientBulkResource struct {
-	ApplyTags ApplyTags `json:"applyTags,omitempty"`
-	Enable    *bool     `json:"enable,omitempty"`
-	Ids       []int     `json:"ids,omitzero"`
-	Priority  int       `json:"priority,omitempty"`
-	Tags      []int     `json:"tags,omitzero"`
+	ApplyTags ApplyTags          `json:"applyTags,omitempty"`
+	Enable    *bool              `json:"enable,omitempty"`
+	Ids       []DownloadClientID `json:"ids,omitzero"`
+	Priority  int                `json:"priority,omitempty"`
+	Tags      []TagID            `json:"tags,omitzero"`
 }

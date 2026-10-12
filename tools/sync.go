@@ -94,14 +94,14 @@ type syncVerdict struct {
 }
 
 // syncs works out whether Prowlarr syncs an indexer to an application.
-func syncs(app *prowlarr.ApplicationResource, idx *prowlarr.IndexerResource, tags map[int]string) syncVerdict {
+func syncs(app *prowlarr.ApplicationResource, idx *prowlarr.IndexerResource, tags map[prowlarr.TagID]string) syncVerdict {
 	if app.SyncLevel == prowlarr.ApplicationSyncLevelDisabled {
 		return syncVerdict{Rule: "app_sync_disabled", Reason: app.Name + "'s sync level is disabled"}
 	}
 	if !boolv(idx.Enable) {
 		return syncVerdict{Rule: "indexer_disabled", Reason: idx.Name + " is disabled"}
 	}
-	if len(app.Tags) > 0 && !slices.ContainsFunc(app.Tags, func(t int) bool { return slices.Contains(idx.Tags, t) }) {
+	if len(app.Tags) > 0 && !slices.ContainsFunc(app.Tags, func(t prowlarr.TagID) bool { return slices.Contains(idx.Tags, t) }) {
 		return syncVerdict{Rule: "no_shared_tag", Reason: fmt.Sprintf("%s only takes indexers tagged %s, and %s has %s",
 			app.Name, strings.Join(labels(app.Tags, tags), " or "), idx.Name, tagList(labels(idx.Tags, tags)))}
 	}
@@ -122,7 +122,7 @@ func syncs(app *prowlarr.ApplicationResource, idx *prowlarr.IndexerResource, tag
 // whyNothing says why an application receives none of the indexers, a clause
 // per rule they fail rather than one per indexer: which rule, how many, and
 // a few of their names.
-func whyNothing(app *prowlarr.ApplicationResource, byRule map[string][]string, tags map[int]string) string {
+func whyNothing(app *prowlarr.ApplicationResource, byRule map[string][]string, tags map[prowlarr.TagID]string) string {
 	var parts []string
 	for _, rule := range sortedKeys(byRule) {
 		names := byRule[rule]

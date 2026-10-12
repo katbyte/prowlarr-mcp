@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/katbyte/pandorest/client"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -66,9 +65,9 @@ func dataInt(h *prowlarr.HistoryResource, key string) *int {
 	return &n
 }
 
-func projectHistory(h *prowlarr.HistoryResource, names map[int]string) historyRow {
+func projectHistory(h *prowlarr.HistoryResource, names map[prowlarr.IndexerID]string) historyRow {
 	row := historyRow{
-		Date: h.Date, Indexer: names[h.IndexerId], Event: eventNames[h.EventType], Successful: boolv(h.Successful),
+		Date: shownTime(h.Date), Indexer: names[h.IndexerId], Event: eventNames[h.EventType], Successful: h.Successful,
 		Query: outsideName(data(h, "query")), QueryType: data(h, "queryType"), Categories: data(h, "categories"),
 		Source: data(h, "source"), Host: data(h, "host"), Results: dataInt(h, "queryResults"), ElapsedMs: dataInt(h, "elapsedTime"),
 		Cached: data(h, "cached") == "1", Title: outsideName(data(h, "grabTitle")), GrabMethod: data(h, "grabMethod"), URL: redactURL(data(h, "url")),
@@ -131,13 +130,13 @@ func registerStatsTools(r *registry) {
 			return nil, historyOut{}, err
 		}
 		names := indexerNames(all)
-		opts := prowlarr.GetHistoryOperationOptions{PageSize: new(250), SortKey: "date", SortDirection: prowlarr.SortDirectionDescending, Successful: in.Successful}
+		opts := prowlarr.GetHistoryOptions{PageSize: new(250), SortKey: "date", SortDirection: prowlarr.SortDirectionDescending, Successful: in.Successful}
 		if in.Indexer != "" {
 			var i *prowlarr.IndexerResource
 			if i, err = find(all, in.Indexer, "indexer"); err != nil {
 				return nil, historyOut{}, err
 			}
-			opts.IndexerIds = []int{i.Id}
+			opts.IndexerIds = []prowlarr.IndexerID{i.Id}
 		}
 		if in.Event != "" {
 			code, ok := eventCodes[strings.ToLower(in.Event)]
@@ -213,9 +212,9 @@ func registerStatsTools(r *registry) {
 			return nil, statsOut{}, err
 		}
 		names := indexerNames(all)
-		opts := prowlarr.GetIndexerStatsOperationOptions{
-			StartDate: stampUTC(time.Now().AddDate(0, 0, -days)),
-			EndDate:   stampUTC(time.Now().Add(time.Minute)),
+		opts := prowlarr.GetIndexerStatsOptions{
+			StartDate: prowlarr.Time{Time: time.Now().AddDate(0, 0, -days)},
+			EndDate:   prowlarr.Time{Time: time.Now().Add(time.Minute)},
 			Protocols: strings.ToLower(in.Protocol),
 		}
 		if in.Indexer != "" {
@@ -223,24 +222,24 @@ func registerStatsTools(r *registry) {
 			if i, err = find(all, in.Indexer, "indexer"); err != nil {
 				return nil, statsOut{}, err
 			}
-			opts.Indexers = client.CSV([]int{i.Id})
+			opts.Indexers = []prowlarr.IndexerID{i.Id}
 		}
 		if in.Tag != "" {
-			var ids []int
+			var ids []prowlarr.TagID
 			if ids, err = r.resolveTags(ctx, []string{in.Tag}, false); err != nil {
 				return nil, statsOut{}, err
 			}
-			opts.Tags = client.CSV(ids)
+			opts.Tags = ids
 		}
 		res, err := pc.GetIndexerStats(ctx, opts)
 		if err != nil {
 			return nil, statsOut{}, err
 		}
 		out := statsOut{Days: days}
-		if res.Model == nil {
+		if res.Answer == nil {
 			return nil, out, nil
 		}
-		for _, s := range res.Model.Indexers {
+		for _, s := range res.Answer.Indexers {
 			name := s.IndexerName
 			if name == "" {
 				name = names[s.IndexerId]
@@ -257,11 +256,11 @@ func registerStatsTools(r *registry) {
 			return (b.Queries + b.RSSQueries + b.Grabs) - (a.Queries + a.RSSQueries + a.Grabs)
 		})
 		out.Indexers, out.pageOut = paged(out.Indexers, in.Limit, in.Offset, defaultLimit)
-		for _, u := range res.Model.UserAgents {
+		for _, u := range res.Answer.UserAgents {
 			out.Sources = append(out.Sources, agentStat{Source: u.UserAgent, Queries: u.NumberOfQueries, Grabs: u.NumberOfGrabs})
 		}
 		slices.SortStableFunc(out.Sources, func(a, b agentStat) int { return (b.Queries + b.Grabs) - (a.Queries + a.Grabs) })
-		for _, h := range res.Model.Hosts {
+		for _, h := range res.Answer.Hosts {
 			out.Hosts = append(out.Hosts, hostStat{Host: h.Host, Queries: h.NumberOfQueries, Grabs: h.NumberOfGrabs})
 		}
 		slices.SortStableFunc(out.Hosts, func(a, b hostStat) int { return (b.Queries + b.Grabs) - (a.Queries + a.Grabs) })
@@ -286,7 +285,7 @@ func failedPercent(s *prowlarr.IndexerStatistics) int { return percent(failures(
 
 // eachHistory walks the history newest first, stopping at the cutoff or
 // after max events.
-func (r *registry) eachHistory(ctx context.Context, opts prowlarr.GetHistoryOperationOptions, cutoff time.Time, maxEvents int, fn func(*prowlarr.HistoryResource)) error {
+func (r *registry) eachHistory(ctx context.Context, opts prowlarr.GetHistoryOptions, cutoff time.Time, maxEvents int, fn func(*prowlarr.HistoryResource)) error {
 	size := 250
 	if opts.PageSize != nil && *opts.PageSize > 0 {
 		size = *opts.PageSize
@@ -300,12 +299,12 @@ func (r *registry) eachHistory(ctx context.Context, opts prowlarr.GetHistoryOper
 		if err != nil {
 			return err
 		}
-		if res.Model == nil || len(res.Model.Records) == 0 {
+		if res.Answer == nil || len(res.Answer.Records) == 0 {
 			return nil
 		}
-		for i := range res.Model.Records {
-			h := &res.Model.Records[i]
-			if t := parseTime(h.Date); !t.IsZero() && t.Before(cutoff) {
+		for i := range res.Answer.Records {
+			h := &res.Answer.Records[i]
+			if t := h.Date.Time; !t.IsZero() && t.Before(cutoff) {
 				return nil
 			}
 			fn(h)
@@ -314,7 +313,7 @@ func (r *registry) eachHistory(ctx context.Context, opts prowlarr.GetHistoryOper
 				return nil
 			}
 		}
-		if len(res.Model.Records) < size || page*size >= res.Model.TotalRecords {
+		if len(res.Answer.Records) < size || page*size >= res.Answer.TotalRecords {
 			return nil
 		}
 	}

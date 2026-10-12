@@ -173,7 +173,7 @@ func TestATraceShowsNoCredential(t *testing.T) {
 	}
 
 	indexer := IndexerResource{Name: "Site", Fields: []Field{{Name: "baseUrl", Value: "https://site.example"}, {Name: "apiKey", Value: "trackers-key-value"}, {Name: "cookie", Value: "trackers-cookie-value"}}}
-	if _, err := c.PostIndexer(t.Context(), indexer, PostIndexerOperationOptions{}); err != nil {
+	if _, err := c.PostIndexer(t.Context(), indexer); err != nil {
 		t.Fatal(err)
 	}
 	host := HostConfigResource{Id: 1, Port: 9696, ApiKey: "a-new-key-value", Password: "a-password-value", PasswordConfirmation: "typed-again-value", ProxyPassword: "proxy-password-value", Username: "someone"} //nolint:gosec // made-up values: keeping them out of the trace is what the test checks

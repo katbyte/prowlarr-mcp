@@ -2,6 +2,8 @@
 
 package prowlarr
 
+import "slices"
+
 // ApplicationSyncLevel is the "ApplicationSyncLevel" enum.
 type ApplicationSyncLevel string
 
@@ -19,4 +21,9 @@ func PossibleValuesForApplicationSyncLevel() []string {
 		string(ApplicationSyncLevelAddOnly),
 		string(ApplicationSyncLevelFullSync),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v ApplicationSyncLevel) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForApplicationSyncLevel(), string(v))
 }

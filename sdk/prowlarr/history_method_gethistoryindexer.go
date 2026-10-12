@@ -4,36 +4,41 @@ package prowlarr
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetHistoryIndexerOperationResponse is the result of GetHistoryIndexer.
-type GetHistoryIndexerOperationResponse struct {
+// GetHistoryIndexerResponse is the result of GetHistoryIndexer.
+type GetHistoryIndexerResponse struct {
 	HttpResponse *http.Response
-	Model        []HistoryResource
+	Answer       []HistoryResource
 }
 
-// GetHistoryIndexerOperationOptions holds the query and header parameters of GetHistoryIndexer.
-type GetHistoryIndexerOperationOptions struct {
-	IndexerId *int
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetHistoryIndexerResponse) Answered() bool { return r.Answer != nil }
+
+// GetHistoryIndexerOptions holds the query and header parameters of GetHistoryIndexer.
+type GetHistoryIndexerOptions struct {
+	IndexerId IndexerID
 	EventType HistoryEventType
 	Limit     *int
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o GetHistoryIndexerOperationOptions) ToHeaders() *client.Headers {
+func (o GetHistoryIndexerOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o GetHistoryIndexerOperationOptions) ToQuery() *client.QueryParams {
+func (o GetHistoryIndexerOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
-	if o.IndexerId != nil {
-		out.Append("indexerId", strconv.Itoa(*o.IndexerId))
+	if o.IndexerId != 0 {
+		out.Append("indexerId", strconv.Itoa(int(o.IndexerId)))
 	}
 	if o.EventType != "" {
 		out.Append("eventType", string(o.EventType))
@@ -45,13 +50,23 @@ func (o GetHistoryIndexerOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // GetHistoryIndexer calls GET /api/v1/history/indexer.
-func (c Client) GetHistoryIndexer(ctx context.Context, options GetHistoryIndexerOperationOptions) (result GetHistoryIndexerOperationResponse, err error) {
+func (c Client) GetHistoryIndexer(ctx context.Context, options ...GetHistoryIndexerOptions) (result GetHistoryIndexerResponse, err error) {
+	if len(options) > 1 {
+		err = fmt.Errorf("GetHistoryIndexer takes one options struct at most, not %d", len(options))
+		return
+	}
+	var option GetHistoryIndexerOptions
+	if len(options) == 1 {
+		option = options[0]
+	}
+
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod:    http.MethodGet,
-		OptionsObject: options,
+		Operation:     "GetHistoryIndexer",
+		OptionsObject: option,
 		Path:          "/api/v1/history/indexer",
 	}
 
@@ -69,7 +84,7 @@ func (c Client) GetHistoryIndexer(ctx context.Context, options GetHistoryIndexer
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

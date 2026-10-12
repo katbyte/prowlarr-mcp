@@ -1,8 +1,8 @@
 package tools
 
 import (
+	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"slices"
 	"strings"
@@ -30,7 +30,7 @@ func TestSyncsRules(t *testing.T) {
 	sonarr := prowlarr.ApplicationResource{Name: "Sonarr", Implementation: "Sonarr", SyncLevel: prowlarr.ApplicationSyncLevelFullSync, Fields: []prowlarr.Field{
 		{Name: "syncCategories", Value: []any{float64(5000), float64(5040)}}, {Name: "animeSyncCategories", Value: []any{float64(5070)}},
 	}}
-	tags := map[int]string{1: "tv", 2: "films"}
+	tags := map[prowlarr.TagID]string{1: "tv", 2: "films"}
 	tvOnly := &prowlarr.IndexerCapabilityResource{TvSearchParams: []prowlarr.TvSearchParam{"q"}, Categories: []prowlarr.IndexerCategory{{Id: 5000}}}
 	musicOnly := &prowlarr.IndexerCapabilityResource{MusicSearchParams: []prowlarr.MusicSearchParam{"q"}, Categories: []prowlarr.IndexerCategory{{Id: 5000}}}
 
@@ -48,8 +48,8 @@ func TestSyncsRules(t *testing.T) {
 		{"music search only", nil, prowlarr.IndexerResource{Name: "music", Enable: new(true), Capabilities: musicOnly}, "no_search_type"},
 		{"no capabilities", nil, prowlarr.IndexerResource{Name: "bare", Enable: new(true)}, "no_search_type"},
 		{"disabled", nil, prowlarr.IndexerResource{Name: "off", Enable: new(false), Capabilities: cats(5040)}, "indexer_disabled"},
-		{"a tag it lacks", func(a *prowlarr.ApplicationResource) { a.Tags = []int{1} }, prowlarr.IndexerResource{Name: "untagged", Enable: new(true), Capabilities: cats(5040)}, "no_shared_tag"},
-		{"a tag it shares", func(a *prowlarr.ApplicationResource) { a.Tags = []int{1, 2} }, prowlarr.IndexerResource{Name: "tagged", Enable: new(true), Tags: []int{2}, Capabilities: cats(5040)}, ""},
+		{"a tag it lacks", func(a *prowlarr.ApplicationResource) { a.Tags = []prowlarr.TagID{1} }, prowlarr.IndexerResource{Name: "untagged", Enable: new(true), Capabilities: cats(5040)}, "no_shared_tag"},
+		{"a tag it shares", func(a *prowlarr.ApplicationResource) { a.Tags = []prowlarr.TagID{1, 2} }, prowlarr.IndexerResource{Name: "tagged", Enable: new(true), Tags: []prowlarr.TagID{2}, Capabilities: cats(5040)}, ""},
 		{"sync off", func(a *prowlarr.ApplicationResource) { a.SyncLevel = prowlarr.ApplicationSyncLevelDisabled }, prowlarr.IndexerResource{Name: "tv", Enable: new(true), Capabilities: cats(5040)}, "app_sync_disabled"},
 	} {
 		app := sonarr
@@ -213,13 +213,13 @@ func TestSettingsHideCredentials(t *testing.T) {
 func TestEditTags(t *testing.T) {
 	t.Parallel()
 
-	if got := editTags([]int{1, 2}, nil, []int{3, 1}, []int{2}, false); !slices.Equal(got, []int{1, 3}) {
+	if got := editTags([]prowlarr.TagID{1, 2}, nil, []prowlarr.TagID{3, 1}, []prowlarr.TagID{2}, false); !slices.Equal(got, []prowlarr.TagID{1, 3}) {
 		t.Errorf("add and remove = %v", got)
 	}
-	if got := editTags([]int{1, 2}, []int{5}, nil, nil, true); !slices.Equal(got, []int{5}) {
+	if got := editTags([]prowlarr.TagID{1, 2}, []prowlarr.TagID{5}, nil, nil, true); !slices.Equal(got, []prowlarr.TagID{5}) {
 		t.Errorf("replace = %v", got)
 	}
-	if got := editTags([]int{1}, []int{}, nil, nil, true); got == nil || len(got) != 0 {
+	if got := editTags([]prowlarr.TagID{1}, []prowlarr.TagID{}, nil, nil, true); got == nil || len(got) != 0 {
 		t.Errorf("clearing = %#v, want an empty list that is sent", got)
 	}
 }
@@ -336,24 +336,18 @@ func refused(status int, messages ...string) error {
 	return &client.StatusError{StatusError: &chttp.StatusError{StatusCode: status}, Messages: messages}
 }
 
-// Testing every provider answers 400 with the results when any fails; that
-// is an answer, and a failed single test is a row, not an error.
+// What testing every provider answers becomes a row for each, by name, and a failed single test is a row, not an error.
 func TestTestAnswers(t *testing.T) {
 	t.Parallel()
 
-	resp := &http.Response{Body: io.NopCloser(strings.NewReader(`[{"id":1,"isValid":true},{"id":2,"isValid":false,"validationFailures":[{"propertyName":"BaseUrl","errorMessage":"Unable to connect"}]}]`))}
-	results, err := testAllAnswer(resp, nil, refused(http.StatusBadRequest))
-	if err != nil || len(results) != 2 {
-		t.Fatalf("400 with results = %v, %v", results, err)
+	var results []prowlarr.ProviderTestAllResult
+	if err := json.Unmarshal([]byte(`[{"id":1,"isValid":true},{"id":2,"isValid":false,"validationFailures":[{"propertyName":"BaseUrl","errorMessage":"Unable to connect"}]}]`), &results); err != nil || len(results) != 2 {
+		t.Fatalf("the results = %v, %v", results, err)
 	}
 	rows := testResults(results, map[int]string{1: "b", 2: "a"})
 	if rows[0].Name != "a" || rows[0].OK || rows[0].Problems[0] != "BaseUrl: Unable to connect" || !rows[1].OK {
 		t.Errorf("rows = %+v", rows)
 	}
-	if _, err := testAllAnswer(nil, nil, refused(http.StatusInternalServerError)); err == nil {
-		t.Error("a 500 was taken for an answer")
-	}
-
 	row, err := testOne("x", refused(http.StatusBadRequest, "ApiKey: Invalid"))
 	if err != nil || row.OK || row.Problems[0] != "ApiKey: Invalid" {
 		t.Errorf("a failed test = %+v, %v", row, err)

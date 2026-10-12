@@ -4,30 +4,31 @@ package prowlarr
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostIndexerProxyTestOperationResponse is the result of PostIndexerProxyTest.
-type PostIndexerProxyTestOperationResponse struct {
+// PostIndexerProxyTestResponse is the result of PostIndexerProxyTest.
+type PostIndexerProxyTestResponse struct {
 	HttpResponse *http.Response
 }
 
-// PostIndexerProxyTestOperationOptions holds the query and header parameters of PostIndexerProxyTest.
-type PostIndexerProxyTestOperationOptions struct {
+// PostIndexerProxyTestOptions holds the query and header parameters of PostIndexerProxyTest.
+type PostIndexerProxyTestOptions struct {
 	ForceTest *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PostIndexerProxyTestOperationOptions) ToHeaders() *client.Headers {
+func (o PostIndexerProxyTestOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PostIndexerProxyTestOperationOptions) ToQuery() *client.QueryParams {
+func (o PostIndexerProxyTestOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceTest != nil {
 		out.Append("forceTest", strconv.FormatBool(*o.ForceTest))
@@ -36,14 +37,24 @@ func (o PostIndexerProxyTestOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PostIndexerProxyTest calls POST /api/v1/indexerproxy/test.
-func (c Client) PostIndexerProxyTest(ctx context.Context, input IndexerProxyResource, options PostIndexerProxyTestOperationOptions) (result PostIndexerProxyTestOperationResponse, err error) {
+func (c Client) PostIndexerProxyTest(ctx context.Context, input IndexerProxyResource, forceTest ...bool) (result PostIndexerProxyTestResponse, err error) {
+	var option PostIndexerProxyTestOptions
+	if len(forceTest) > 1 {
+		err = fmt.Errorf("PostIndexerProxyTest takes one forceTest at most, not %d", len(forceTest))
+		return
+	}
+	if len(forceTest) == 1 {
+		option.ForceTest = &forceTest[0]
+	}
+
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod:    http.MethodPost,
-		OptionsObject: options,
+		Operation:     "PostIndexerProxyTest",
+		OptionsObject: option,
 		Path:          "/api/v1/indexerproxy/test",
 	}
 

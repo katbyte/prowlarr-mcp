@@ -14,6 +14,12 @@ type ApplicationResource struct {
 	Name               string                `json:"name,omitempty"`
 	Presets            []ApplicationResource `json:"presets,omitzero"`
 	SyncLevel          ApplicationSyncLevel  `json:"syncLevel,omitempty"`
-	Tags               []int                 `json:"tags,omitzero"`
+	Tags               []TagID               `json:"tags,omitzero"`
 	TestCommand        string                `json:"testCommand,omitempty"`
 }
+
+// GetName is the record's Name, for code that handles records of several types alike.
+func (m ApplicationResource) GetName() string { return m.Name }
+
+// GetId is the record's Id, for code that handles records of several types alike.
+func (m ApplicationResource) GetId() int { return m.Id }

@@ -73,7 +73,7 @@ type snapshot struct {
 	profiles []prowlarr.AppProfileResource
 	proxies  []prowlarr.IndexerProxyResource
 	clients  []prowlarr.DownloadClientResource
-	tags     map[int]string
+	tags     map[prowlarr.TagID]string
 
 	mu      sync.Mutex
 	health  []prowlarr.HealthResource
@@ -92,27 +92,27 @@ func (r *registry) snap(ctx context.Context) (*snapshot, error) {
 	if err != nil {
 		return nil, err
 	}
-	s.statuses = st.Model
+	s.statuses = st.Answer
 	apps, err := r.client.GetApplications(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.apps = apps.Model
+	s.apps = apps.Answer
 	profiles, err := r.client.GetAppProfile(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.profiles = profiles.Model
+	s.profiles = profiles.Answer
 	proxies, err := r.client.GetIndexerProxy(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.proxies = proxies.Model
+	s.proxies = proxies.Answer
 	clients, err := r.client.GetDownloadClient(ctx)
 	if err != nil {
 		return nil, err
 	}
-	s.clients = clients.Model
+	s.clients = clients.Answer
 	if s.tags, err = r.tagLabels(ctx); err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (s *snapshot) enabled() []*prowlarr.IndexerResource {
 }
 
 // statusOf is an indexer's failure record, nil when it has none.
-func (s *snapshot) statusOf(id int) *prowlarr.IndexerStatusResource {
+func (s *snapshot) statusOf(id prowlarr.IndexerID) *prowlarr.IndexerStatusResource {
 	for i := range s.statuses {
 		if s.statuses[i].IndexerId == id {
 			return &s.statuses[i]
@@ -147,26 +147,26 @@ func (s *snapshot) statusOf(id int) *prowlarr.IndexerStatusResource {
 }
 
 // statsFor reads the statistics of a window ending now, once per window.
-func (s *snapshot) statsFor(ctx context.Context, window time.Duration) (map[int]*prowlarr.IndexerStatistics, error) {
+func (s *snapshot) statsFor(ctx context.Context, window time.Duration) (map[prowlarr.IndexerID]*prowlarr.IndexerStatistics, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := window.String()
 	res, ok := s.stats[key]
 	if !ok {
-		got, err := s.r.client.GetIndexerStats(ctx, prowlarr.GetIndexerStatsOperationOptions{
-			StartDate: stampUTC(time.Now().Add(-window)),
-			EndDate:   stampUTC(time.Now().Add(time.Minute)),
+		got, err := s.r.client.GetIndexerStats(ctx, prowlarr.GetIndexerStatsOptions{
+			StartDate: prowlarr.Time{Time: time.Now().Add(-window)},
+			EndDate:   prowlarr.Time{Time: time.Now().Add(time.Minute)},
 		})
 		if err != nil {
 			return nil, err
 		}
-		res = got.Model
+		res = got.Answer
 		if res == nil {
 			res = &prowlarr.IndexerStatsResource{}
 		}
 		s.stats[key] = res
 	}
-	out := map[int]*prowlarr.IndexerStatistics{}
+	out := map[prowlarr.IndexerID]*prowlarr.IndexerStatistics{}
 	for i := range res.Indexers {
 		out[res.Indexers[i].IndexerId] = &res.Indexers[i]
 	}
@@ -183,7 +183,7 @@ func (s *snapshot) healthChecks(ctx context.Context) ([]prowlarr.HealthResource,
 		if err != nil {
 			return nil, err
 		}
-		s.health = res.Model
+		s.health = res.Answer
 		if s.health == nil {
 			s.health = []prowlarr.HealthResource{}
 		}

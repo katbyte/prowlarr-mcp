@@ -4,6 +4,7 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,25 +12,46 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PutIndexerProxyByIdOperationResponse is the result of PutIndexerProxyById.
-type PutIndexerProxyByIdOperationResponse struct {
+// PutIndexerProxyByIdResponse is the result of PutIndexerProxyById.
+//
+// Answer is the IndexerProxyResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PutIndexerProxyByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *IndexerProxyResource
+	Answer       *IndexerProxyResource
+	*IndexerProxyResource
 }
 
-// PutIndexerProxyByIdOperationOptions holds the query and header parameters of PutIndexerProxyById.
-type PutIndexerProxyByIdOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PutIndexerProxyByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the IndexerProxyResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PutIndexerProxyByIdResponse) Record() (IndexerProxyResource, error) {
+	if r.Answer == nil {
+		return IndexerProxyResource{}, errors.New("PutIndexerProxyById answered no IndexerProxyResource")
+	}
+
+	return *r.Answer, nil
+}
+
+// PutIndexerProxyByIdOptions holds the query and header parameters of PutIndexerProxyById.
+type PutIndexerProxyByIdOptions struct {
 	ForceSave *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PutIndexerProxyByIdOperationOptions) ToHeaders() *client.Headers {
+func (o PutIndexerProxyByIdOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PutIndexerProxyByIdOperationOptions) ToQuery() *client.QueryParams {
+func (o PutIndexerProxyByIdOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceSave != nil {
 		out.Append("forceSave", strconv.FormatBool(*o.ForceSave))
@@ -38,14 +60,25 @@ func (o PutIndexerProxyByIdOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PutIndexerProxyById calls PUT /api/v1/indexerproxy/{id}.
-func (c Client) PutIndexerProxyById(ctx context.Context, id int, input IndexerProxyResource, options PutIndexerProxyByIdOperationOptions) (result PutIndexerProxyByIdOperationResponse, err error) {
+func (c Client) PutIndexerProxyById(ctx context.Context, id int, input IndexerProxyResource, forceSave ...bool) (result PutIndexerProxyByIdResponse, err error) {
+	var option PutIndexerProxyByIdOptions
+	if len(forceSave) > 1 {
+		err = fmt.Errorf("PutIndexerProxyById takes one forceSave at most, not %d", len(forceSave))
+		return
+	}
+	if len(forceSave) == 1 {
+		option.ForceSave = &forceSave[0]
+	}
+
+	result.IndexerProxyResource = &IndexerProxyResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusAccepted,
 		},
 		HTTPMethod:    http.MethodPut,
-		OptionsObject: options,
+		Operation:     "PutIndexerProxyById",
+		OptionsObject: option,
 		Path:          fmt.Sprintf("/api/v1/indexerproxy/%d", id),
 	}
 
@@ -67,11 +100,12 @@ func (c Client) PutIndexerProxyById(ctx context.Context, id int, input IndexerPr
 		return
 	}
 
-	var model IndexerProxyResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer IndexerProxyResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.IndexerProxyResource = result.Answer
 
 	return
 }

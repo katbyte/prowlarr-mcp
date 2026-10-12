@@ -738,7 +738,7 @@ func TestIndexerAddForced(t *testing.T) {
 	var posted, put prowlarr.IndexerResource
 	_ = json.Unmarshal([]byte(f.sent("POST /api/v1/indexer")[0]), &posted)
 	_ = json.Unmarshal([]byte(f.sent("PUT /api/v1/indexer/7")[0]), &put)
-	if boolv(posted.Enable) || !boolv(put.Enable) || put.Id != 7 || put.Added != "2026-09-19T12:00:00Z" {
+	if boolv(posted.Enable) || !boolv(put.Enable) || put.Id != 7 || shownTime(put.Added) != "2026-09-19T12:00:00Z" {
 		t.Errorf("posted enable=%v, put enable=%v id=%d added=%q", boolv(posted.Enable), boolv(put.Enable), put.Id, put.Added)
 	}
 	if q := f.requested("PUT /api/v1/indexer/7"); !strings.Contains(q[0], "forceSave=true") {

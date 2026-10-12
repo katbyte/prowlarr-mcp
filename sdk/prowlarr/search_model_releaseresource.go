@@ -9,7 +9,7 @@ type ReleaseResource struct {
 	AgeMinutes       float64           `json:"ageMinutes,omitempty"`
 	Categories       []IndexerCategory `json:"categories,omitzero"`
 	CommentUrl       string            `json:"commentUrl,omitempty"`
-	DownloadClientId int               `json:"downloadClientId,omitempty"`
+	DownloadClientId DownloadClientID  `json:"downloadClientId,omitempty"`
 	DownloadUrl      string            `json:"downloadUrl,omitempty"`
 	FileName         string            `json:"fileName,omitempty"`
 	Files            int               `json:"files,omitempty"`
@@ -19,14 +19,14 @@ type ReleaseResource struct {
 	ImdbId           int               `json:"imdbId,omitempty"`
 	Indexer          string            `json:"indexer,omitempty"`
 	IndexerFlags     []string          `json:"indexerFlags,omitzero"`
-	IndexerId        int               `json:"indexerId,omitempty"`
+	IndexerId        IndexerID         `json:"indexerId,omitempty"`
 	InfoHash         string            `json:"infoHash,omitempty"`
 	InfoUrl          string            `json:"infoUrl,omitempty"`
 	Leechers         int               `json:"leechers,omitempty"`
 	MagnetUrl        string            `json:"magnetUrl,omitempty"`
 	PosterUrl        string            `json:"posterUrl,omitempty"`
 	Protocol         DownloadProtocol  `json:"protocol,omitempty"`
-	PublishDate      string            `json:"publishDate,omitempty"`
+	PublishDate      Time              `json:"publishDate,omitzero"`
 	ReleaseHash      string            `json:"releaseHash,omitempty"`
 	Seeders          int               `json:"seeders,omitempty"`
 	Size             int64             `json:"size,omitempty"`

@@ -42,8 +42,8 @@ func registerCommandTools(r *registry) {
 		}
 		want := strings.ToLower(strings.TrimSpace(in.Status))
 		var rows []commandRow
-		for i := range res.Model {
-			c := &res.Model[i]
+		for i := range res.Answer {
+			c := &res.Answer[i]
 			status := strings.ToLower(string(c.Status))
 			switch {
 			case want == "":
@@ -52,7 +52,7 @@ func registerCommandTools(r *registry) {
 			default:
 				continue
 			}
-			rows = append(rows, commandRow{commandOut: projectCommand(c), Task: c.Name, Trigger: string(c.Trigger), Queued: c.Queued})
+			rows = append(rows, commandRow{commandOut: projectCommand(c), Task: c.Name, Trigger: string(c.Trigger), Queued: shownTime(c.Queued)})
 		}
 		if want != "" && want != "running" && !slices.Contains([]string{"queued", "started", "completed", "failed", "aborted", "cancelled", "orphaned"}, want) {
 			return nil, listOut{}, fmt.Errorf("status must be queued, started, running, completed, failed, aborted or cancelled, got %q", in.Status)
@@ -78,7 +78,7 @@ func registerCommandTools(r *registry) {
 		if err != nil {
 			return nil, cancelOut{}, fmt.Errorf("no command %d: %w", in.ID, err)
 		}
-		c := got.Model
+		c := got.Answer
 		switch {
 		case commandDone(c.Status):
 			return nil, cancelOut{}, fmt.Errorf("command %d (%s) has already %s: there is nothing to cancel", c.Id, projectCommand(c).Name, c.Status)
@@ -133,10 +133,10 @@ func registerCommandTools(r *registry) {
 			case <-time.After(commandPoll):
 			}
 			now, err := pc.GetSystemStatus(ctx)
-			if err != nil || now.Model.StartTime == before.Model.StartTime {
+			if err != nil || now.Answer.StartTime.Equal(before.Answer.StartTime.Time) {
 				continue
 			}
-			out.Restarted, out.StartTime, out.Version = true, now.Model.StartTime, now.Model.Version
+			out.Restarted, out.StartTime, out.Version = true, shownTime(now.Answer.StartTime), now.Answer.Version
 			break
 		}
 		out.Waited = int(time.Since(began).Seconds())

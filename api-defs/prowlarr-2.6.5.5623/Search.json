@@ -30,7 +30,8 @@
           "Type": {
             "Type": "List",
             "NestedItem": {
-              "Type": "Integer"
+              "Type": "ID",
+              "ReferenceName": "IndexerID"
             }
           }
         },
@@ -177,7 +178,8 @@
           "Name": "DownloadClientId",
           "JsonName": "downloadClientId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "DownloadClientID"
           },
           "Nullable": true
         },
@@ -258,7 +260,8 @@
           "Name": "IndexerId",
           "JsonName": "indexerId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         },
         {
@@ -313,7 +316,7 @@
           "Name": "PublishDate",
           "JsonName": "publishDate",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {

@@ -6,14 +6,14 @@ package prowlarr
 type Command struct {
 	ClientUserAgent     string         `json:"clientUserAgent,omitempty"`
 	CompletionMessage   string         `json:"completionMessage,omitempty"`
-	IsExclusive         *bool          `json:"isExclusive,omitempty"`
-	IsTypeExclusive     *bool          `json:"isTypeExclusive,omitempty"`
-	LastExecutionTime   string         `json:"lastExecutionTime,omitempty"`
-	LastStartTime       string         `json:"lastStartTime,omitempty"`
+	IsExclusive         bool           `json:"isExclusive"`
+	IsTypeExclusive     bool           `json:"isTypeExclusive"`
+	LastExecutionTime   Time           `json:"lastExecutionTime,omitzero"`
+	LastStartTime       Time           `json:"lastStartTime,omitzero"`
 	Name                string         `json:"name,omitempty"`
-	RequiresDiskAccess  *bool          `json:"requiresDiskAccess,omitempty"`
-	SendUpdatesToClient *bool          `json:"sendUpdatesToClient,omitempty"`
-	SuppressMessages    *bool          `json:"suppressMessages,omitempty"`
+	RequiresDiskAccess  bool           `json:"requiresDiskAccess"`
+	SendUpdatesToClient bool           `json:"sendUpdatesToClient"`
+	SuppressMessages    bool           `json:"suppressMessages"`
 	Trigger             CommandTrigger `json:"trigger,omitempty"`
-	UpdateScheduledTask *bool          `json:"updateScheduledTask,omitempty"`
+	UpdateScheduledTask bool           `json:"updateScheduledTask"`
 }

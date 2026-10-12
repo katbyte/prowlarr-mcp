@@ -9,20 +9,25 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostApplicationsTestAllOperationResponse is the result of PostApplicationsTestAll.
-type PostApplicationsTestAllOperationResponse struct {
+// PostApplicationsTestAllResponse is the result of PostApplicationsTestAll.
+type PostApplicationsTestAllResponse struct {
 	HttpResponse *http.Response
-	Model        []ProviderTestAllResult
+	Answer       []ProviderTestAllResult
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PostApplicationsTestAllResponse) Answered() bool { return r.Answer != nil }
+
 // PostApplicationsTestAll calls POST /api/v1/applications/testall.
-func (c Client) PostApplicationsTestAll(ctx context.Context) (result PostApplicationsTestAllOperationResponse, err error) {
+func (c Client) PostApplicationsTestAll(ctx context.Context) (result PostApplicationsTestAllResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 			http.StatusBadRequest,
 		},
 		HTTPMethod: http.MethodPost,
+		Operation:  "PostApplicationsTestAll",
 		Path:       "/api/v1/applications/testall",
 	}
 
@@ -40,7 +45,7 @@ func (c Client) PostApplicationsTestAll(ctx context.Context) (result PostApplica
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

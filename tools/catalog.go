@@ -43,7 +43,7 @@ func (r *registry) catalog(ctx context.Context) ([]prowlarr.IndexerResource, err
 	if err != nil {
 		return nil, err
 	}
-	c.entries, c.read = res.Model, time.Now()
+	c.entries, c.read = res.Answer, time.Now()
 
 	return c.entries, nil
 }
@@ -265,10 +265,10 @@ func registerCatalogTools(r *registry) {
 			if profileErr != nil {
 				return nil, addOut{}, profileErr
 			}
-			if len(profiles.Model) == 0 {
+			if len(profiles.Answer) == 0 {
 				return nil, addOut{}, fmt.Errorf("prowlarr has no sync profile to give %s; profile_create makes one", i.Name)
 			}
-			i.AppProfileId = profiles.Model[0].Id
+			i.AppProfileId = profiles.Answer[0].Id
 		}
 		if i.Tags, err = r.makeTags(ctx, in.Tags); err != nil {
 			return nil, addOut{}, err
@@ -292,16 +292,16 @@ func registerCatalogTools(r *registry) {
 		res, err := forcedAdd(in.Force && !in.Disabled,
 			func(on bool) { i.Enable = new(on) },
 			func() (*prowlarr.IndexerResource, error) {
-				made, addErr := pc.PostIndexer(ctx, i, prowlarr.PostIndexerOperationOptions{ForceSave: new(in.Force)})
-				return made.Model, addErr
+				made, addErr := pc.PostIndexer(ctx, i, in.Force)
+				return made.Answer, addErr
 			},
 			func(made *prowlarr.IndexerResource) (*prowlarr.IndexerResource, error) {
 				// the update writes back what it is sent, so it carries the
 				// date the create stamped rather than the catalogue entry's
 				// zero one
 				i.Id, i.Added = made.Id, made.Added
-				saved, saveErr := pc.PutIndexerById(ctx, made.Id, i, prowlarr.PutIndexerByIdOperationOptions{ForceSave: new(true)})
-				return saved.Model, saveErr
+				saved, saveErr := pc.PutIndexerById(ctx, made.Id, i, true)
+				return saved.Answer, saveErr
 			})
 		if err != nil {
 			return nil, addOut{}, saveError(i.Name, err)
@@ -337,7 +337,7 @@ func registerCatalogTools(r *registry) {
 			return nil, categoriesOut{}, err
 		}
 		var all []categoryRow
-		for _, c := range res.Model {
+		for _, c := range res.Answer {
 			all = append(all, categoryRow{ID: c.Id, Name: c.Name})
 			for _, s := range c.SubCategories {
 				all = append(all, categoryRow{ID: s.Id, Name: s.Name, Parent: c.Id})
@@ -357,7 +357,7 @@ func (r *registry) categoryNames(ctx context.Context) (map[int]string, error) {
 		return nil, err
 	}
 	out := map[int]string{}
-	for _, c := range res.Model {
+	for _, c := range res.Answer {
 		out[c.Id] = c.Name
 		for _, s := range c.SubCategories {
 			name := s.Name

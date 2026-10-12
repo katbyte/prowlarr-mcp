@@ -4,10 +4,16 @@ package prowlarr
 
 // AppProfileResource is the "AppProfileResource" schema.
 type AppProfileResource struct {
-	EnableAutomaticSearch   *bool  `json:"enableAutomaticSearch,omitempty"`
-	EnableInteractiveSearch *bool  `json:"enableInteractiveSearch,omitempty"`
-	EnableRss               *bool  `json:"enableRss,omitempty"`
-	Id                      int    `json:"id,omitempty"`
-	MinimumSeeders          int    `json:"minimumSeeders,omitempty"`
-	Name                    string `json:"name,omitempty"`
+	EnableAutomaticSearch   *bool        `json:"enableAutomaticSearch,omitempty"`
+	EnableInteractiveSearch *bool        `json:"enableInteractiveSearch,omitempty"`
+	EnableRss               *bool        `json:"enableRss,omitempty"`
+	Id                      AppProfileID `json:"id,omitempty"`
+	MinimumSeeders          int          `json:"minimumSeeders,omitempty"`
+	Name                    string       `json:"name,omitempty"`
 }
+
+// GetName is the record's Name, for code that handles records of several types alike.
+func (m AppProfileResource) GetName() string { return m.Name }
+
+// GetId is the record's Id, for code that handles records of several types alike.
+func (m AppProfileResource) GetId() AppProfileID { return m.Id }

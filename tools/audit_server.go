@@ -91,7 +91,7 @@ func registerServerAudits(r *registry, t *auditTable) {
 		if err != nil {
 			return auditOut{}, err
 		}
-		interval := max(host.Model.BackupInterval, 1)
+		interval := max(host.Answer.BackupInterval, 1)
 		if len(backups) == 0 {
 			out.report(finding{
 				Subject: "backups", Kind: "backup", Problem: "no_backup",
@@ -102,7 +102,7 @@ func registerServerAudits(r *registry, t *auditTable) {
 			return out, nil
 		}
 		newest := backups[0]
-		taken, dated := parsedTime(newest.Time)
+		taken, dated := newest.Time.Time, !newest.Time.IsZero()
 		if !dated {
 			out.report(finding{
 				Subject: "backups", Kind: "backup", Problem: "backup_time_unreadable",
@@ -135,18 +135,11 @@ func (s *snapshot) notifications(ctx context.Context) ([]prowlarr.NotificationRe
 		if err != nil {
 			return nil, err
 		}
-		s.notes = res.Model
+		s.notes = res.Answer
 		if s.notes == nil {
 			s.notes = []prowlarr.NotificationResource{}
 		}
 	}
 
 	return s.notes, nil
-}
-
-// parsedTime reads a time as Prowlarr writes one, and says whether it could.
-func parsedTime(s string) (time.Time, bool) {
-	t, err := time.Parse(time.RFC3339, s)
-
-	return t, err == nil
 }

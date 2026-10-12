@@ -4,26 +4,52 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetAppProfileByIdOperationResponse is the result of GetAppProfileById.
-type GetAppProfileByIdOperationResponse struct {
+// GetAppProfileByIdResponse is the result of GetAppProfileById.
+//
+// Answer is the AppProfileResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type GetAppProfileByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *AppProfileResource
+	Answer       *AppProfileResource
+	*AppProfileResource
+}
+
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetAppProfileByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the AppProfileResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r GetAppProfileByIdResponse) Record() (AppProfileResource, error) {
+	if r.Answer == nil {
+		return AppProfileResource{}, errors.New("GetAppProfileById answered no AppProfileResource")
+	}
+
+	return *r.Answer, nil
 }
 
 // GetAppProfileById calls GET /api/v1/appprofile/{id}.
-func (c Client) GetAppProfileById(ctx context.Context, id int) (result GetAppProfileByIdOperationResponse, err error) {
+func (c Client) GetAppProfileById(ctx context.Context, id AppProfileID) (result GetAppProfileByIdResponse, err error) {
+	result.AppProfileResource = &AppProfileResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
-		Path:       fmt.Sprintf("/api/v1/appprofile/%d", id),
+		Operation:  "GetAppProfileById",
+		Path:       fmt.Sprintf("/api/v1/appprofile/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
@@ -40,11 +66,12 @@ func (c Client) GetAppProfileById(ctx context.Context, id int) (result GetAppPro
 		return
 	}
 
-	var model AppProfileResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer AppProfileResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.AppProfileResource = result.Answer
 
 	return
 }

@@ -4,26 +4,50 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PutConfigDevelopmentByIdOperationResponse is the result of PutConfigDevelopmentById.
-type PutConfigDevelopmentByIdOperationResponse struct {
+// PutConfigDevelopmentByIdResponse is the result of PutConfigDevelopmentById.
+//
+// Answer is the DevelopmentConfigResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PutConfigDevelopmentByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *DevelopmentConfigResource
+	Answer       *DevelopmentConfigResource
+	*DevelopmentConfigResource
+}
+
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PutConfigDevelopmentByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the DevelopmentConfigResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PutConfigDevelopmentByIdResponse) Record() (DevelopmentConfigResource, error) {
+	if r.Answer == nil {
+		return DevelopmentConfigResource{}, errors.New("PutConfigDevelopmentById answered no DevelopmentConfigResource")
+	}
+
+	return *r.Answer, nil
 }
 
 // PutConfigDevelopmentById calls PUT /api/v1/config/development/{id}.
-func (c Client) PutConfigDevelopmentById(ctx context.Context, id int, input DevelopmentConfigResource) (result PutConfigDevelopmentByIdOperationResponse, err error) {
+func (c Client) PutConfigDevelopmentById(ctx context.Context, id int, input DevelopmentConfigResource) (result PutConfigDevelopmentByIdResponse, err error) {
+	result.DevelopmentConfigResource = &DevelopmentConfigResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusAccepted,
 		},
 		HTTPMethod: http.MethodPut,
+		Operation:  "PutConfigDevelopmentById",
 		Path:       fmt.Sprintf("/api/v1/config/development/%d", id),
 	}
 
@@ -45,11 +69,12 @@ func (c Client) PutConfigDevelopmentById(ctx context.Context, id int, input Deve
 		return
 	}
 
-	var model DevelopmentConfigResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer DevelopmentConfigResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.DevelopmentConfigResource = result.Answer
 
 	return
 }

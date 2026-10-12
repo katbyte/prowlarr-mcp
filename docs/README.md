@@ -42,16 +42,13 @@ import once it is not.
   methods would treat the real status as an error.
 - `prowlarr-put-id-integer` - the `{id}` of every update is typed as a string,
   while the matching GET and DELETE type it as an integer.
-- `prowlarr-test-all-results` - testing every provider of a kind (`POST
-  /api/v1/indexer/testall` and friends) is documented as answering nothing. It
-  answers the result for each provider - id, whether it passed, and the
-  validation failures - as a `200` when all pass and a `400` when any fails.
-  The client takes that `400` as an answer rather than an error, so one bad
-  indexer does not hide the other results.
+- `prowlarr-test-all-records` - the document has no record for the result of testing a provider, or for one reason it failed. Both are declared: id, whether it passed, and the validation failures.
+- `prowlarr-test-all-results` - testing every provider of a kind (`POST /api/v1/indexer/testall` and friends) is documented as answering nothing. It answers the result for each provider as a `200` when all pass and a `400` when any fails. The client takes that `400` as an answer rather than an error, so one bad indexer does not hide the other results.
 - `prowlarr-command-body` - `POST /api/v1/command` is documented as taking a
   `CommandResource`, whose fields are all read-only status. A command's body
   is its name plus whatever that command takes (`{"name": "AppIndexerSync",
   "indexerIds": [1,2]}`), so the body is raw JSON.
+- `prowlarr-commands` - nothing in the document says which commands there are, what each takes, or when one has finished. The three this repository queues by name are declared (`ApplicationIndexerSync`, `Backup`, `CheckHealth`), with the statuses that mean a command is over and the ones that mean it failed, so each has a method of its own and a form that waits. A scheduled task is still queued by the name the server lists it under.
 - `prowlarr-bulk-answer-lists` - the bulk update of every provider kind, and
   the bulk grab, are documented as answering one resource. They answer the
   list of everything they changed.
@@ -63,7 +60,7 @@ import once it is not.
 
 - Auth is an API key in `X-Api-Key` (Settings → General → Security). The key
   is the server's, not a user's; there are no per-user anything in Prowlarr.
-- Dates are RFC 3339 in UTC; the generated client keeps them as strings.
+- Dates are RFC 3339 in UTC, and the generated client reads them as times; year one, which Prowlarr sends for "never", reads as no date.
   Paged lists take `page`/`pageSize` and answer `{records, totalRecords}`,
   which is what the `Complete` pagers walk.
 - A provider - indexer, application, download client, proxy, notification -

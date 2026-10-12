@@ -389,7 +389,7 @@ func allowedHostsNamed(t *testing.T) bool {
 		t.Fatal(err)
 	}
 
-	return host.Model.AllowedHosts != ""
+	return host.Answer.AllowedHosts != ""
 }
 
 // vipIn is a VIP expiry some days from today, as indexer_edit takes it. The

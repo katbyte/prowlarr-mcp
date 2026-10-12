@@ -91,7 +91,7 @@ func (r *registry) settingsSections() []settingsSection {
 		sectionOf("host", "how Prowlarr is reached and who may sign in, its own proxy, its logs, backups, history clean-up and updates",
 			func(ctx context.Context) (*prowlarr.HostConfigResource, error) {
 				res, err := pc.GetConfigHost(ctx)
-				return res.Model, err
+				return res.Answer, err
 			},
 			func(ctx context.Context, id int, v prowlarr.HostConfigResource) error {
 				_, err := pc.PutConfigHostById(ctx, id, v)
@@ -100,7 +100,7 @@ func (r *registry) settingsSections() []settingsSection {
 		sectionOf("ui", "how the web interface shows dates and times, its language and its theme",
 			func(ctx context.Context) (*prowlarr.UiConfigResource, error) {
 				res, err := pc.GetConfigUi(ctx)
-				return res.Model, err
+				return res.Answer, err
 			},
 			func(ctx context.Context, id int, v prowlarr.UiConfigResource) error {
 				_, err := pc.PutConfigUiById(ctx, id, v)
@@ -109,7 +109,7 @@ func (r *registry) settingsSections() []settingsSection {
 		sectionOf("development", "what Prowlarr's logs record beyond the usual: each indexer's answers, its SQL, and how many log files it keeps",
 			func(ctx context.Context) (*prowlarr.DevelopmentConfigResource, error) {
 				res, err := pc.GetConfigDevelopment(ctx)
-				return res.Model, err
+				return res.Answer, err
 			},
 			func(ctx context.Context, id int, v prowlarr.DevelopmentConfigResource) error {
 				_, err := pc.PutConfigDevelopmentById(ctx, id, v)

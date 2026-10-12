@@ -42,15 +42,15 @@ func TestEverySettingIsOnTheListThatWasLookedAt(t *testing.T) {
 	}
 
 	indexers, err := sdk.GetIndexerSchema(ctx)
-	family("indexer", fieldsOf(indexers.Model, func(x prowlarr.IndexerResource) []prowlarr.Field { return x.Fields }), err)
+	family("indexer", fieldsOf(indexers.Answer, func(x prowlarr.IndexerResource) []prowlarr.Field { return x.Fields }), err)
 	applications, err := sdk.GetApplicationsSchema(ctx)
-	family("application", fieldsOf(applications.Model, func(x prowlarr.ApplicationResource) []prowlarr.Field { return x.Fields }), err)
+	family("application", fieldsOf(applications.Answer, func(x prowlarr.ApplicationResource) []prowlarr.Field { return x.Fields }), err)
 	clients, err := sdk.GetDownloadClientSchema(ctx)
-	family("downloadclient", fieldsOf(clients.Model, func(x prowlarr.DownloadClientResource) []prowlarr.Field { return x.Fields }), err)
+	family("downloadclient", fieldsOf(clients.Answer, func(x prowlarr.DownloadClientResource) []prowlarr.Field { return x.Fields }), err)
 	proxies, err := sdk.GetIndexerProxySchema(ctx)
-	family("proxy", fieldsOf(proxies.Model, func(x prowlarr.IndexerProxyResource) []prowlarr.Field { return x.Fields }), err)
+	family("proxy", fieldsOf(proxies.Answer, func(x prowlarr.IndexerProxyResource) []prowlarr.Field { return x.Fields }), err)
 	notifications, err := sdk.GetNotificationSchema(ctx)
-	family("notification", fieldsOf(notifications.Model, func(x prowlarr.NotificationResource) []prowlarr.Field { return x.Fields }), err)
+	family("notification", fieldsOf(notifications.Answer, func(x prowlarr.NotificationResource) []prowlarr.Field { return x.Fields }), err)
 
 	slices.Sort(declared)
 	declared = slices.Compact(declared)

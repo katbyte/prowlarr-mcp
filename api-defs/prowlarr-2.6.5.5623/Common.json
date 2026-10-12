@@ -197,7 +197,7 @@
           "Name": "DisabledTill",
           "JsonName": "disabledTill",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },
@@ -212,14 +212,15 @@
           "Name": "IndexerId",
           "JsonName": "indexerId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         },
         {
           "Name": "InitialFailure",
           "JsonName": "initialFailure",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         },
@@ -227,7 +228,7 @@
           "Name": "MostRecentFailure",
           "JsonName": "mostRecentFailure",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           },
           "Nullable": true
         }
@@ -272,7 +273,7 @@
           "Name": "LastWriteTime",
           "JsonName": "lastWriteTime",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         }
       ]

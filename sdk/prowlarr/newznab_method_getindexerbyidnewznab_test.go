@@ -3,7 +3,7 @@
 package prowlarr
 
 import (
-	"io"
+	"bytes"
 	"net/http"
 	"strings"
 	"testing"
@@ -15,7 +15,7 @@ func TestOperationGetIndexerByIdNewznab(t *testing.T) {
 	t.Parallel()
 
 	c, s := newOperationServer(t, 200, "application/rss+xml", "file bytes")
-	result, err := c.GetIndexerByIdNewznab(t.Context(), 7, GetIndexerByIdNewznabOperationOptions{
+	result, err := c.GetIndexerByIdNewznab(t.Context(), IndexerID(7), GetIndexerByIdNewznabOptions{
 		T:          "v-T",
 		Q:          "v-Q",
 		Cat:        "v-Cat",
@@ -93,15 +93,108 @@ func TestOperationGetIndexerByIdNewznab(t *testing.T) {
 	if result.HttpResponse == nil || result.HttpResponse.StatusCode != 200 {
 		t.Fatalf("HttpResponse = %+v", result.HttpResponse)
 	}
-	streamed, _ := io.ReadAll(result.HttpResponse.Body)
-	_ = result.HttpResponse.Body.Close()
-	if string(streamed) != "file bytes" {
-		t.Errorf("streamed body = %q", streamed)
+	if _, contentType := result.Reader(); contentType == "" || result.ContentLength() != 10 || result.Filename() != "answer.bin" {
+		t.Errorf("Reader = %q, length %d, filename %q", contentType, result.ContentLength(), result.Filename())
+	}
+	if data, err := result.Bytes(9); err == nil || string(data) != "" {
+		t.Errorf("Bytes over the size = %q, %v", data, err)
+	}
+	c, _ = newOperationServer(t, 200, "application/rss+xml", "file bytes")
+	result, err = c.GetIndexerByIdNewznab(t.Context(), IndexerID(7), GetIndexerByIdNewznabOptions{
+		T:          "v-T",
+		Q:          "v-Q",
+		Cat:        "v-Cat",
+		Imdbid:     "v-Imdbid",
+		Tmdbid:     new(7),
+		Extended:   "v-Extended",
+		Limit:      new(7),
+		Offset:     new(7),
+		Minage:     new(7),
+		Maxage:     new(7),
+		Minsize:    new(int64(7)),
+		Maxsize:    new(int64(7)),
+		Rid:        new(7),
+		Tvmazeid:   new(7),
+		Traktid:    new(7),
+		Tvdbid:     new(7),
+		Doubanid:   new(7),
+		Season:     new(7),
+		Ep:         "v-Ep",
+		Album:      "v-Album",
+		Artist:     "v-Artist",
+		Label:      "v-Label",
+		Track:      "v-Track",
+		Year:       new(7),
+		Genre:      "v-Genre",
+		Author:     "v-Author",
+		Title:      "v-Title",
+		Publisher:  "v-Publisher",
+		Configured: "v-Configured",
+		Source:     "v-Source",
+		Host:       "v-Host",
+		Server:     "v-Server",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if data, err := result.Bytes(10); err != nil || string(data) != "file bytes" {
+		t.Errorf("Bytes = %q, %v", data, err)
+	}
+	c, _ = newOperationServer(t, 200, "application/rss+xml", "file bytes")
+	result, err = c.GetIndexerByIdNewznab(t.Context(), IndexerID(7), GetIndexerByIdNewznabOptions{
+		T:          "v-T",
+		Q:          "v-Q",
+		Cat:        "v-Cat",
+		Imdbid:     "v-Imdbid",
+		Tmdbid:     new(7),
+		Extended:   "v-Extended",
+		Limit:      new(7),
+		Offset:     new(7),
+		Minage:     new(7),
+		Maxage:     new(7),
+		Minsize:    new(int64(7)),
+		Maxsize:    new(int64(7)),
+		Rid:        new(7),
+		Tvmazeid:   new(7),
+		Traktid:    new(7),
+		Tvdbid:     new(7),
+		Doubanid:   new(7),
+		Season:     new(7),
+		Ep:         "v-Ep",
+		Album:      "v-Album",
+		Artist:     "v-Artist",
+		Label:      "v-Label",
+		Track:      "v-Track",
+		Year:       new(7),
+		Genre:      "v-Genre",
+		Author:     "v-Author",
+		Title:      "v-Title",
+		Publisher:  "v-Publisher",
+		Configured: "v-Configured",
+		Source:     "v-Source",
+		Host:       "v-Host",
+		Server:     "v-Server",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var streamed bytes.Buffer
+	if _, err := result.WriteTo(&streamed); err != nil || streamed.String() != "file bytes" {
+		t.Errorf("WriteTo = %v, %q", err, streamed.String())
+	}
+	if _, err := result.WriteTo(&streamed); err == nil {
+		t.Error("WriteTo on a spent body succeeded")
+	}
+	if _, err := (GetIndexerByIdNewznabResponse{}).WriteTo(&streamed); err == nil {
+		t.Error("WriteTo with no answer succeeded")
+	}
+	if body, contentType := (GetIndexerByIdNewznabResponse{}).Reader(); body == nil || contentType != "" || body.Close() != nil {
+		t.Error("Reader with no answer is not safely empty")
 	}
 
 	// a status the operation does not document is an error, with the response
 	c, _ = newOperationServer(t, 418, "text/plain", "no")
-	result, err = c.GetIndexerByIdNewznab(t.Context(), 7, GetIndexerByIdNewznabOperationOptions{
+	result, err = c.GetIndexerByIdNewznab(t.Context(), IndexerID(7), GetIndexerByIdNewznabOptions{
 		T:          "v-T",
 		Q:          "v-Q",
 		Cat:        "v-Cat",
@@ -137,5 +230,14 @@ func TestOperationGetIndexerByIdNewznab(t *testing.T) {
 	})
 	if client.StatusCode(err) != 418 || result.HttpResponse == nil {
 		t.Errorf("an undocumented status = %v, %+v", err, result.HttpResponse)
+	}
+
+	// the options may be left out, and two are refused before any request
+	c, s = newOperationServer(t, 200, "application/rss+xml", "file bytes")
+	if _, err = c.GetIndexerByIdNewznab(t.Context(), IndexerID(7)); err != nil {
+		t.Errorf("without options = %v", err)
+	}
+	if _, err = c.GetIndexerByIdNewznab(t.Context(), IndexerID(7), GetIndexerByIdNewznabOptions{}, GetIndexerByIdNewznabOptions{}); err == nil || len(s.requests) != 1 {
+		t.Errorf("two options structs = %v, %d requests", err, len(s.requests))
 	}
 }

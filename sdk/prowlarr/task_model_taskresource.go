@@ -7,9 +7,15 @@ type TaskResource struct {
 	Id            int    `json:"id,omitempty"`
 	Interval      int    `json:"interval,omitempty"`
 	LastDuration  string `json:"lastDuration,omitempty"`
-	LastExecution string `json:"lastExecution,omitempty"`
-	LastStartTime string `json:"lastStartTime,omitempty"`
+	LastExecution Time   `json:"lastExecution,omitzero"`
+	LastStartTime Time   `json:"lastStartTime,omitzero"`
 	Name          string `json:"name,omitempty"`
-	NextExecution string `json:"nextExecution,omitempty"`
+	NextExecution Time   `json:"nextExecution,omitzero"`
 	TaskName      string `json:"taskName,omitempty"`
 }
+
+// GetName is the record's Name, for code that handles records of several types alike.
+func (m TaskResource) GetName() string { return m.Name }
+
+// GetId is the record's Id, for code that handles records of several types alike.
+func (m TaskResource) GetId() int { return m.Id }

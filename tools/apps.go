@@ -46,7 +46,7 @@ type appRow struct {
 	IndexersSkipped int      `json:"indexers_skipped" jsonschema:"how many enabled indexers it does not receive"`
 }
 
-func projectApp(a *prowlarr.ApplicationResource, idx []prowlarr.IndexerResource, tags map[int]string) appRow {
+func projectApp(a *prowlarr.ApplicationResource, idx []prowlarr.IndexerResource, tags map[prowlarr.TagID]string) appRow {
 	row := appRow{
 		ID: a.Id, Name: a.Name, Kind: a.Implementation, SyncLevel: string(a.SyncLevel), Tags: labels(a.Tags, tags),
 		BaseURL: shownAddress(a.Fields, "baseUrl"), ProwlarrURL: shownAddress(a.Fields, "prowlarrUrl"),
@@ -86,7 +86,7 @@ func registerAppTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		page, where := paged(apps.Model, in.Limit, in.Offset, defaultLimit)
+		page, where := paged(apps.Answer, in.Limit, in.Offset, defaultLimit)
 		out := listOut{pageOut: where}
 		for i := range page {
 			out.Apps = append(out.Apps, projectApp(&page[i], idx, tags))
@@ -212,12 +212,12 @@ func registerAppTools(r *registry) {
 			return nil, appOut{}, err
 		}
 		var a *prowlarr.ApplicationResource
-		kinds := make([]string, 0, len(schema.Model))
-		for i := range schema.Model {
-			if strings.EqualFold(schema.Model[i].Implementation, in.Kind) {
-				a = &schema.Model[i]
+		kinds := make([]string, 0, len(schema.Answer))
+		for i := range schema.Answer {
+			if strings.EqualFold(schema.Answer[i].Implementation, in.Kind) {
+				a = &schema.Answer[i]
 			}
-			kinds = append(kinds, schema.Model[i].Implementation)
+			kinds = append(kinds, schema.Answer[i].Implementation)
 		}
 		if a == nil {
 			return nil, appOut{}, fmt.Errorf("no application kind %q (have: %s)", in.Kind, strings.Join(kinds, ", "))
@@ -252,13 +252,13 @@ func registerAppTools(r *registry) {
 				}
 			},
 			func() (*prowlarr.ApplicationResource, error) {
-				res, addErr := pc.PostApplications(ctx, *a, prowlarr.PostApplicationsOperationOptions{ForceSave: new(in.Force)})
-				return res.Model, addErr
+				res, addErr := pc.PostApplications(ctx, *a, in.Force)
+				return res.Answer, addErr
 			},
 			func(created *prowlarr.ApplicationResource) (*prowlarr.ApplicationResource, error) {
 				a.Id = created.Id
-				res, saveErr := pc.PutApplicationsById(ctx, created.Id, *a, prowlarr.PutApplicationsByIdOperationOptions{ForceSave: new(true)})
-				return res.Model, saveErr
+				res, saveErr := pc.PutApplicationsById(ctx, created.Id, *a, true)
+				return res.Answer, saveErr
 			})
 		if err != nil {
 			return nil, appOut{}, saveError("the application", err)
@@ -310,7 +310,7 @@ func registerAppTools(r *registry) {
 		if err != nil {
 			return nil, editOut{}, err
 		}
-		a := read.Model
+		a := read.Answer
 		if a == nil {
 			return nil, editOut{}, errEmptyAnswer
 		}
@@ -327,7 +327,7 @@ func registerAppTools(r *registry) {
 			changed = append(changed, "name")
 		}
 		if in.Tags != nil || in.AddTags != nil || in.RemoveTags != nil {
-			var set, addIDs, removeIDs []int
+			var set, addIDs, removeIDs []prowlarr.TagID
 			if set, err = r.resolveTags(ctx, in.Tags, true); err != nil {
 				return nil, editOut{}, err
 			}
@@ -343,7 +343,7 @@ func registerAppTools(r *registry) {
 		if len(changed) == 0 {
 			return nil, editOut{}, errors.New("nothing to change: name a setting to edit")
 		}
-		res, err := pc.PutApplicationsById(ctx, a.Id, *a, prowlarr.PutApplicationsByIdOperationOptions{ForceSave: new(in.Force)})
+		res, err := pc.PutApplicationsById(ctx, a.Id, *a, in.Force)
 		if err != nil {
 			return nil, editOut{}, saveError(a.Name, err)
 		}
@@ -356,7 +356,7 @@ func registerAppTools(r *registry) {
 			return nil, editOut{}, err
 		}
 
-		return nil, editOut{App: projectApp(res.Model, idx, tags), Changed: changed}, nil
+		return nil, editOut{App: projectApp(res.Answer, idx, tags), Changed: changed}, nil
 	})
 
 	type testIn struct {
@@ -374,23 +374,22 @@ func registerAppTools(r *registry) {
 			return nil, testOut{}, err
 		}
 		names := map[int]string{}
-		for _, a := range apps.Model {
+		for _, a := range apps.Answer {
 			names[a.Id] = a.Name
 		}
 		if in.App == "" {
-			var results []prowlarr.ProviderTestAllResult
 			res, testErr := pc.PostApplicationsTestAll(ctx)
-			if results, err = testAllAnswer(res.HttpResponse, res.Model, testErr); err != nil {
-				return nil, testOut{}, err
+			if testErr != nil {
+				return nil, testOut{}, testErr
 			}
 
-			return nil, testOut{Results: testResults(results, names)}, nil
+			return nil, testOut{Results: testResults(res.Answer, names)}, nil
 		}
-		a, err := find(apps.Model, in.App, "application")
+		a, err := find(apps.Answer, in.App, "application")
 		if err != nil {
 			return nil, testOut{}, err
 		}
-		_, err = pc.PostApplicationsTest(ctx, *a, prowlarr.PostApplicationsTestOperationOptions{ForceTest: new(true)})
+		_, err = pc.PostApplicationsTest(ctx, *a, true)
 		row, err := testOne(a.Name, err)
 
 		return nil, testOut{Results: []testRow{row}}, err
@@ -425,8 +424,8 @@ func registerAppTools(r *registry) {
 			return nil, syncOut{}, err
 		}
 		out := syncOut{Command: cmd}
-		for i := range apps.Model {
-			out.Apps = append(out.Apps, projectApp(&apps.Model[i], idx, tags))
+		for i := range apps.Answer {
+			out.Apps = append(out.Apps, projectApp(&apps.Answer[i], idx, tags))
 		}
 
 		return nil, out, nil

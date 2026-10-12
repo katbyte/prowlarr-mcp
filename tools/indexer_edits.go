@@ -121,14 +121,14 @@ func registerIndexerEditTools(r *registry) {
 
 		// what is sent back is the whole indexer, so it is read once no other
 		// edit of it can run
-		unlock := editing[prowlarr.IndexerResource](r, found.Id, len(in.Tags)+len(in.AddTags) > 0)
+		unlock := editing[prowlarr.IndexerResource](r, int(found.Id), len(in.Tags)+len(in.AddTags) > 0)
 		defer unlock()
 
 		read, err := pc.GetIndexerById(ctx, found.Id)
 		if err != nil {
 			return nil, editOut{}, err
 		}
-		i := read.Model
+		i := read.Answer
 		if i == nil {
 			return nil, editOut{}, errEmptyAnswer
 		}
@@ -150,7 +150,7 @@ func registerIndexerEditTools(r *registry) {
 			changed = append(changed, "priority")
 		}
 		if in.Tags != nil || in.AddTags != nil || in.RemoveTags != nil {
-			var set, addIDs, removeIDs []int
+			var set, addIDs, removeIDs []prowlarr.TagID
 			if set, err = r.resolveTags(ctx, in.Tags, true); err != nil {
 				return nil, editOut{}, err
 			}
@@ -218,7 +218,7 @@ func registerIndexerEditTools(r *registry) {
 			return nil, editOut{}, errors.New("nothing to change: name a setting to edit")
 		}
 
-		res, err := pc.PutIndexerById(ctx, i.Id, *i, prowlarr.PutIndexerByIdOperationOptions{ForceSave: new(in.Force)})
+		res, err := pc.PutIndexerById(ctx, i.Id, *i, in.Force)
 		if err != nil {
 			// Prowlarr reads a Newznab or Torznab site's capabilities afresh
 			// whenever it saves one that is enabled, force or no force
@@ -232,7 +232,7 @@ func registerIndexerEditTools(r *registry) {
 			return nil, editOut{}, err
 		}
 
-		return nil, editOut{Indexer: l.indexerRow(res.Model), Changed: changed}, nil
+		return nil, editOut{Indexer: l.indexerRow(res.Answer), Changed: changed}, nil
 	})
 
 	type bulkIn struct {
@@ -319,26 +319,26 @@ func registerIndexerEditTools(r *registry) {
 		// the bulk update takes one tag change at a time: add, then remove
 		var tagChanges []struct {
 			apply prowlarr.ApplyTags
-			ids   []int
+			ids   []prowlarr.TagID
 		}
 		if len(in.AddTags) > 0 {
-			var ids []int
+			var ids []prowlarr.TagID
 			if ids, err = r.makeTags(ctx, in.AddTags); err != nil {
 				return nil, bulkOut{}, err
 			}
 			tagChanges = append(tagChanges, struct {
 				apply prowlarr.ApplyTags
-				ids   []int
+				ids   []prowlarr.TagID
 			}{prowlarr.ApplyTagsAdd, ids})
 		}
 		if len(in.RemoveTags) > 0 {
-			var ids []int
+			var ids []prowlarr.TagID
 			if ids, err = r.resolveTags(ctx, in.RemoveTags, false); err != nil {
 				return nil, bulkOut{}, err
 			}
 			tagChanges = append(tagChanges, struct {
 				apply prowlarr.ApplyTags
-				ids   []int
+				ids   []prowlarr.TagID
 			}{prowlarr.ApplyTagsRemove, ids})
 		}
 		if changes == 0 && len(tagChanges) == 0 {
@@ -360,9 +360,9 @@ func registerIndexerEditTools(r *registry) {
 		if err != nil {
 			return nil, bulkOut{}, err
 		}
-		out := bulkOut{Changed: len(res.Model)}
-		for i := range res.Model {
-			out.Indexers = append(out.Indexers, l.indexerRow(&res.Model[i]))
+		out := bulkOut{Changed: len(res.Answer)}
+		for i := range res.Answer {
+			out.Indexers = append(out.Indexers, l.indexerRow(&res.Answer[i]))
 		}
 		slices.SortFunc(out.Indexers, func(a, b indexerRow) int { return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)) })
 
@@ -409,15 +409,15 @@ func registerIndexerEditTools(r *registry) {
 			its = "their"
 		}
 		loses := []string{its + " history and statistics: every query, grab and failure Prowlarr recorded", its + " settings and credentials, as Prowlarr holds them"}
-		var ids []int
+		var ids []prowlarr.IndexerID
 		var labels []string
 		for c := range chosen {
 			i := &chosen[c]
 			labels, ids = append(labels, i.Name), append(ids, i.Id)
 			var receiving []string
-			for a := range apps.Model {
-				if syncs(&apps.Model[a], i, tags).Synced {
-					receiving = append(receiving, apps.Model[a].Name)
+			for a := range apps.Answer {
+				if syncs(&apps.Answer[a], i, tags).Synced {
+					receiving = append(receiving, apps.Answer[a].Name)
 				}
 			}
 			if len(receiving) > 0 {

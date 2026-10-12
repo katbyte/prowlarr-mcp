@@ -5,7 +5,7 @@ package prowlarr
 // HostConfigResource is the "HostConfigResource" schema.
 type HostConfigResource struct {
 	AllowedHosts              string                     `json:"allowedHosts"`
-	AnalyticsEnabled          *bool                      `json:"analyticsEnabled,omitempty"`
+	AnalyticsEnabled          bool                       `json:"analyticsEnabled"`
 	ApiKey                    string                     `json:"apiKey"`
 	ApplicationUrl            string                     `json:"applicationUrl"`
 	AuthenticationMethod      AuthenticationType         `json:"authenticationMethod,omitempty"`
@@ -17,19 +17,19 @@ type HostConfigResource struct {
 	Branch                    string                     `json:"branch"`
 	CertificateValidation     CertificateValidationType  `json:"certificateValidation,omitempty"`
 	ConsoleLogLevel           string                     `json:"consoleLogLevel"`
-	EnableSsl                 *bool                      `json:"enableSsl,omitempty"`
+	EnableSsl                 bool                       `json:"enableSsl"`
 	HistoryCleanupDays        int                        `json:"historyCleanupDays"`
 	Id                        int                        `json:"id"`
 	InstanceName              string                     `json:"instanceName"`
-	LaunchBrowser             *bool                      `json:"launchBrowser,omitempty"`
+	LaunchBrowser             bool                       `json:"launchBrowser"`
 	LogLevel                  string                     `json:"logLevel"`
 	LogSizeLimit              int                        `json:"logSizeLimit"`
 	Password                  string                     `json:"password"`
 	PasswordConfirmation      string                     `json:"passwordConfirmation"`
 	Port                      int                        `json:"port"`
 	ProxyBypassFilter         string                     `json:"proxyBypassFilter"`
-	ProxyBypassLocalAddresses *bool                      `json:"proxyBypassLocalAddresses,omitempty"`
-	ProxyEnabled              *bool                      `json:"proxyEnabled,omitempty"`
+	ProxyBypassLocalAddresses bool                       `json:"proxyBypassLocalAddresses"`
+	ProxyEnabled              bool                       `json:"proxyEnabled"`
 	ProxyHostname             string                     `json:"proxyHostname"`
 	ProxyPassword             string                     `json:"proxyPassword"`
 	ProxyPort                 int                        `json:"proxyPort"`
@@ -38,9 +38,9 @@ type HostConfigResource struct {
 	SslCertPassword           string                     `json:"sslCertPassword"`
 	SslCertPath               string                     `json:"sslCertPath"`
 	SslPort                   int                        `json:"sslPort"`
-	TrustCgnatIpAddresses     *bool                      `json:"trustCgnatIpAddresses,omitempty"`
+	TrustCgnatIpAddresses     bool                       `json:"trustCgnatIpAddresses"`
 	TrustedNetworks           string                     `json:"trustedNetworks"`
-	UpdateAutomatically       *bool                      `json:"updateAutomatically,omitempty"`
+	UpdateAutomatically       bool                       `json:"updateAutomatically"`
 	UpdateMechanism           UpdateMechanism            `json:"updateMechanism,omitempty"`
 	UpdateScriptPath          string                     `json:"updateScriptPath"`
 	UrlBase                   string                     `json:"urlBase"`

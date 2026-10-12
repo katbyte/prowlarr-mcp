@@ -4,36 +4,41 @@ package prowlarr
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetSearchOperationResponse is the result of GetSearch.
-type GetSearchOperationResponse struct {
+// GetSearchResponse is the result of GetSearch.
+type GetSearchResponse struct {
 	HttpResponse *http.Response
-	Model        []ReleaseResource
+	Answer       []ReleaseResource
 }
 
-// GetSearchOperationOptions holds the query and header parameters of GetSearch.
-type GetSearchOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetSearchResponse) Answered() bool { return r.Answer != nil }
+
+// GetSearchOptions holds the query and header parameters of GetSearch.
+type GetSearchOptions struct {
 	Query      string
 	Type       string
-	IndexerIds []int
+	IndexerIds []IndexerID
 	Categories []int
 	Limit      *int
 	Offset     *int
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o GetSearchOperationOptions) ToHeaders() *client.Headers {
+func (o GetSearchOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o GetSearchOperationOptions) ToQuery() *client.QueryParams {
+func (o GetSearchOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.Query != "" {
 		out.Append("query", o.Query)
@@ -42,7 +47,7 @@ func (o GetSearchOperationOptions) ToQuery() *client.QueryParams {
 		out.Append("type", o.Type)
 	}
 	for _, v := range o.IndexerIds {
-		out.Append("indexerIds", strconv.Itoa(v))
+		out.Append("indexerIds", strconv.Itoa(int(v)))
 	}
 	for _, v := range o.Categories {
 		out.Append("categories", strconv.Itoa(v))
@@ -57,13 +62,23 @@ func (o GetSearchOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // GetSearch calls GET /api/v1/search.
-func (c Client) GetSearch(ctx context.Context, options GetSearchOperationOptions) (result GetSearchOperationResponse, err error) {
+func (c Client) GetSearch(ctx context.Context, options ...GetSearchOptions) (result GetSearchResponse, err error) {
+	if len(options) > 1 {
+		err = fmt.Errorf("GetSearch takes one options struct at most, not %d", len(options))
+		return
+	}
+	var option GetSearchOptions
+	if len(options) == 1 {
+		option = options[0]
+	}
+
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod:    http.MethodGet,
-		OptionsObject: options,
+		Operation:     "GetSearch",
+		OptionsObject: option,
 		Path:          "/api/v1/search",
 	}
 
@@ -81,7 +96,7 @@ func (c Client) GetSearch(ctx context.Context, options GetSearchOperationOptions
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

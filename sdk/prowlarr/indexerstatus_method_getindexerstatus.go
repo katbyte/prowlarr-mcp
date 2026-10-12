@@ -9,19 +9,24 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetIndexerStatusOperationResponse is the result of GetIndexerStatus.
-type GetIndexerStatusOperationResponse struct {
+// GetIndexerStatusResponse is the result of GetIndexerStatus.
+type GetIndexerStatusResponse struct {
 	HttpResponse *http.Response
-	Model        []IndexerStatusResource
+	Answer       []IndexerStatusResource
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetIndexerStatusResponse) Answered() bool { return r.Answer != nil }
+
 // GetIndexerStatus calls GET /api/v1/indexerstatus.
-func (c Client) GetIndexerStatus(ctx context.Context) (result GetIndexerStatusOperationResponse, err error) {
+func (c Client) GetIndexerStatus(ctx context.Context) (result GetIndexerStatusResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetIndexerStatus",
 		Path:       "/api/v1/indexerstatus",
 	}
 
@@ -39,7 +44,7 @@ func (c Client) GetIndexerStatus(ctx context.Context) (result GetIndexerStatusOp
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

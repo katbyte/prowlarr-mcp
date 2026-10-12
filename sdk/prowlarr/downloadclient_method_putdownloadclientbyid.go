@@ -4,32 +4,55 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PutDownloadClientByIdOperationResponse is the result of PutDownloadClientById.
-type PutDownloadClientByIdOperationResponse struct {
+// PutDownloadClientByIdResponse is the result of PutDownloadClientById.
+//
+// Answer is the DownloadClientResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PutDownloadClientByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *DownloadClientResource
+	Answer       *DownloadClientResource
+	*DownloadClientResource
 }
 
-// PutDownloadClientByIdOperationOptions holds the query and header parameters of PutDownloadClientById.
-type PutDownloadClientByIdOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PutDownloadClientByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the DownloadClientResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PutDownloadClientByIdResponse) Record() (DownloadClientResource, error) {
+	if r.Answer == nil {
+		return DownloadClientResource{}, errors.New("PutDownloadClientById answered no DownloadClientResource")
+	}
+
+	return *r.Answer, nil
+}
+
+// PutDownloadClientByIdOptions holds the query and header parameters of PutDownloadClientById.
+type PutDownloadClientByIdOptions struct {
 	ForceSave *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PutDownloadClientByIdOperationOptions) ToHeaders() *client.Headers {
+func (o PutDownloadClientByIdOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PutDownloadClientByIdOperationOptions) ToQuery() *client.QueryParams {
+func (o PutDownloadClientByIdOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceSave != nil {
 		out.Append("forceSave", strconv.FormatBool(*o.ForceSave))
@@ -38,15 +61,26 @@ func (o PutDownloadClientByIdOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PutDownloadClientById calls PUT /api/v1/downloadclient/{id}.
-func (c Client) PutDownloadClientById(ctx context.Context, id int, input DownloadClientResource, options PutDownloadClientByIdOperationOptions) (result PutDownloadClientByIdOperationResponse, err error) {
+func (c Client) PutDownloadClientById(ctx context.Context, id DownloadClientID, input DownloadClientResource, forceSave ...bool) (result PutDownloadClientByIdResponse, err error) {
+	var option PutDownloadClientByIdOptions
+	if len(forceSave) > 1 {
+		err = fmt.Errorf("PutDownloadClientById takes one forceSave at most, not %d", len(forceSave))
+		return
+	}
+	if len(forceSave) == 1 {
+		option.ForceSave = &forceSave[0]
+	}
+
+	result.DownloadClientResource = &DownloadClientResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusAccepted,
 		},
 		HTTPMethod:    http.MethodPut,
-		OptionsObject: options,
-		Path:          fmt.Sprintf("/api/v1/downloadclient/%d", id),
+		Operation:     "PutDownloadClientById",
+		OptionsObject: option,
+		Path:          fmt.Sprintf("/api/v1/downloadclient/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
@@ -67,11 +101,12 @@ func (c Client) PutDownloadClientById(ctx context.Context, id int, input Downloa
 		return
 	}
 
-	var model DownloadClientResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer DownloadClientResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.DownloadClientResource = result.Answer
 
 	return
 }

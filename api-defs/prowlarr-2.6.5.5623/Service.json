@@ -11,10 +11,33 @@
     "prowlarr-undeclared-write-responses",
     "prowlarr-created-accepted",
     "prowlarr-put-id-integer",
+    "prowlarr-test-all-records",
     "prowlarr-test-all-results",
     "prowlarr-command-body",
+    "prowlarr-commands",
     "prowlarr-restore-upload-body",
     "prowlarr-bulk-answer-lists",
     "prowlarr-host-settings"
+  ],
+  "Dates": [
+    "2006-01-02T15:04:05Z07:00"
+  ],
+  "IDs": [
+    {
+      "Name": "IndexerID",
+      "Base": "Integer"
+    },
+    {
+      "Name": "AppProfileID",
+      "Base": "Integer"
+    },
+    {
+      "Name": "TagID",
+      "Base": "Integer"
+    },
+    {
+      "Name": "DownloadClientID",
+      "Base": "Integer"
+    }
   ]
 }

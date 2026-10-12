@@ -4,31 +4,54 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostApplicationsOperationResponse is the result of PostApplications.
-type PostApplicationsOperationResponse struct {
+// PostApplicationsResponse is the result of PostApplications.
+//
+// Answer is the ApplicationResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PostApplicationsResponse struct {
 	HttpResponse *http.Response
-	Model        *ApplicationResource
+	Answer       *ApplicationResource
+	*ApplicationResource
 }
 
-// PostApplicationsOperationOptions holds the query and header parameters of PostApplications.
-type PostApplicationsOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PostApplicationsResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the ApplicationResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PostApplicationsResponse) Record() (ApplicationResource, error) {
+	if r.Answer == nil {
+		return ApplicationResource{}, errors.New("PostApplications answered no ApplicationResource")
+	}
+
+	return *r.Answer, nil
+}
+
+// PostApplicationsOptions holds the query and header parameters of PostApplications.
+type PostApplicationsOptions struct {
 	ForceSave *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PostApplicationsOperationOptions) ToHeaders() *client.Headers {
+func (o PostApplicationsOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PostApplicationsOperationOptions) ToQuery() *client.QueryParams {
+func (o PostApplicationsOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceSave != nil {
 		out.Append("forceSave", strconv.FormatBool(*o.ForceSave))
@@ -37,14 +60,25 @@ func (o PostApplicationsOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PostApplications calls POST /api/v1/applications.
-func (c Client) PostApplications(ctx context.Context, input ApplicationResource, options PostApplicationsOperationOptions) (result PostApplicationsOperationResponse, err error) {
+func (c Client) PostApplications(ctx context.Context, input ApplicationResource, forceSave ...bool) (result PostApplicationsResponse, err error) {
+	var option PostApplicationsOptions
+	if len(forceSave) > 1 {
+		err = fmt.Errorf("PostApplications takes one forceSave at most, not %d", len(forceSave))
+		return
+	}
+	if len(forceSave) == 1 {
+		option.ForceSave = &forceSave[0]
+	}
+
+	result.ApplicationResource = &ApplicationResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusCreated,
 		},
 		HTTPMethod:    http.MethodPost,
-		OptionsObject: options,
+		Operation:     "PostApplications",
+		OptionsObject: option,
 		Path:          "/api/v1/applications",
 	}
 
@@ -66,11 +100,12 @@ func (c Client) PostApplications(ctx context.Context, input ApplicationResource,
 		return
 	}
 
-	var model ApplicationResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer ApplicationResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.ApplicationResource = result.Answer
 
 	return
 }

@@ -99,8 +99,22 @@ var All = []workarounds.Workaround{
 	}),
 
 	prowlarrPutIDInteger{},
-	prowlarrTestAllResults{},
+	workarounds.DeclaredSchemas(about("prowlarr-test-all-records", "the document has no record for the result of testing a provider, or for a reason one failed, though testing every provider of a kind answers a list of them"), testAllSchemas()),
+	workarounds.AlsoAnswers(about("prowlarr-test-all-results", "POST .../testall is documented as answering nothing, but answers each provider's result, with 400 instead of 200 when any provider fails"), testAllAnswers()),
 	prowlarrCommandBody{},
+	workarounds.Commands(about("prowlarr-commands", "a command is queued by its name in a body the document gives no shape, so nothing says which commands there are, what each takes, or when one has finished"), workarounds.CommandSet{
+		Post:     "POST /api/v1/command",
+		Get:      "GET /api/v1/command/{id}",
+		Status:   "status",
+		Finished: []string{"completed", "failed", "aborted", "cancelled", "orphaned"},
+		Failed:   []string{"failed", "aborted", "cancelled", "orphaned"},
+		// the commands this repository names; the scheduled tasks are the server's to list, and are queued by the name it gives
+		Commands: map[string]map[string]*openapi.Schema{
+			"ApplicationIndexerSync": {"forceSync": {Type: openapi.TypeBoolean}},
+			"Backup":                 {},
+			"CheckHealth":            {},
+		},
+	}),
 	prowlarrRestoreUploadBody{},
 
 	// the bulk writes whose action is declared as ActionResult<TResource>
@@ -181,82 +195,51 @@ func (prowlarrCommandBody) Apply(spec *openapi.Spec) error {
 	return nil
 }
 
-// prowlarrTestAllResults declares what testing every provider of a kind
-// answers: the result for each, as a 200 when all pass and a 400 when any
-// fails.
-type prowlarrTestAllResults struct{}
-
-// prowlarrTestAll are the providers ProviderControllerBase serves.
-var prowlarrTestAll = []string{
-	"/api/v1/applications/testall",
-	"/api/v1/downloadclient/testall",
-	"/api/v1/indexer/testall",
-	"/api/v1/indexerproxy/testall",
-	"/api/v1/notification/testall",
-}
-
+// The record testing every provider of a kind answers, and one reason in it, neither of which the document has. Read off ProviderControllerBase.TestAll.
 const (
 	testAllResult     = "ProviderTestAllResult"
 	validationFailure = "ValidationFailure"
 )
 
-func (prowlarrTestAllResults) Name() string    { return "prowlarr-test-all-results" }
-func (prowlarrTestAllResults) Service() string { return prowlarr }
-func (prowlarrTestAllResults) Bug() string {
-	return "POST .../testall is documented as answering nothing, but answers each provider's result (ProviderTestAllResult, not in the document), with 400 instead of 200 when any provider fails"
+// testAllSchemas is the two records as the server sends them.
+func testAllSchemas() map[string]*openapi.Schema {
+	str := func() *openapi.Schema { return &openapi.Schema{Type: openapi.TypeString, Nullable: true} }
+
+	return map[string]*openapi.Schema{
+		validationFailure: {
+			Type:        openapi.TypeObject,
+			Description: "One reason a provider failed its test: the setting at fault and what is wrong with it.",
+			Properties: map[string]*openapi.Schema{
+				"propertyName":        str(),
+				"errorMessage":        str(),
+				"severity":            {Type: openapi.TypeString, Description: "error, warning or info"},
+				"errorCode":           str(),
+				"infoLink":            str(),
+				"detailedDescription": str(),
+				"isWarning":           {Type: openapi.TypeBoolean},
+			},
+		},
+		testAllResult: {
+			Type:        openapi.TypeObject,
+			Description: "The outcome of testing one provider.",
+			Properties: map[string]*openapi.Schema{
+				"id":                 {Type: openapi.TypeInteger, Format: "int32"},
+				"isValid":            {Type: openapi.TypeBoolean},
+				"validationFailures": {Type: openapi.TypeArray, Items: &openapi.Schema{Ref: openapi.SchemaRefPrefix + validationFailure}},
+			},
+		},
+	}
 }
 
-func (prowlarrTestAllResults) Apply(spec *openapi.Spec) error {
-	for _, name := range []string{testAllResult, validationFailure} {
-		if spec.Components.Schemas[name] != nil {
-			return fmt.Errorf("the document declares %s", name)
-		}
-	}
-	str := func() *openapi.Schema { return &openapi.Schema{Type: openapi.TypeString, Nullable: true} }
-	spec.Components.Schemas[validationFailure] = &openapi.Schema{
-		Type:        openapi.TypeObject,
-		Description: "One reason a provider failed its test: the setting at fault and what is wrong with it.",
-		Properties: map[string]*openapi.Schema{
-			"propertyName":        str(),
-			"errorMessage":        str(),
-			"severity":            {Type: openapi.TypeString, Description: "error, warning or info"},
-			"errorCode":           str(),
-			"infoLink":            str(),
-			"detailedDescription": str(),
-			"isWarning":           {Type: openapi.TypeBoolean},
-		},
-	}
-	spec.Components.Schemas[testAllResult] = &openapi.Schema{
-		Type:        openapi.TypeObject,
-		Description: "The outcome of testing one provider.",
-		Properties: map[string]*openapi.Schema{
-			"id":                 {Type: openapi.TypeInteger, Format: "int32"},
-			"isValid":            {Type: openapi.TypeBoolean},
-			"validationFailures": {Type: openapi.TypeArray, Items: &openapi.Schema{Ref: openapi.SchemaRefPrefix + validationFailure}},
-		},
-	}
-	results := func() map[string]*openapi.MediaType {
-		return map[string]*openapi.MediaType{"application/json": {Schema: &openapi.Schema{
-			Type: openapi.TypeArray, Items: &openapi.Schema{Ref: openapi.SchemaRefPrefix + testAllResult},
-		}}}
-	}
-	for _, path := range prowlarrTestAll {
-		op, err := workarounds.Operation(spec, http.MethodPost, path)
-		if err != nil {
-			return err
-		}
-		ok := op.Responses["200"]
-		switch {
-		case ok == nil:
-			return fmt.Errorf("POST %s has no 200 response", path)
-		case len(ok.Content) > 0 || op.Responses["400"] != nil:
-			return fmt.Errorf("POST %s declares its answer", path)
-		}
-		ok.Content = results()
-		op.Responses["400"] = &openapi.Response{Description: "At least one provider failed its test", Content: results()}
+// testAllAnswers is what testing every provider of a kind answers, for each kind ProviderControllerBase serves: every provider's result, as a 200 when all
+// pass and a 400 when any fails.
+func testAllAnswers() map[string]map[int]workarounds.Answer {
+	out := map[string]map[int]workarounds.Answer{}
+	for _, kind := range []string{"applications", "downloadclient", "indexer", "indexerproxy", "notification"} {
+		out["POST /api/v1/"+kind+"/testall"] = map[int]workarounds.Answer{http.StatusOK: workarounds.ListOf(testAllResult), http.StatusBadRequest: workarounds.ListOf(testAllResult)}
 	}
 
-	return nil
+	return out
 }
 
 // prowlarrRestoreUploadBody declares the file a restore from an upload takes.

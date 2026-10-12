@@ -4,15 +4,15 @@ package prowlarr
 
 // IndexerBulkResource is the "IndexerBulkResource" schema.
 type IndexerBulkResource struct {
-	AppProfileId    int       `json:"appProfileId,omitempty"`
-	ApplyTags       ApplyTags `json:"applyTags,omitempty"`
-	Enable          *bool     `json:"enable,omitempty"`
-	Ids             []int     `json:"ids,omitzero"`
-	MinimumSeeders  int       `json:"minimumSeeders,omitempty"`
-	PackSeedTime    int       `json:"packSeedTime,omitempty"`
-	PreferMagnetUrl *bool     `json:"preferMagnetUrl,omitempty"`
-	Priority        int       `json:"priority,omitempty"`
-	SeedRatio       float64   `json:"seedRatio,omitempty"`
-	SeedTime        int       `json:"seedTime,omitempty"`
-	Tags            []int     `json:"tags,omitzero"`
+	AppProfileId    AppProfileID `json:"appProfileId,omitempty"`
+	ApplyTags       ApplyTags    `json:"applyTags,omitempty"`
+	Enable          *bool        `json:"enable,omitempty"`
+	Ids             []IndexerID  `json:"ids,omitzero"`
+	MinimumSeeders  int          `json:"minimumSeeders,omitempty"`
+	PackSeedTime    int          `json:"packSeedTime,omitempty"`
+	PreferMagnetUrl *bool        `json:"preferMagnetUrl,omitempty"`
+	Priority        int          `json:"priority,omitempty"`
+	SeedRatio       float64      `json:"seedRatio,omitempty"`
+	SeedTime        int          `json:"seedTime,omitempty"`
+	Tags            []TagID      `json:"tags,omitzero"`
 }

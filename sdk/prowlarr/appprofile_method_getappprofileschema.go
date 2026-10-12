@@ -4,24 +4,48 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetAppProfileSchemaOperationResponse is the result of GetAppProfileSchema.
-type GetAppProfileSchemaOperationResponse struct {
+// GetAppProfileSchemaResponse is the result of GetAppProfileSchema.
+//
+// Answer is the AppProfileResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type GetAppProfileSchemaResponse struct {
 	HttpResponse *http.Response
-	Model        *AppProfileResource
+	Answer       *AppProfileResource
+	*AppProfileResource
+}
+
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetAppProfileSchemaResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the AppProfileResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r GetAppProfileSchemaResponse) Record() (AppProfileResource, error) {
+	if r.Answer == nil {
+		return AppProfileResource{}, errors.New("GetAppProfileSchema answered no AppProfileResource")
+	}
+
+	return *r.Answer, nil
 }
 
 // GetAppProfileSchema calls GET /api/v1/appprofile/schema.
-func (c Client) GetAppProfileSchema(ctx context.Context) (result GetAppProfileSchemaOperationResponse, err error) {
+func (c Client) GetAppProfileSchema(ctx context.Context) (result GetAppProfileSchemaResponse, err error) {
+	result.AppProfileResource = &AppProfileResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetAppProfileSchema",
 		Path:       "/api/v1/appprofile/schema",
 	}
 
@@ -39,11 +63,12 @@ func (c Client) GetAppProfileSchema(ctx context.Context) (result GetAppProfileSc
 		return
 	}
 
-	var model AppProfileResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer AppProfileResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.AppProfileResource = result.Answer
 
 	return
 }

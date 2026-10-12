@@ -29,13 +29,13 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		now := time.Now()
 		for _, i := range s.enabled() {
 			out.Scanned++
-			hist, err := s.r.client.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), Limit: new(25)})
+			hist, err := s.r.client.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOptions{IndexerId: i.Id, Limit: new(25)})
 			if err != nil {
 				return auditOut{}, err
 			}
-			events := hist.Model
-			slices.SortStableFunc(events, func(a, b prowlarr.HistoryResource) int { return strings.Compare(b.Date, a.Date) })
-			lastFailed := slices.IndexFunc(events, func(h prowlarr.HistoryResource) bool { return !boolv(h.Successful) })
+			events := hist.Answer
+			slices.SortStableFunc(events, func(a, b prowlarr.HistoryResource) int { return b.Date.Compare(a.Date.Time) })
+			lastFailed := slices.IndexFunc(events, func(h prowlarr.HistoryResource) bool { return !h.Successful })
 
 			f := finding{Subject: i.Name, Kind: "indexer", Fix: "indexer_test says why; indexer_edit fixes its URL, credentials or proxy tags, or enable=false retires it"}
 			st := s.statusOf(i.Id)
@@ -43,7 +43,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 			case st != nil:
 				f.Problem = "held_back_after_failures"
 				f.Detail = fmt.Sprintf("Prowlarr has stopped using it until %s: failing since %s (%s), most recently %s",
-					st.DisabledTill, st.InitialFailure, sinceText(now, parseTime(st.InitialFailure)), st.MostRecentFailure)
+					st.DisabledTill, st.InitialFailure, sinceText(now, st.InitialFailure.Time), st.MostRecentFailure)
 			case len(events) > 0 && lastFailed == 0:
 				f.Problem = "last_request_failed"
 				f.Detail = fmt.Sprintf("its last %s, at %s, failed", eventNames[events[0].EventType], events[0].Date)
@@ -219,7 +219,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		out := auditOut{}
 		young := 0
 		for _, i := range s.enabled() {
-			added := parseTime(i.Added)
+			added := i.Added.Time
 			if !added.IsZero() && now.Sub(added) < time.Duration(grace)*24*time.Hour {
 				young++
 				continue

@@ -4,6 +4,7 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,25 +12,46 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PutApplicationsByIdOperationResponse is the result of PutApplicationsById.
-type PutApplicationsByIdOperationResponse struct {
+// PutApplicationsByIdResponse is the result of PutApplicationsById.
+//
+// Answer is the ApplicationResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PutApplicationsByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *ApplicationResource
+	Answer       *ApplicationResource
+	*ApplicationResource
 }
 
-// PutApplicationsByIdOperationOptions holds the query and header parameters of PutApplicationsById.
-type PutApplicationsByIdOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PutApplicationsByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the ApplicationResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PutApplicationsByIdResponse) Record() (ApplicationResource, error) {
+	if r.Answer == nil {
+		return ApplicationResource{}, errors.New("PutApplicationsById answered no ApplicationResource")
+	}
+
+	return *r.Answer, nil
+}
+
+// PutApplicationsByIdOptions holds the query and header parameters of PutApplicationsById.
+type PutApplicationsByIdOptions struct {
 	ForceSave *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PutApplicationsByIdOperationOptions) ToHeaders() *client.Headers {
+func (o PutApplicationsByIdOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PutApplicationsByIdOperationOptions) ToQuery() *client.QueryParams {
+func (o PutApplicationsByIdOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceSave != nil {
 		out.Append("forceSave", strconv.FormatBool(*o.ForceSave))
@@ -38,14 +60,25 @@ func (o PutApplicationsByIdOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PutApplicationsById calls PUT /api/v1/applications/{id}.
-func (c Client) PutApplicationsById(ctx context.Context, id int, input ApplicationResource, options PutApplicationsByIdOperationOptions) (result PutApplicationsByIdOperationResponse, err error) {
+func (c Client) PutApplicationsById(ctx context.Context, id int, input ApplicationResource, forceSave ...bool) (result PutApplicationsByIdResponse, err error) {
+	var option PutApplicationsByIdOptions
+	if len(forceSave) > 1 {
+		err = fmt.Errorf("PutApplicationsById takes one forceSave at most, not %d", len(forceSave))
+		return
+	}
+	if len(forceSave) == 1 {
+		option.ForceSave = &forceSave[0]
+	}
+
+	result.ApplicationResource = &ApplicationResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusAccepted,
 		},
 		HTTPMethod:    http.MethodPut,
-		OptionsObject: options,
+		Operation:     "PutApplicationsById",
+		OptionsObject: option,
 		Path:          fmt.Sprintf("/api/v1/applications/%d", id),
 	}
 
@@ -67,11 +100,12 @@ func (c Client) PutApplicationsById(ctx context.Context, id int, input Applicati
 		return
 	}
 
-	var model ApplicationResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer ApplicationResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.ApplicationResource = result.Answer
 
 	return
 }

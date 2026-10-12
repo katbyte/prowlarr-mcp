@@ -6,23 +6,26 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// DeleteDownloadClientByIdOperationResponse is the result of DeleteDownloadClientById.
-type DeleteDownloadClientByIdOperationResponse struct {
+// DeleteDownloadClientByIdResponse is the result of DeleteDownloadClientById.
+type DeleteDownloadClientByIdResponse struct {
 	HttpResponse *http.Response
 }
 
 // DeleteDownloadClientById calls DELETE /api/v1/downloadclient/{id}.
-func (c Client) DeleteDownloadClientById(ctx context.Context, id int) (result DeleteDownloadClientByIdOperationResponse, err error) {
+func (c Client) DeleteDownloadClientById(ctx context.Context, id DownloadClientID) (result DeleteDownloadClientByIdResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodDelete,
-		Path:       fmt.Sprintf("/api/v1/downloadclient/%d", id),
+		Operation:  "DeleteDownloadClientById",
+		Path:       fmt.Sprintf("/api/v1/downloadclient/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

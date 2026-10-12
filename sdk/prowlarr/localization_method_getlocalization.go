@@ -10,19 +10,24 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetLocalizationOperationResponse is the result of GetLocalization.
-type GetLocalizationOperationResponse struct {
+// GetLocalizationResponse is the result of GetLocalization.
+type GetLocalizationResponse struct {
 	HttpResponse *http.Response
-	Model        json.RawMessage
+	Answer       json.RawMessage
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetLocalizationResponse) Answered() bool { return r.Answer != nil }
+
 // GetLocalization calls GET /api/v1/localization.
-func (c Client) GetLocalization(ctx context.Context) (result GetLocalizationOperationResponse, err error) {
+func (c Client) GetLocalization(ctx context.Context) (result GetLocalizationResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetLocalization",
 		Path:       "/api/v1/localization",
 	}
 
@@ -40,7 +45,7 @@ func (c Client) GetLocalization(ctx context.Context) (result GetLocalizationOper
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

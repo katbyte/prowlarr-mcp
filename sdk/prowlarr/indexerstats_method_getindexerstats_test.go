@@ -4,7 +4,9 @@ package prowlarr
 
 import (
 	"net/http"
+	"reflect"
 	"testing"
+	"time"
 
 	"github.com/katbyte/pandorest/client"
 )
@@ -13,12 +15,12 @@ func TestOperationGetIndexerStats(t *testing.T) {
 	t.Parallel()
 
 	c, s := newOperationServer(t, 200, "application/json", "{}")
-	result, err := c.GetIndexerStats(t.Context(), GetIndexerStatsOperationOptions{
-		StartDate: "v-StartDate",
-		EndDate:   "v-EndDate",
-		Indexers:  "v-Indexers",
+	result, err := c.GetIndexerStats(t.Context(), GetIndexerStatsOptions{
+		StartDate: Time{Time: time.Date(2024, time.March, 4, 5, 6, 7, 0, time.UTC)},
+		EndDate:   Time{Time: time.Date(2024, time.March, 4, 5, 6, 7, 0, time.UTC)},
+		Indexers:  []IndexerID{IndexerID(1), IndexerID(2)},
 		Protocols: "v-Protocols",
-		Tags:      "v-Tags",
+		Tags:      []TagID{TagID(1), TagID(2)},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -26,26 +28,32 @@ func TestOperationGetIndexerStats(t *testing.T) {
 	r, body := s.only(t)
 	_ = body
 	expectRequest(t, r, http.MethodGet, "/api/v1/indexerstats")
-	expectQuery(t, r, "startDate", "v-StartDate")
-	expectQuery(t, r, "endDate", "v-EndDate")
-	expectQuery(t, r, "indexers", "v-Indexers")
+	expectQuery(t, r, "startDate", "2024-03-04T05:06:07Z")
+	expectQuery(t, r, "endDate", "2024-03-04T05:06:07Z")
+	expectQuery(t, r, "indexers", "1,2")
 	expectQuery(t, r, "protocols", "v-Protocols")
-	expectQuery(t, r, "tags", "v-Tags")
+	expectQuery(t, r, "tags", "1,2")
 	if result.HttpResponse == nil || result.HttpResponse.StatusCode != 200 {
 		t.Fatalf("HttpResponse = %+v", result.HttpResponse)
 	}
-	if result.Model == nil {
-		t.Error("the model was not decoded")
+	if result.Answer == nil || !result.Answered() {
+		t.Error("the answer was not decoded")
+	}
+	if result.IndexerStatsResource != result.Answer {
+		t.Error("the embedded answer is not the answer")
+	}
+	if record, err := result.Record(); err != nil || !reflect.DeepEqual(record, *result.Answer) {
+		t.Errorf("Record = %+v, %v", record, err)
 	}
 
 	// an answer that does not decode is an error, with the response
 	c, _ = newOperationServer(t, 200, "application/json", "<html>")
-	result, err = c.GetIndexerStats(t.Context(), GetIndexerStatsOperationOptions{
-		StartDate: "v-StartDate",
-		EndDate:   "v-EndDate",
-		Indexers:  "v-Indexers",
+	result, err = c.GetIndexerStats(t.Context(), GetIndexerStatsOptions{
+		StartDate: Time{Time: time.Date(2024, time.March, 4, 5, 6, 7, 0, time.UTC)},
+		EndDate:   Time{Time: time.Date(2024, time.March, 4, 5, 6, 7, 0, time.UTC)},
+		Indexers:  []IndexerID{IndexerID(1), IndexerID(2)},
 		Protocols: "v-Protocols",
-		Tags:      "v-Tags",
+		Tags:      []TagID{TagID(1), TagID(2)},
 	})
 	if err == nil || client.StatusCode(err) != 0 || result.HttpResponse == nil {
 		t.Errorf("an answer that does not decode = %v", err)
@@ -53,14 +61,23 @@ func TestOperationGetIndexerStats(t *testing.T) {
 
 	// a status the operation does not document is an error, with the response
 	c, _ = newOperationServer(t, 418, "text/plain", "no")
-	result, err = c.GetIndexerStats(t.Context(), GetIndexerStatsOperationOptions{
-		StartDate: "v-StartDate",
-		EndDate:   "v-EndDate",
-		Indexers:  "v-Indexers",
+	result, err = c.GetIndexerStats(t.Context(), GetIndexerStatsOptions{
+		StartDate: Time{Time: time.Date(2024, time.March, 4, 5, 6, 7, 0, time.UTC)},
+		EndDate:   Time{Time: time.Date(2024, time.March, 4, 5, 6, 7, 0, time.UTC)},
+		Indexers:  []IndexerID{IndexerID(1), IndexerID(2)},
 		Protocols: "v-Protocols",
-		Tags:      "v-Tags",
+		Tags:      []TagID{TagID(1), TagID(2)},
 	})
 	if client.StatusCode(err) != 418 || result.HttpResponse == nil {
 		t.Errorf("an undocumented status = %v, %+v", err, result.HttpResponse)
+	}
+
+	// the options may be left out, and two are refused before any request
+	c, s = newOperationServer(t, 200, "application/json", "{}")
+	if _, err = c.GetIndexerStats(t.Context()); err != nil {
+		t.Errorf("without options = %v", err)
+	}
+	if _, err = c.GetIndexerStats(t.Context(), GetIndexerStatsOptions{}, GetIndexerStatsOptions{}); err == nil || len(s.requests) != 1 {
+		t.Errorf("two options structs = %v, %d requests", err, len(s.requests))
 	}
 }

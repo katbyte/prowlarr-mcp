@@ -9,3 +9,9 @@ type IndexerCategory struct {
 	Name          string            `json:"name,omitempty"`
 	SubCategories []IndexerCategory `json:"subCategories,omitzero"`
 }
+
+// GetName is the record's Name, for code that handles records of several types alike.
+func (m IndexerCategory) GetName() string { return m.Name }
+
+// GetId is the record's Id, for code that handles records of several types alike.
+func (m IndexerCategory) GetId() int { return m.Id }

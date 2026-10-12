@@ -9,20 +9,25 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PutApplicationsBulkOperationResponse is the result of PutApplicationsBulk.
-type PutApplicationsBulkOperationResponse struct {
+// PutApplicationsBulkResponse is the result of PutApplicationsBulk.
+type PutApplicationsBulkResponse struct {
 	HttpResponse *http.Response
-	Model        []ApplicationResource
+	Answer       []ApplicationResource
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PutApplicationsBulkResponse) Answered() bool { return r.Answer != nil }
+
 // PutApplicationsBulk calls PUT /api/v1/applications/bulk.
-func (c Client) PutApplicationsBulk(ctx context.Context, input ApplicationBulkResource) (result PutApplicationsBulkOperationResponse, err error) {
+func (c Client) PutApplicationsBulk(ctx context.Context, input ApplicationBulkResource) (result PutApplicationsBulkResponse, err error) {
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusAccepted,
 		},
 		HTTPMethod: http.MethodPut,
+		Operation:  "PutApplicationsBulk",
 		Path:       "/api/v1/applications/bulk",
 	}
 
@@ -44,7 +49,7 @@ func (c Client) PutApplicationsBulk(ctx context.Context, input ApplicationBulkRe
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

@@ -11,6 +11,7 @@ import (
 	"github.com/katbyte/pandorest"
 	"github.com/katbyte/pandorest/config"
 	pandorestgen "github.com/katbyte/pandorest/generator"
+	"github.com/katbyte/pandorest/importer"
 	"github.com/katbyte/pandorest/importer/workarounds"
 	"github.com/katbyte/pandorest/openapi"
 )
@@ -33,8 +34,8 @@ func resolved(t *testing.T) []config.Service {
 	t.Helper()
 
 	out := make([]config.Service, 0, len(generator.Services))
-	for _, configured := range generator.Services {
-		svc, err := configured.In(repoRoot).Resolve()
+	for i := range generator.Services {
+		svc, err := generator.Services[i].In(repoRoot).Resolve()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -169,7 +170,27 @@ func TestWorkarounds(t *testing.T) {
 	if err := workarounds.Verify(generator.Workarounds, load); err != nil {
 		t.Error(err)
 	}
-	if len(generator.Workarounds) != 10 {
-		t.Errorf("%d workarounds, the docs count 10", len(generator.Workarounds))
+	if len(generator.Workarounds) != 12 {
+		t.Errorf("%d workarounds, the docs count 12", len(generator.Workarounds))
+	}
+}
+
+// The kinds of id the client tells apart each reach a place in the document, no two claim one, and no name is both a kind's and left plain.
+func TestIDs(t *testing.T) {
+	t.Parallel()
+
+	svc, ok := config.Find(resolved(t), "prowlarr")
+	if !ok {
+		t.Fatal("no service prowlarr")
+	}
+	spec, err := openapi.Load(svc.Path(svc.Spec))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := workarounds.Apply(generator.Workarounds, svc.Name, spec, func(string) {}); err != nil {
+		t.Fatal(err)
+	}
+	if err := importer.VerifyIDs(svc, spec); err != nil {
+		t.Error(err)
 	}
 }

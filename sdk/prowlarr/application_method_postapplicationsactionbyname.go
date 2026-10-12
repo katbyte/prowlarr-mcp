@@ -12,20 +12,25 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostApplicationsActionByNameOperationResponse is the result of PostApplicationsActionByName.
-type PostApplicationsActionByNameOperationResponse struct {
+// PostApplicationsActionByNameResponse is the result of PostApplicationsActionByName.
+type PostApplicationsActionByNameResponse struct {
 	HttpResponse *http.Response
-	Model        json.RawMessage
+	Answer       json.RawMessage
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PostApplicationsActionByNameResponse) Answered() bool { return r.Answer != nil }
+
 // PostApplicationsActionByName calls POST /api/v1/applications/action/{name}.
-func (c Client) PostApplicationsActionByName(ctx context.Context, name string, input ApplicationResource) (result PostApplicationsActionByNameOperationResponse, err error) {
+func (c Client) PostApplicationsActionByName(ctx context.Context, name string, input ApplicationResource) (result PostApplicationsActionByNameResponse, err error) {
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodPost,
+		Operation:  "PostApplicationsActionByName",
 		Path:       fmt.Sprintf("/api/v1/applications/action/%s", url.PathEscape(name)),
 	}
 
@@ -47,7 +52,7 @@ func (c Client) PostApplicationsActionByName(ctx context.Context, name string, i
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

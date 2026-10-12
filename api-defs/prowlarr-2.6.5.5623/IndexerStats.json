@@ -12,7 +12,7 @@
           "Field": "StartDate",
           "In": "Query",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {
@@ -20,7 +20,7 @@
           "Field": "EndDate",
           "In": "Query",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {
@@ -28,8 +28,13 @@
           "Field": "Indexers",
           "In": "Query",
           "Type": {
-            "Type": "String"
-          }
+            "Type": "List",
+            "NestedItem": {
+              "Type": "ID",
+              "ReferenceName": "IndexerID"
+            }
+          },
+          "CommaSeparated": true
         },
         {
           "Name": "protocols",
@@ -44,8 +49,13 @@
           "Field": "Tags",
           "In": "Query",
           "Type": {
-            "Type": "String"
-          }
+            "Type": "List",
+            "NestedItem": {
+              "Type": "ID",
+              "ReferenceName": "TagID"
+            }
+          },
+          "CommaSeparated": true
         }
       ],
       "Response": {
@@ -111,7 +121,8 @@
           "Name": "IndexerId",
           "JsonName": "indexerId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         },
         {

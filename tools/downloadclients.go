@@ -28,9 +28,9 @@ type downloadClientRow struct {
 	Indexers   []string       `json:"indexers"   jsonschema:"indexers pinned to it"`
 }
 
-func projectDownloadClient(c *prowlarr.DownloadClientResource, idx []prowlarr.IndexerResource, tags map[int]string) downloadClientRow {
+func projectDownloadClient(c *prowlarr.DownloadClientResource, idx []prowlarr.IndexerResource, tags map[prowlarr.TagID]string) downloadClientRow {
 	row := downloadClientRow{
-		ID: c.Id, Name: c.Name, Kind: c.Implementation, Protocol: string(c.Protocol), Enabled: boolv(c.Enable),
+		ID: int(c.Id), Name: c.Name, Kind: c.Implementation, Protocol: string(c.Protocol), Enabled: boolv(c.Enable),
 		Priority: c.Priority, Tags: labels(c.Tags, tags),
 	}
 	row.Settings, _ = settings(c.Fields)
@@ -75,7 +75,7 @@ func registerDownloadClientTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		page, where := paged(res.Answer, in.Limit, in.Offset, defaultLimit)
 		out := listOut{pageOut: where}
 		for i := range page {
 			row, err := project(ctx, &page[i])
@@ -105,12 +105,12 @@ func registerDownloadClientTools(r *registry) {
 			return nil, downloadClientRow{}, err
 		}
 		var c *prowlarr.DownloadClientResource
-		kinds := make([]string, 0, len(schema.Model))
-		for i := range schema.Model {
-			if strings.EqualFold(schema.Model[i].Implementation, in.Kind) {
-				c = &schema.Model[i]
+		kinds := make([]string, 0, len(schema.Answer))
+		for i := range schema.Answer {
+			if strings.EqualFold(schema.Answer[i].Implementation, in.Kind) {
+				c = &schema.Answer[i]
 			}
-			kinds = append(kinds, schema.Model[i].Implementation)
+			kinds = append(kinds, schema.Answer[i].Implementation)
 		}
 		if c == nil {
 			slices.Sort(kinds)
@@ -130,13 +130,13 @@ func registerDownloadClientTools(r *registry) {
 		made, err := forcedAdd(in.Force,
 			func(on bool) { c.Enable = new(on) },
 			func() (*prowlarr.DownloadClientResource, error) {
-				res, addErr := pc.PostDownloadClient(ctx, *c, prowlarr.PostDownloadClientOperationOptions{ForceSave: new(in.Force)})
-				return res.Model, addErr
+				res, addErr := pc.PostDownloadClient(ctx, *c, in.Force)
+				return res.Answer, addErr
 			},
 			func(created *prowlarr.DownloadClientResource) (*prowlarr.DownloadClientResource, error) {
 				c.Id = created.Id
-				res, saveErr := pc.PutDownloadClientById(ctx, created.Id, *c, prowlarr.PutDownloadClientByIdOperationOptions{ForceSave: new(true)})
-				return res.Model, saveErr
+				res, saveErr := pc.PutDownloadClientById(ctx, created.Id, *c, true)
+				return res.Answer, saveErr
 			})
 		if err != nil {
 			return nil, downloadClientRow{}, saveError("the download client", err)
@@ -168,14 +168,14 @@ func registerDownloadClientTools(r *registry) {
 
 		// what is sent back is the whole client, so it is read once no other
 		// edit of it can run
-		unlock := editing[prowlarr.DownloadClientResource](r, found.Id, false)
+		unlock := editing[prowlarr.DownloadClientResource](r, int(found.Id), false)
 		defer unlock()
 
 		read, err := pc.GetDownloadClientById(ctx, found.Id)
 		if err != nil {
 			return nil, downloadClientRow{}, err
 		}
-		c := read.Model
+		c := read.Answer
 		if c == nil {
 			return nil, downloadClientRow{}, errEmptyAnswer
 		}
@@ -192,11 +192,11 @@ func registerDownloadClientTools(r *registry) {
 		if err := setFields(c.Fields, in.Settings); err != nil {
 			return nil, downloadClientRow{}, fmt.Errorf("%s: %w", c.Name, err)
 		}
-		res, err := pc.PutDownloadClientById(ctx, c.Id, *c, prowlarr.PutDownloadClientByIdOperationOptions{ForceSave: new(in.Force)})
+		res, err := pc.PutDownloadClientById(ctx, c.Id, *c, in.Force)
 		if err != nil {
 			return nil, downloadClientRow{}, saveError(c.Name, err)
 		}
-		row, err := project(ctx, res.Model)
+		row, err := project(ctx, res.Answer)
 
 		return nil, row, err
 	})
@@ -216,23 +216,22 @@ func registerDownloadClientTools(r *registry) {
 			return nil, testOut{}, err
 		}
 		names := map[int]string{}
-		for _, c := range res.Model {
-			names[c.Id] = c.Name
+		for _, c := range res.Answer {
+			names[int(c.Id)] = c.Name
 		}
 		if in.Client == "" {
-			var results []prowlarr.ProviderTestAllResult
 			all, testErr := pc.PostDownloadClientTestAll(ctx)
-			if results, err = testAllAnswer(all.HttpResponse, all.Model, testErr); err != nil {
-				return nil, testOut{}, err
+			if testErr != nil {
+				return nil, testOut{}, testErr
 			}
 
-			return nil, testOut{Results: testResults(results, names)}, nil
+			return nil, testOut{Results: testResults(all.Answer, names)}, nil
 		}
-		c, err := find(res.Model, in.Client, "download client")
+		c, err := find(res.Answer, in.Client, "download client")
 		if err != nil {
 			return nil, testOut{}, err
 		}
-		_, err = pc.PostDownloadClientTest(ctx, *c, prowlarr.PostDownloadClientTestOperationOptions{ForceTest: new(true)})
+		_, err = pc.PostDownloadClientTest(ctx, *c, true)
 		row, err := testOne(c.Name, err)
 
 		return nil, testOut{Results: []testRow{row}}, err

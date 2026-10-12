@@ -9,20 +9,25 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostIndexerProxyTestAllOperationResponse is the result of PostIndexerProxyTestAll.
-type PostIndexerProxyTestAllOperationResponse struct {
+// PostIndexerProxyTestAllResponse is the result of PostIndexerProxyTestAll.
+type PostIndexerProxyTestAllResponse struct {
 	HttpResponse *http.Response
-	Model        []ProviderTestAllResult
+	Answer       []ProviderTestAllResult
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PostIndexerProxyTestAllResponse) Answered() bool { return r.Answer != nil }
+
 // PostIndexerProxyTestAll calls POST /api/v1/indexerproxy/testall.
-func (c Client) PostIndexerProxyTestAll(ctx context.Context) (result PostIndexerProxyTestAllOperationResponse, err error) {
+func (c Client) PostIndexerProxyTestAll(ctx context.Context) (result PostIndexerProxyTestAllResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 			http.StatusBadRequest,
 		},
 		HTTPMethod: http.MethodPost,
+		Operation:  "PostIndexerProxyTestAll",
 		Path:       "/api/v1/indexerproxy/testall",
 	}
 
@@ -40,7 +45,7 @@ func (c Client) PostIndexerProxyTestAll(ctx context.Context) (result PostIndexer
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/katbyte/go-kt/lock"
+	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
 
 // The calls of one turn are kept from undoing each other with go-kt's locks.
@@ -39,7 +40,7 @@ func editing[T any](r *registry, id int, makesTags bool) (unlock func()) {
 // with the tags held for the length of it. It is for a caller that holds no
 // lock of its own: one that does asks editing for the tags beside its record
 // and calls resolveTags.
-func (r *registry) makeTags(ctx context.Context, refs []string) ([]int, error) {
+func (r *registry) makeTags(ctx context.Context, refs []string) ([]prowlarr.TagID, error) {
 	unlock := r.locks.ByString(tagsLock)
 	defer unlock()
 

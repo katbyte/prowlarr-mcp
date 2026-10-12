@@ -167,16 +167,16 @@ Needs no server: it reports what would be registered, not what a server accepts.
 				return err
 			}
 
-			s := st.Model
+			s := st.Answer
 			_, _ = fmt.Fprintf(out, "%s %s on %s %s at %s\n", s.AppName, s.Version, s.OsName, s.OsVersion, client.Client.BaseURL)
-			for _, i := range idx.Model {
+			for _, i := range idx.Answer {
 				state := "enabled"
 				if i.Enable == nil || !*i.Enable {
 					state = "disabled"
 				}
 				_, _ = fmt.Fprintf(out, "  indexer %q (%s, %s) %s\n", i.Name, i.Protocol, i.Privacy, state)
 			}
-			for _, a := range apps.Model {
+			for _, a := range apps.Answer {
 				_, _ = fmt.Fprintf(out, "  application %q (%s) sync %s\n", a.Name, a.Implementation, a.SyncLevel)
 			}
 			return nil

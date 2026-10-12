@@ -20,6 +20,8 @@
 package main
 
 import (
+	"time"
+
 	"github.com/katbyte/pandorest"
 	"github.com/katbyte/pandorest/config"
 	"github.com/katbyte/prowlarr-mcp/sdk/pandorest/workarounds"
@@ -47,7 +49,21 @@ var generator = pandorest.Config{
 		// testing every provider of a kind answers 400 with each one's result
 		// when any of them fails
 		ExpectSameShape: true,
-		Notes:           `Dates are strings: Prowlarr sends RFC 3339 in UTC ("2026-09-19T13:00:00Z").`,
+		// an operation with one option takes it as an argument: the switch that saves or tests without asking the server to check first
+		InlineSingleOptions: true,
+		// Prowlarr declares its dates and sends RFC 3339 in UTC ("2026-09-19T13:00:00Z"), with year one for never, which reads as no date
+		Dates: config.Dates{Send: time.RFC3339},
+		// the ids that are held apart from their own record and passed between kinds of thing: an indexer's in history, statistics and a search, a profile's on an
+		// indexer, a tag's on five kinds of thing, a download client's on a grab. The rest stay plain numbers
+		IDs: []config.ID{
+			{Name: "IndexerID", Of: []string{"IndexerResource"}, Names: []string{"indexerId", "indexerIds"}, In: []string{"IndexerBulkResource .ids"}, Joined: []string{"indexers"}},
+			{Name: "AppProfileID", Of: []string{"AppProfileResource"}, Names: []string{"appProfileId"}},
+			// each tags field is listed by place because pandorest 0.8.1 refuses a name that is both in Names and Joined; from 0.8.2 this is Names: tags again
+			{Name: "TagID", Of: []string{"TagResource"}, In: []string{"TagDetailsResource .id", "ApplicationBulkResource .tags", "ApplicationResource .tags", "DownloadClientBulkResource .tags", "DownloadClientResource .tags", "IndexerBulkResource .tags", "IndexerProxyResource .tags", "IndexerResource .tags", "NotificationResource .tags"}, Joined: []string{"tags"}},
+			{Name: "DownloadClientID", Of: []string{"DownloadClientResource"}, Names: []string{"downloadClientId"}, In: []string{"DownloadClientBulkResource .ids"}},
+		},
+		// left plain on purpose: other services' ids, which only pass through, a release's and a grab's own text ids, and the id of a thing nothing else refers to
+		Plain: []string{"applicationIds", "doubanid", "downloadId", "guid", "id", "ids", "imdbId", "imdbid", "indexerProxyIds", "notificationIds", "rid", "tmdbId", "tmdbid", "traktid", "tvMazeId", "tvdbId", "tvdbid", "tvmazeid"},
 	}},
 	Workarounds: workarounds.All,
 }

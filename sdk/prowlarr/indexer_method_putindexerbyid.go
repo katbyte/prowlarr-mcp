@@ -4,32 +4,55 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// PutIndexerByIdOperationResponse is the result of PutIndexerById.
-type PutIndexerByIdOperationResponse struct {
+// PutIndexerByIdResponse is the result of PutIndexerById.
+//
+// Answer is the IndexerResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type PutIndexerByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *IndexerResource
+	Answer       *IndexerResource
+	*IndexerResource
 }
 
-// PutIndexerByIdOperationOptions holds the query and header parameters of PutIndexerById.
-type PutIndexerByIdOperationOptions struct {
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PutIndexerByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the IndexerResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r PutIndexerByIdResponse) Record() (IndexerResource, error) {
+	if r.Answer == nil {
+		return IndexerResource{}, errors.New("PutIndexerById answered no IndexerResource")
+	}
+
+	return *r.Answer, nil
+}
+
+// PutIndexerByIdOptions holds the query and header parameters of PutIndexerById.
+type PutIndexerByIdOptions struct {
 	ForceSave *bool
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o PutIndexerByIdOperationOptions) ToHeaders() *client.Headers {
+func (o PutIndexerByIdOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o PutIndexerByIdOperationOptions) ToQuery() *client.QueryParams {
+func (o PutIndexerByIdOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.ForceSave != nil {
 		out.Append("forceSave", strconv.FormatBool(*o.ForceSave))
@@ -38,15 +61,26 @@ func (o PutIndexerByIdOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // PutIndexerById calls PUT /api/v1/indexer/{id}.
-func (c Client) PutIndexerById(ctx context.Context, id int, input IndexerResource, options PutIndexerByIdOperationOptions) (result PutIndexerByIdOperationResponse, err error) {
+func (c Client) PutIndexerById(ctx context.Context, id IndexerID, input IndexerResource, forceSave ...bool) (result PutIndexerByIdResponse, err error) {
+	var option PutIndexerByIdOptions
+	if len(forceSave) > 1 {
+		err = fmt.Errorf("PutIndexerById takes one forceSave at most, not %d", len(forceSave))
+		return
+	}
+	if len(forceSave) == 1 {
+		option.ForceSave = &forceSave[0]
+	}
+
+	result.IndexerResource = &IndexerResource{}
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusAccepted,
 		},
 		HTTPMethod:    http.MethodPut,
-		OptionsObject: options,
-		Path:          fmt.Sprintf("/api/v1/indexer/%d", id),
+		Operation:     "PutIndexerById",
+		OptionsObject: option,
+		Path:          fmt.Sprintf("/api/v1/indexer/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
@@ -67,11 +101,12 @@ func (c Client) PutIndexerById(ctx context.Context, id int, input IndexerResourc
 		return
 	}
 
-	var model IndexerResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer IndexerResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.IndexerResource = result.Answer
 
 	return
 }

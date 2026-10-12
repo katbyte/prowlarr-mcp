@@ -100,9 +100,9 @@ func registerFilterTools(r *registry) {
 			return nil, listOut{}, err
 		}
 		var rows []filterRow
-		for i := range res.Model {
-			if in.Page == "" || strings.EqualFold(res.Model[i].Type, in.Page) {
-				rows = append(rows, projectFilter(&res.Model[i]))
+		for i := range res.Answer {
+			if in.Page == "" || strings.EqualFold(res.Answer[i].Type, in.Page) {
+				rows = append(rows, projectFilter(&res.Answer[i]))
 			}
 		}
 		slices.SortStableFunc(rows, func(a, b filterRow) int {
@@ -142,7 +142,7 @@ func registerFilterTools(r *registry) {
 			return nil, filterRow{}, err
 		}
 
-		return nil, projectFilter(res.Model), nil
+		return nil, projectFilter(res.Answer), nil
 	})
 
 	type editIn struct {
@@ -158,7 +158,7 @@ func registerFilterTools(r *registry) {
 		if err != nil {
 			return nil, filterRow{}, err
 		}
-		found, err := findFilter(all.Model, in.Filter)
+		found, err := findFilter(all.Answer, in.Filter)
 		if err != nil {
 			return nil, filterRow{}, err
 		}
@@ -175,7 +175,7 @@ func registerFilterTools(r *registry) {
 		if err != nil {
 			return nil, filterRow{}, err
 		}
-		f := read.Model
+		f := read.Answer
 		if f == nil {
 			return nil, filterRow{}, errEmptyAnswer
 		}
@@ -194,7 +194,7 @@ func registerFilterTools(r *registry) {
 			return nil, filterRow{}, err
 		}
 
-		return nil, projectFilter(res.Model), nil
+		return nil, projectFilter(res.Answer), nil
 	})
 
 	add(r, deleteTool, &mcp.Tool{
@@ -209,7 +209,7 @@ func registerFilterTools(r *registry) {
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
-		f, err := findFilter(all.Model, in.Filter)
+		f, err := findFilter(all.Answer, in.Filter)
 		if err != nil {
 			return nil, deletedOut{}, err
 		}

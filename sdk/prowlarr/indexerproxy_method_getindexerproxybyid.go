@@ -4,25 +4,49 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetIndexerProxyByIdOperationResponse is the result of GetIndexerProxyById.
-type GetIndexerProxyByIdOperationResponse struct {
+// GetIndexerProxyByIdResponse is the result of GetIndexerProxyById.
+//
+// Answer is the IndexerProxyResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type GetIndexerProxyByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *IndexerProxyResource
+	Answer       *IndexerProxyResource
+	*IndexerProxyResource
+}
+
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetIndexerProxyByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the IndexerProxyResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r GetIndexerProxyByIdResponse) Record() (IndexerProxyResource, error) {
+	if r.Answer == nil {
+		return IndexerProxyResource{}, errors.New("GetIndexerProxyById answered no IndexerProxyResource")
+	}
+
+	return *r.Answer, nil
 }
 
 // GetIndexerProxyById calls GET /api/v1/indexerproxy/{id}.
-func (c Client) GetIndexerProxyById(ctx context.Context, id int) (result GetIndexerProxyByIdOperationResponse, err error) {
+func (c Client) GetIndexerProxyById(ctx context.Context, id int) (result GetIndexerProxyByIdResponse, err error) {
+	result.IndexerProxyResource = &IndexerProxyResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetIndexerProxyById",
 		Path:       fmt.Sprintf("/api/v1/indexerproxy/%d", id),
 	}
 
@@ -40,11 +64,12 @@ func (c Client) GetIndexerProxyById(ctx context.Context, id int) (result GetInde
 		return
 	}
 
-	var model IndexerProxyResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer IndexerProxyResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.IndexerProxyResource = result.Answer
 
 	return
 }

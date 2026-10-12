@@ -25,7 +25,7 @@ type backupRow struct {
 }
 
 func projectBackup(b *prowlarr.BackupResource) backupRow {
-	return backupRow{ID: b.Id, Name: b.Name, Type: string(b.Type), Time: b.Time, Size: b.Size}
+	return backupRow{ID: b.Id, Name: b.Name, Type: string(b.Type), Time: shownTime(b.Time), Size: b.Size}
 }
 
 // backups reads the backups, newest first.
@@ -34,9 +34,9 @@ func (r *registry) backups(ctx context.Context) ([]prowlarr.BackupResource, erro
 	if err != nil {
 		return nil, err
 	}
-	slices.SortStableFunc(res.Model, func(a, b prowlarr.BackupResource) int { return strings.Compare(b.Time, a.Time) })
+	slices.SortStableFunc(res.Answer, func(a, b prowlarr.BackupResource) int { return b.Time.Compare(a.Time.Time) })
 
-	return res.Model, nil
+	return res.Answer, nil
 }
 
 // findBackup picks a backup by its name or id, and otherwise answers an error
@@ -139,8 +139,8 @@ func registerBackupTools(r *registry) {
 			return nil, restoreOut{}, err
 		}
 		out := restoreOut{Overwrites: []string{
-			"every indexer, application, sync profile, proxy, download client, notification, tag and setting as they are now, replaced with what they were at " + b.Time,
-			"the history and statistics recorded since " + b.Time,
+			"every indexer, application, sync profile, proxy, download client, notification, tag and setting as they are now, replaced with what they were at " + shownTime(b.Time),
+			"the history and statistics recorded since " + shownTime(b.Time),
 			"Prowlarr's API key and address, if they have changed since: prowlarr-mcp then needs the ones in the backup",
 		}}
 		if !in.Confirm {

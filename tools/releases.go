@@ -47,8 +47,8 @@ type releaseRow struct {
 
 func projectRelease(rel *prowlarr.ReleaseResource) releaseRow {
 	row := releaseRow{
-		Title: outsideName(rel.Title), Indexer: rel.Indexer, IndexerID: rel.IndexerId, GUID: rel.Guid, Protocol: string(rel.Protocol),
-		Size: rel.Size, SizeText: humanSize(rel.Size), AgeHours: float64(int(rel.AgeHours*10)) / 10, Published: rel.PublishDate,
+		Title: outsideName(rel.Title), Indexer: rel.Indexer, IndexerID: int(rel.IndexerId), GUID: rel.Guid, Protocol: string(rel.Protocol),
+		Size: rel.Size, SizeText: humanSize(rel.Size), AgeHours: float64(int(rel.AgeHours*10)) / 10, Published: shownTime(rel.PublishDate),
 		Grabs: rel.Grabs, Flags: rel.IndexerFlags, IMDBID: rel.ImdbId, TMDBID: rel.TmdbId, TVDBID: rel.TvdbId, InfoURL: rel.InfoUrl,
 	}
 	if rel.Protocol == prowlarr.DownloadProtocolTorrent {
@@ -91,7 +91,7 @@ func registerReleaseTools(r *registry) {
 		if !ok {
 			return nil, searchOut{}, fmt.Errorf("type must be search, tv, movie, music or book, got %q", in.Type)
 		}
-		opts := prowlarr.GetSearchOperationOptions{Query: in.Query, Type: kind, Limit: new(100)}
+		opts := prowlarr.GetSearchOptions{Query: in.Query, Type: kind, Limit: new(100)}
 		cats, err := r.categoryIDs(ctx, in.Categories)
 		if err != nil {
 			return nil, searchOut{}, err
@@ -112,8 +112,8 @@ func registerReleaseTools(r *registry) {
 		}
 		out := searchOut{ByIndexer: map[string]int{}}
 		var rows []releaseRow
-		for i := range res.Model {
-			rel := &res.Model[i]
+		for i := range res.Answer {
+			rel := &res.Answer[i]
 			if in.Protocol != "" && !strings.EqualFold(string(rel.Protocol), in.Protocol) {
 				continue
 			}
@@ -159,7 +159,7 @@ func registerReleaseTools(r *registry) {
 		if len(guids) == 0 {
 			return nil, grabOut{}, errors.New("give the release's guid, or several guids, from release_search")
 		}
-		var client int
+		var client prowlarr.DownloadClientID
 		if in.DownloadClient != "" {
 			dc, dcErr := r.resolveDownloadClient(ctx, in.DownloadClient)
 			if dcErr != nil {
@@ -184,10 +184,10 @@ func registerReleaseTools(r *registry) {
 		// the answer is the releases as sent, guids and an indexer; the
 		// grabs' own records in the history name what was fetched
 		out := grabOut{Grabbed: slices.Clone(guids), Indexer: i.Name, Note: "sent to the download client; history_list event=grab shows them"}
-		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOperationOptions{IndexerId: new(i.Id), EventType: prowlarr.HistoryEventTypeReleaseGrabbed, Limit: new(len(guids) + 5)})
+		hist, err := pc.GetHistoryIndexer(ctx, prowlarr.GetHistoryIndexerOptions{IndexerId: i.Id, EventType: prowlarr.HistoryEventTypeReleaseGrabbed, Limit: new(len(guids) + 5)})
 		if err == nil {
-			events := hist.Model
-			slices.SortStableFunc(events, func(a, b prowlarr.HistoryResource) int { return strings.Compare(b.Date, a.Date) })
+			events := hist.Answer
+			slices.SortStableFunc(events, func(a, b prowlarr.HistoryResource) int { return b.Date.Compare(a.Date.Time) })
 			for n := 0; n < len(guids) && n < len(events); n++ {
 				if title := data(&events[n], "grabTitle"); title != "" {
 					out.Grabbed[len(guids)-1-n] = outsideName(title)

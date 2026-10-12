@@ -8,7 +8,7 @@ type DownloadClientResource struct {
 	ConfigContract     string                   `json:"configContract,omitempty"`
 	Enable             *bool                    `json:"enable,omitempty"`
 	Fields             []Field                  `json:"fields,omitzero"`
-	Id                 int                      `json:"id,omitempty"`
+	Id                 DownloadClientID         `json:"id,omitempty"`
 	Implementation     string                   `json:"implementation,omitempty"`
 	ImplementationName string                   `json:"implementationName,omitempty"`
 	InfoLink           string                   `json:"infoLink,omitempty"`
@@ -18,5 +18,11 @@ type DownloadClientResource struct {
 	Priority           int                      `json:"priority,omitempty"`
 	Protocol           DownloadProtocol         `json:"protocol,omitempty"`
 	SupportsCategories *bool                    `json:"supportsCategories,omitempty"`
-	Tags               []int                    `json:"tags,omitzero"`
+	Tags               []TagID                  `json:"tags,omitzero"`
 }
+
+// GetName is the record's Name, for code that handles records of several types alike.
+func (m DownloadClientResource) GetName() string { return m.Name }
+
+// GetId is the record's Id, for code that handles records of several types alike.
+func (m DownloadClientResource) GetId() DownloadClientID { return m.Id }

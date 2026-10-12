@@ -9,20 +9,25 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostSearchBulkOperationResponse is the result of PostSearchBulk.
-type PostSearchBulkOperationResponse struct {
+// PostSearchBulkResponse is the result of PostSearchBulk.
+type PostSearchBulkResponse struct {
 	HttpResponse *http.Response
-	Model        []ReleaseResource
+	Answer       []ReleaseResource
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r PostSearchBulkResponse) Answered() bool { return r.Answer != nil }
+
 // PostSearchBulk calls POST /api/v1/search/bulk.
-func (c Client) PostSearchBulk(ctx context.Context, input []ReleaseResource) (result PostSearchBulkOperationResponse, err error) {
+func (c Client) PostSearchBulk(ctx context.Context, input []ReleaseResource) (result PostSearchBulkResponse, err error) {
 	opts := client.RequestOptions{
 		ContentType: "application/json",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodPost,
+		Operation:  "PostSearchBulk",
 		Path:       "/api/v1/search/bulk",
 	}
 
@@ -44,7 +49,7 @@ func (c Client) PostSearchBulk(ctx context.Context, input []ReleaseResource) (re
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

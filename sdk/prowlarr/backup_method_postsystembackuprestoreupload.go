@@ -10,21 +10,22 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// PostSystemBackupRestoreUploadOperationResponse is the result of PostSystemBackupRestoreUpload.
-type PostSystemBackupRestoreUploadOperationResponse struct {
+// PostSystemBackupRestoreUploadResponse is the result of PostSystemBackupRestoreUpload.
+type PostSystemBackupRestoreUploadResponse struct {
 	HttpResponse *http.Response
 }
 
 // PostSystemBackupRestoreUpload calls POST /api/v1/system/backup/restore/upload.
 //
 // input is sent as contentType, or as multipart/form-data when that is empty.
-func (c Client) PostSystemBackupRestoreUpload(ctx context.Context, input io.Reader, contentType string) (result PostSystemBackupRestoreUploadOperationResponse, err error) {
+func (c Client) PostSystemBackupRestoreUpload(ctx context.Context, input io.Reader, contentType string) (result PostSystemBackupRestoreUploadResponse, err error) {
 	opts := client.RequestOptions{
 		ContentType: "multipart/form-data",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodPost,
+		Operation:  "PostSystemBackupRestoreUpload",
 		Path:       "/api/v1/system/backup/restore/upload",
 	}
 

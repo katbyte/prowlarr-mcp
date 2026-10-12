@@ -2,6 +2,8 @@
 
 package prowlarr
 
+import "slices"
+
 // BookSearchParam is the "BookSearchParam" enum.
 type BookSearchParam string
 
@@ -27,6 +29,11 @@ func PossibleValuesForBookSearchParam() []string {
 	}
 }
 
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v BookSearchParam) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForBookSearchParam(), string(v))
+}
+
 // IndexerPrivacy is the "IndexerPrivacy" enum.
 type IndexerPrivacy string
 
@@ -44,6 +51,11 @@ func PossibleValuesForIndexerPrivacy() []string {
 		string(IndexerPrivacySemiPrivate),
 		string(IndexerPrivacyPrivate),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v IndexerPrivacy) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForIndexerPrivacy(), string(v))
 }
 
 // MovieSearchParam is the "MovieSearchParam" enum.
@@ -77,6 +89,11 @@ func PossibleValuesForMovieSearchParam() []string {
 	}
 }
 
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v MovieSearchParam) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForMovieSearchParam(), string(v))
+}
+
 // MusicSearchParam is the "MusicSearchParam" enum.
 type MusicSearchParam string
 
@@ -104,6 +121,11 @@ func PossibleValuesForMusicSearchParam() []string {
 	}
 }
 
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v MusicSearchParam) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForMusicSearchParam(), string(v))
+}
+
 // SearchParam is the "SearchParam" enum.
 type SearchParam string
 
@@ -117,6 +139,11 @@ func PossibleValuesForSearchParam() []string {
 	return []string{
 		string(SearchParamQ),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v SearchParam) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForSearchParam(), string(v))
 }
 
 // TvSearchParam is the "TvSearchParam" enum.
@@ -154,4 +181,9 @@ func PossibleValuesForTvSearchParam() []string {
 		string(TvSearchParamGenre),
 		string(TvSearchParamYear),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v TvSearchParam) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForTvSearchParam(), string(v))
 }

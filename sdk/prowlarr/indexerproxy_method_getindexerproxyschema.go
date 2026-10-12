@@ -9,19 +9,24 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetIndexerProxySchemaOperationResponse is the result of GetIndexerProxySchema.
-type GetIndexerProxySchemaOperationResponse struct {
+// GetIndexerProxySchemaResponse is the result of GetIndexerProxySchema.
+type GetIndexerProxySchemaResponse struct {
 	HttpResponse *http.Response
-	Model        []IndexerProxyResource
+	Answer       []IndexerProxyResource
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetIndexerProxySchemaResponse) Answered() bool { return r.Answer != nil }
+
 // GetIndexerProxySchema calls GET /api/v1/indexerproxy/schema.
-func (c Client) GetIndexerProxySchema(ctx context.Context) (result GetIndexerProxySchemaOperationResponse, err error) {
+func (c Client) GetIndexerProxySchema(ctx context.Context) (result GetIndexerProxySchemaResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetIndexerProxySchema",
 		Path:       "/api/v1/indexerproxy/schema",
 	}
 
@@ -39,7 +44,7 @@ func (c Client) GetIndexerProxySchema(ctx context.Context) (result GetIndexerPro
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

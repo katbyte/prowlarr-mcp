@@ -4,17 +4,22 @@ package prowlarr_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/go-kt/test/services/arrserver"
 	"github.com/katbyte/go-kt/test/services/newznab"
+	"github.com/katbyte/pandorest/client"
+	"github.com/katbyte/pandorest/config"
+	"github.com/katbyte/pandorest/definitions"
+	"github.com/katbyte/pandorest/sweep"
 	"github.com/katbyte/prowlarr-mcp/internal/fakes/servarr"
 	"github.com/katbyte/prowlarr-mcp/lib/testenv"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
@@ -46,7 +51,11 @@ var releases = []newznab.Release{
 
 // fixtures are the ids of what the suite created.
 type fixtures struct {
-	tag, filter, profile, torrent, usenet, client, proxy, app, webhook int
+	tag                         prowlarr.TagID
+	profile                     prowlarr.AppProfileID
+	torrent, usenet             prowlarr.IndexerID
+	client                      prowlarr.DownloadClientID
+	filter, proxy, app, webhook int
 }
 
 var (
@@ -58,6 +67,8 @@ var (
 	// update server, the clock and the notices
 	home  = arrserver.New()
 	proxy *testenv.Proxy
+	// calls is every request the suite's client sent, for the run to say at its end which operations it never reached
+	calls = &client.Calls{}
 	fx    fixtures
 	ready bool
 )
@@ -104,7 +115,35 @@ func runSuite(m *testing.M) int {
 		}
 	}
 
+	// every operation the client has must have been sent to the server by something above. Only a whole run can say that, so a -run or -skip filter
+	// skips the check
+	if acctest.WholeRun() {
+		missed, err := neverCalled()
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "acceptance/prowlarr operations:", err)
+			code = 1
+		}
+		if len(missed) > 0 {
+			fmt.Fprintln(os.Stderr, "\noperations the suite never called:\n  "+strings.Join(missed, "\n  "))
+			code = 1
+		}
+	}
+
 	return code
+}
+
+// neverCalled is the operations of the definitions the client was generated from that the run sent nothing to.
+func neverCalled() ([]string, error) {
+	at, err := config.Service{Name: "prowlarr"}.In("../..").Resolve()
+	if err != nil {
+		return nil, err
+	}
+	defs, err := definitions.Load(at.Path(at.Definitions))
+	if err != nil {
+		return nil, err
+	}
+
+	return sweep.NeverCalled(defs, calls.Seen(), nil), nil
 }
 
 func start() error {
@@ -133,7 +172,7 @@ func start() error {
 	if err != nil {
 		return err
 	}
-	if sdk, err = prowlarr.New(testenv.Server(), testenv.Token()); err != nil {
+	if sdk, err = prowlarr.New(testenv.Server(), testenv.Token(), client.WithCalls(calls)); err != nil {
 		return err
 	}
 	ready = true
@@ -176,7 +215,7 @@ func seed() error {
 	if err != nil {
 		return fmt.Errorf("tag: %w", err)
 	}
-	fx.tag = tag.Model.Id
+	fx.tag = tag.Answer.Id
 
 	// a saved filter, the one thing here only the web interface makes
 	filter, err := sdk.PostCustomFilter(ctx, prowlarr.CustomFilterResource{
@@ -186,7 +225,7 @@ func seed() error {
 	if err != nil {
 		return fmt.Errorf("custom filter: %w", err)
 	}
-	fx.filter = filter.Model.Id
+	fx.filter = filter.Answer.Id
 
 	profile, err := sdk.PostAppProfile(ctx, prowlarr.AppProfileResource{
 		Name: profileName, EnableRss: new(true), EnableAutomaticSearch: new(true), EnableInteractiveSearch: new(false), MinimumSeeders: 3,
@@ -194,92 +233,92 @@ func seed() error {
 	if err != nil {
 		return fmt.Errorf("profile: %w", err)
 	}
-	fx.profile = profile.Model.Id
+	fx.profile = profile.Answer.Id
 
 	schema, err := sdk.GetIndexerSchema(ctx)
 	if err != nil {
 		return fmt.Errorf("indexer schema: %w", err)
 	}
 	for _, s := range []struct {
-		id                   *int
+		id                   *prowlarr.IndexerID
 		name, template, site string
 	}{{&fx.torrent, torrentName, "Generic Torznab", torrentSite}, {&fx.usenet, usenetName, "Generic Newznab", usenetSite}} {
-		i := slices.IndexFunc(schema.Model, func(x prowlarr.IndexerResource) bool { return x.Name == s.template })
+		i := slices.IndexFunc(schema.Answer, func(x prowlarr.IndexerResource) bool { return x.Name == s.template })
 		if i < 0 {
 			return fmt.Errorf("no %s in the schema", s.template)
 		}
-		idx := schema.Model[i]
-		idx.Name, idx.Enable, idx.AppProfileId, idx.Tags, idx.Presets = s.name, new(true), fx.profile, []int{fx.tag}, nil
+		idx := schema.Answer[i]
+		idx.Name, idx.Enable, idx.AppProfileId, idx.Tags, idx.Presets = s.name, new(true), fx.profile, []prowlarr.TagID{fx.tag}, nil
 		setField(idx.Fields, "baseUrl", sites.Indexer(s.site).URL())
 		setField(idx.Fields, "apiKey", siteKey)
-		made, postErr := sdk.PostIndexer(ctx, idx, prowlarr.PostIndexerOperationOptions{})
+		made, postErr := sdk.PostIndexer(ctx, idx)
 		if postErr != nil {
 			return fmt.Errorf("%s: %w", s.name, postErr)
 		}
-		*s.id = made.Model.Id
+		*s.id = made.Answer.Id
 	}
 
 	clients, err := sdk.GetDownloadClientSchema(ctx)
 	if err != nil {
 		return err
 	}
-	i := slices.IndexFunc(clients.Model, func(x prowlarr.DownloadClientResource) bool { return x.Implementation == "TorrentBlackhole" })
-	dc := clients.Model[i]
+	i := slices.IndexFunc(clients.Answer, func(x prowlarr.DownloadClientResource) bool { return x.Implementation == "TorrentBlackhole" })
+	dc := clients.Answer[i]
 	dc.Name, dc.Enable, dc.Presets = clientName, new(true), nil
 	setField(dc.Fields, "torrentFolder", "/downloads/torrent")
-	made, err := sdk.PostDownloadClient(ctx, dc, prowlarr.PostDownloadClientOperationOptions{})
+	made, err := sdk.PostDownloadClient(ctx, dc)
 	if err != nil {
 		return fmt.Errorf("download client: %w", err)
 	}
-	fx.client = made.Model.Id
+	fx.client = made.Answer.Id
 
 	// a proxy with no tags is used by nothing, so Prowlarr does not test it
 	proxies, err := sdk.GetIndexerProxySchema(ctx)
 	if err != nil {
 		return err
 	}
-	i = slices.IndexFunc(proxies.Model, func(x prowlarr.IndexerProxyResource) bool { return x.Implementation == "Http" })
-	px := proxies.Model[i]
-	px.Name, px.Presets, px.Tags = proxyName, nil, []int{}
+	i = slices.IndexFunc(proxies.Answer, func(x prowlarr.IndexerProxyResource) bool { return x.Implementation == "Http" })
+	px := proxies.Answer[i]
+	px.Name, px.Presets, px.Tags = proxyName, nil, []prowlarr.TagID{}
 	setField(px.Fields, "host", "proxy.invalid")
 	setField(px.Fields, "port", 3128)
-	madeProxy, err := sdk.PostIndexerProxy(ctx, px, prowlarr.PostIndexerProxyOperationOptions{})
+	madeProxy, err := sdk.PostIndexerProxy(ctx, px)
 	if err != nil {
 		return fmt.Errorf("proxy: %w", err)
 	}
-	fx.proxy = madeProxy.Model.Id
+	fx.proxy = madeProxy.Answer.Id
 
 	appSchema, err := sdk.GetApplicationsSchema(ctx)
 	if err != nil {
 		return err
 	}
-	i = slices.IndexFunc(appSchema.Model, func(x prowlarr.ApplicationResource) bool { return x.Implementation == "Sonarr" })
-	app := appSchema.Model[i]
-	app.Name, app.Presets, app.SyncLevel, app.Tags = appName, nil, prowlarr.ApplicationSyncLevelFullSync, []int{}
+	i = slices.IndexFunc(appSchema.Answer, func(x prowlarr.ApplicationResource) bool { return x.Implementation == "Sonarr" })
+	app := appSchema.Answer[i]
+	app.Name, app.Presets, app.SyncLevel, app.Tags = appName, nil, prowlarr.ApplicationSyncLevelFullSync, []prowlarr.TagID{}
 	setField(app.Fields, "baseUrl", apps.URL(fakeSonarr))
 	setField(app.Fields, "apiKey", fakeSonarrKey)
 	setField(app.Fields, "prowlarrUrl", "http://prowlarr:9696")
-	madeApp, err := sdk.PostApplications(ctx, app, prowlarr.PostApplicationsOperationOptions{})
+	madeApp, err := sdk.PostApplications(ctx, app)
 	if err != nil {
 		return fmt.Errorf("application: %w", err)
 	}
-	fx.app = madeApp.Model.Id
+	fx.app = madeApp.Answer.Id
 
 	// a notification sent for nothing is off, and not tested
 	notes, err := sdk.GetNotificationSchema(ctx)
 	if err != nil {
 		return err
 	}
-	i = slices.IndexFunc(notes.Model, func(x prowlarr.NotificationResource) bool { return x.Implementation == "Webhook" })
-	note := notes.Model[i]
+	i = slices.IndexFunc(notes.Answer, func(x prowlarr.NotificationResource) bool { return x.Implementation == "Webhook" })
+	note := notes.Answer[i]
 	note.Name, note.Presets = webhookName, nil
 	note.OnGrab, note.OnHealthIssue, note.OnHealthRestored, note.OnApplicationUpdate = new(false), new(false), new(false), new(false)
 	setField(note.Fields, "url", "http://"+testenv.Host()+":1/webhook")
-	madeNote, err := sdk.PostNotification(ctx, note, prowlarr.PostNotificationOperationOptions{})
+	madeNote, err := sdk.PostNotification(ctx, note)
 	if err != nil {
 		return fmt.Errorf("notification: %w", err)
 	}
-	fx.webhook = madeNote.Model.Id
+	fx.webhook = madeNote.Answer.Id
 
 	return nil
 }
@@ -326,51 +365,31 @@ func field(fields []prowlarr.Field, name string) any {
 	return nil
 }
 
-// runCommand queues a command and waits for it to finish.
-func runCommand(t *testing.T, body map[string]any) *prowlarr.CommandResource {
+// commandWait is how long a command is given to finish.
+const commandWait = time.Minute
+
+// finished takes a command that was queued and waited for, and fails the test when it did not finish well.
+func finished(t *testing.T) func(prowlarr.GetCommandByIdResponse, error) *prowlarr.CommandResource {
 	t.Helper()
 
-	raw, err := json.Marshal(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	res, err := sdk.PostCommand(ctx, raw)
-	if err != nil {
-		t.Fatal(err)
-	}
-	cmd := res.Model
-	for deadline := time.Now().Add(60 * time.Second); time.Now().Before(deadline); time.Sleep(300 * time.Millisecond) {
-		got, err := sdk.GetCommandById(ctx, cmd.Id)
+	return func(res prowlarr.GetCommandByIdResponse, err error) *prowlarr.CommandResource {
+		t.Helper()
+
 		if err != nil {
 			t.Fatal(err)
 		}
-		if cmd = got.Model; cmd.Status != prowlarr.CommandStatusQueued && cmd.Status != prowlarr.CommandStatusStarted {
-			return cmd
+		if res.Answer == nil || res.Answer.Status != prowlarr.CommandStatusCompleted {
+			t.Fatalf("the command = %+v", res.Answer)
 		}
-	}
-	t.Fatalf("%v never finished", body)
 
-	return nil
+		return res.Answer
+	}
 }
 
 // checkHealth runs Prowlarr's health checks and waits for them to finish.
 func checkHealth() error {
-	res, err := sdk.PostCommand(ctx, []byte(`{"name":"CheckHealth"}`))
-	if err != nil {
+	if _, err := sdk.CheckHealthAndWait(ctx, prowlarr.CheckHealthCommand{}, commandWait); err != nil {
 		return fmt.Errorf("running the health checks: %w", err)
-	}
-	cmd := res.Model
-	for deadline := time.Now().Add(60 * time.Second); time.Now().Before(deadline); time.Sleep(300 * time.Millisecond) {
-		got, err := sdk.GetCommandById(ctx, cmd.Id)
-		if err != nil {
-			return fmt.Errorf("reading the health checks' command: %w", err)
-		}
-		if cmd = got.Model; cmd.Status != prowlarr.CommandStatusQueued && cmd.Status != prowlarr.CommandStatusStarted {
-			break
-		}
-	}
-	if cmd.Status != prowlarr.CommandStatusCompleted {
-		return fmt.Errorf("the health checks ended %s: %s", cmd.Status, cmd.Exception)
 	}
 
 	return nil

@@ -9,19 +9,24 @@ import (
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetApplicationsOperationResponse is the result of GetApplications.
-type GetApplicationsOperationResponse struct {
+// GetApplicationsResponse is the result of GetApplications.
+type GetApplicationsResponse struct {
 	HttpResponse *http.Response
-	Model        []ApplicationResource
+	Answer       []ApplicationResource
 }
 
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetApplicationsResponse) Answered() bool { return r.Answer != nil }
+
 // GetApplications calls GET /api/v1/applications.
-func (c Client) GetApplications(ctx context.Context) (result GetApplicationsOperationResponse, err error) {
+func (c Client) GetApplications(ctx context.Context) (result GetApplicationsResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetApplications",
 		Path:       "/api/v1/applications",
 	}
 
@@ -39,7 +44,7 @@ func (c Client) GetApplications(ctx context.Context) (result GetApplicationsOper
 		return
 	}
 
-	if err = resp.Unmarshal(&result.Model); err != nil {
+	if err = resp.Unmarshal(&result.Answer); err != nil {
 		return
 	}
 

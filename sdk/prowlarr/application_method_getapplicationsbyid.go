@@ -4,25 +4,49 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetApplicationsByIdOperationResponse is the result of GetApplicationsById.
-type GetApplicationsByIdOperationResponse struct {
+// GetApplicationsByIdResponse is the result of GetApplicationsById.
+//
+// Answer is the ApplicationResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type GetApplicationsByIdResponse struct {
 	HttpResponse *http.Response
-	Model        *ApplicationResource
+	Answer       *ApplicationResource
+	*ApplicationResource
+}
+
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetApplicationsByIdResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the ApplicationResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r GetApplicationsByIdResponse) Record() (ApplicationResource, error) {
+	if r.Answer == nil {
+		return ApplicationResource{}, errors.New("GetApplicationsById answered no ApplicationResource")
+	}
+
+	return *r.Answer, nil
 }
 
 // GetApplicationsById calls GET /api/v1/applications/{id}.
-func (c Client) GetApplicationsById(ctx context.Context, id int) (result GetApplicationsByIdOperationResponse, err error) {
+func (c Client) GetApplicationsById(ctx context.Context, id int) (result GetApplicationsByIdResponse, err error) {
+	result.ApplicationResource = &ApplicationResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetApplicationsById",
 		Path:       fmt.Sprintf("/api/v1/applications/%d", id),
 	}
 
@@ -40,11 +64,12 @@ func (c Client) GetApplicationsById(ctx context.Context, id int) (result GetAppl
 		return
 	}
 
-	var model ApplicationResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer ApplicationResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.ApplicationResource = result.Answer
 
 	return
 }

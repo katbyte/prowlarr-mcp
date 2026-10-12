@@ -2,6 +2,8 @@
 
 package prowlarr
 
+import "slices"
+
 // ApplyTags is the "ApplyTags" enum.
 type ApplyTags string
 
@@ -19,6 +21,11 @@ func PossibleValuesForApplyTags() []string {
 		string(ApplyTagsRemove),
 		string(ApplyTagsReplace),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v ApplyTags) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForApplyTags(), string(v))
 }
 
 // AuthenticationType is the "AuthenticationType" enum.
@@ -42,6 +49,11 @@ func PossibleValuesForAuthenticationType() []string {
 	}
 }
 
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v AuthenticationType) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForAuthenticationType(), string(v))
+}
+
 // DownloadProtocol is the "DownloadProtocol" enum.
 type DownloadProtocol string
 
@@ -59,6 +71,11 @@ func PossibleValuesForDownloadProtocol() []string {
 		string(DownloadProtocolUsenet),
 		string(DownloadProtocolTorrent),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v DownloadProtocol) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForDownloadProtocol(), string(v))
 }
 
 // PrivacyLevel is the "PrivacyLevel" enum.
@@ -82,6 +99,11 @@ func PossibleValuesForPrivacyLevel() []string {
 	}
 }
 
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v PrivacyLevel) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForPrivacyLevel(), string(v))
+}
+
 // ProviderMessageType is the "ProviderMessageType" enum.
 type ProviderMessageType string
 
@@ -101,6 +123,11 @@ func PossibleValuesForProviderMessageType() []string {
 	}
 }
 
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v ProviderMessageType) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForProviderMessageType(), string(v))
+}
+
 // SortDirection is the "SortDirection" enum.
 type SortDirection string
 
@@ -118,6 +145,11 @@ func PossibleValuesForSortDirection() []string {
 		string(SortDirectionAscending),
 		string(SortDirectionDescending),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v SortDirection) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForSortDirection(), string(v))
 }
 
 // UpdateMechanism is the "UpdateMechanism" enum.
@@ -141,4 +173,9 @@ func PossibleValuesForUpdateMechanism() []string {
 		string(UpdateMechanismApt),
 		string(UpdateMechanismDocker),
 	}
+}
+
+// Known reports whether the value is one the document lists, or empty; a server may answer one it does not.
+func (v UpdateMechanism) Known() bool {
+	return v == "" || slices.Contains(PossibleValuesForUpdateMechanism(), string(v))
 }

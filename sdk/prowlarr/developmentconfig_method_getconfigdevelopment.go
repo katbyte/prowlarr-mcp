@@ -4,24 +4,48 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetConfigDevelopmentOperationResponse is the result of GetConfigDevelopment.
-type GetConfigDevelopmentOperationResponse struct {
+// GetConfigDevelopmentResponse is the result of GetConfigDevelopment.
+//
+// Answer is the DevelopmentConfigResource answered, nil when the server answered none (a 204), which
+// Answered tells. The same record is embedded, so res.Answer.Name may be read as
+// res.Name; when nothing was answered the embedded record is a zero one, so that
+// read is empty rather than a panic. Only the method sets the two; a response built
+// by hand sets both or neither.
+type GetConfigDevelopmentResponse struct {
 	HttpResponse *http.Response
-	Model        *DevelopmentConfigResource
+	Answer       *DevelopmentConfigResource
+	*DevelopmentConfigResource
+}
+
+// Answered reports whether the server answered with a body that was decoded:
+// false for a 204, or a call that failed before one came.
+func (r GetConfigDevelopmentResponse) Answered() bool { return r.Answer != nil }
+
+// Record is the DevelopmentConfigResource answered, as a value to change and write back, or an
+// error when the server answered none.
+func (r GetConfigDevelopmentResponse) Record() (DevelopmentConfigResource, error) {
+	if r.Answer == nil {
+		return DevelopmentConfigResource{}, errors.New("GetConfigDevelopment answered no DevelopmentConfigResource")
+	}
+
+	return *r.Answer, nil
 }
 
 // GetConfigDevelopment calls GET /api/v1/config/development.
-func (c Client) GetConfigDevelopment(ctx context.Context) (result GetConfigDevelopmentOperationResponse, err error) {
+func (c Client) GetConfigDevelopment(ctx context.Context) (result GetConfigDevelopmentResponse, err error) {
+	result.DevelopmentConfigResource = &DevelopmentConfigResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodGet,
+		Operation:  "GetConfigDevelopment",
 		Path:       "/api/v1/config/development",
 	}
 
@@ -39,11 +63,12 @@ func (c Client) GetConfigDevelopment(ctx context.Context) (result GetConfigDevel
 		return
 	}
 
-	var model DevelopmentConfigResource
-	result.Model = &model
-	if err = resp.Unmarshal(result.Model); err != nil {
+	var answer DevelopmentConfigResource
+	result.Answer = &answer
+	if err = resp.Unmarshal(result.Answer); err != nil {
 		return
 	}
+	result.DevelopmentConfigResource = result.Answer
 
 	return
 }

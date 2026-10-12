@@ -4,23 +4,83 @@ package prowlarr
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
 
-// GetIndexerByIdNewznabOperationResponse is the result of GetIndexerByIdNewznab.
+// GetIndexerByIdNewznabResponse is the result of GetIndexerByIdNewznab.
 //
-// The operation answers application/rss+xml, left unread in HttpResponse.Body, which
-// the caller must close.
-type GetIndexerByIdNewznabOperationResponse struct {
+// The operation answers application/rss+xml, left unread in HttpResponse.Body. WriteTo copies
+// it out and Bytes reads it whole up to a size, each closing it; Reader hands it over
+// for the caller to read and close. After any of them the body is spent. A failed call
+// has no open body: the base client reads a refusal and closes it.
+type GetIndexerByIdNewznabResponse struct {
 	HttpResponse *http.Response
 }
 
-// GetIndexerByIdNewznabOperationOptions holds the query and header parameters of GetIndexerByIdNewznab.
-type GetIndexerByIdNewznabOperationOptions struct {
+// Reader is the file's body, for the caller to read and close, and the content
+// type the server named it; an empty body and "" when the operation gave no
+// answer, so a deferred Close is always safe. The body stays readable after
+// the result goes out of scope, and has no size or time limit of the client's:
+// the caller's context is the one bound on a slow read.
+func (r GetIndexerByIdNewznabResponse) Reader() (io.ReadCloser, string) {
+	if r.HttpResponse == nil || r.HttpResponse.Body == nil {
+		return http.NoBody, ""
+	}
+
+	return r.HttpResponse.Body, r.HttpResponse.Header.Get("Content-Type")
+}
+
+// ContentLength is the file's length as the server named it, or -1 when it
+// did not, to refuse one too big before reading any of it.
+func (r GetIndexerByIdNewznabResponse) ContentLength() int64 {
+	if r.HttpResponse == nil {
+		return -1
+	}
+
+	return r.HttpResponse.ContentLength
+}
+
+// Filename is the name the server gave the file (Content-Disposition), or ""
+// when it gave none, for a caller saving it under the server's name.
+func (r GetIndexerByIdNewznabResponse) Filename() string {
+	if r.HttpResponse == nil {
+		return ""
+	}
+
+	return client.Filename(r.HttpResponse.Header)
+}
+
+// WriteTo copies the file to w and closes the body whatever happens, which is
+// the one way to take the answer that cannot leave it open. A writer that
+// failed is a client.WriteError, as against the server's side breaking off;
+// it fails when the operation gave no answer, and again once the body is spent.
+func (r GetIndexerByIdNewznabResponse) WriteTo(w io.Writer) (int64, error) {
+	if r.HttpResponse == nil || r.HttpResponse.Body == nil {
+		return 0, errors.New("no answer to write")
+	}
+
+	return client.Copy(w, r.HttpResponse.Body)
+}
+
+// Bytes reads the file whole, up to max bytes, and closes the body: a file
+// over max is a client.TooLargeError rather than cut short without a word.
+func (r GetIndexerByIdNewznabResponse) Bytes(max int64) ([]byte, error) {
+	if r.HttpResponse == nil || r.HttpResponse.Body == nil {
+		return nil, errors.New("no answer to read")
+	}
+
+	return client.ReadAtMost(r.HttpResponse.Body, max)
+}
+
+// GetIndexerByIdNewznabOptions holds the query and header parameters of GetIndexerByIdNewznab.
+type GetIndexerByIdNewznabOptions struct {
 	T          string
 	Q          string
 	Cat        string
@@ -56,13 +116,13 @@ type GetIndexerByIdNewznabOperationOptions struct {
 }
 
 // ToHeaders returns the header parameters the options set.
-func (o GetIndexerByIdNewznabOperationOptions) ToHeaders() *client.Headers {
+func (o GetIndexerByIdNewznabOptions) ToHeaders() *client.Headers {
 	out := client.Headers{}
 	return &out
 }
 
 // ToQuery returns the query parameters the options set.
-func (o GetIndexerByIdNewznabOperationOptions) ToQuery() *client.QueryParams {
+func (o GetIndexerByIdNewznabOptions) ToQuery() *client.QueryParams {
 	out := client.QueryParams{}
 	if o.T != "" {
 		out.Append("t", o.T)
@@ -164,15 +224,25 @@ func (o GetIndexerByIdNewznabOperationOptions) ToQuery() *client.QueryParams {
 }
 
 // GetIndexerByIdNewznab calls GET /api/v1/indexer/{id}/newznab.
-func (c Client) GetIndexerByIdNewznab(ctx context.Context, id int, options GetIndexerByIdNewznabOperationOptions) (result GetIndexerByIdNewznabOperationResponse, err error) {
+func (c Client) GetIndexerByIdNewznab(ctx context.Context, id IndexerID, options ...GetIndexerByIdNewznabOptions) (result GetIndexerByIdNewznabResponse, err error) {
+	if len(options) > 1 {
+		err = fmt.Errorf("GetIndexerByIdNewznab takes one options struct at most, not %d", len(options))
+		return
+	}
+	var option GetIndexerByIdNewznabOptions
+	if len(options) == 1 {
+		option = options[0]
+	}
+
 	opts := client.RequestOptions{
 		Accept: "application/rss+xml",
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod:     http.MethodGet,
-		OptionsObject:  options,
-		Path:           fmt.Sprintf("/api/v1/indexer/%d/newznab", id),
+		Operation:      "GetIndexerByIdNewznab",
+		OptionsObject:  option,
+		Path:           fmt.Sprintf("/api/v1/indexer/%s/newznab", url.PathEscape(strconv.Itoa(int(id)))),
 		StreamResponse: true,
 	}
 

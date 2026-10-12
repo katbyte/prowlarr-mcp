@@ -4,17 +4,17 @@ package prowlarr
 
 // IndexerResource is the "IndexerResource" schema.
 type IndexerResource struct {
-	Added              string                     `json:"added,omitempty"`
-	AppProfileId       int                        `json:"appProfileId,omitempty"`
+	Added              Time                       `json:"added,omitzero"`
+	AppProfileId       AppProfileID               `json:"appProfileId,omitempty"`
 	Capabilities       *IndexerCapabilityResource `json:"capabilities,omitempty"`
 	ConfigContract     string                     `json:"configContract,omitempty"`
 	DefinitionName     string                     `json:"definitionName,omitempty"`
 	Description        string                     `json:"description,omitempty"`
-	DownloadClientId   int                        `json:"downloadClientId,omitempty"`
+	DownloadClientId   DownloadClientID           `json:"downloadClientId,omitempty"`
 	Enable             *bool                      `json:"enable,omitempty"`
 	Encoding           string                     `json:"encoding,omitempty"`
 	Fields             []Field                    `json:"fields,omitzero"`
-	Id                 int                        `json:"id,omitempty"`
+	Id                 IndexerID                  `json:"id,omitempty"`
 	Implementation     string                     `json:"implementation,omitempty"`
 	ImplementationName string                     `json:"implementationName,omitempty"`
 	IndexerUrls        []string                   `json:"indexerUrls,omitzero"`
@@ -34,5 +34,11 @@ type IndexerResource struct {
 	SupportsRedirect   *bool                      `json:"supportsRedirect,omitempty"`
 	SupportsRss        *bool                      `json:"supportsRss,omitempty"`
 	SupportsSearch     *bool                      `json:"supportsSearch,omitempty"`
-	Tags               []int                      `json:"tags,omitzero"`
+	Tags               []TagID                    `json:"tags,omitzero"`
 }
+
+// GetName is the record's Name, for code that handles records of several types alike.
+func (m IndexerResource) GetName() string { return m.Name }
+
+// GetId is the record's Id, for code that handles records of several types alike.
+func (m IndexerResource) GetId() IndexerID { return m.Id }

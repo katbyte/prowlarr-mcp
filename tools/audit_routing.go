@@ -31,7 +31,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 			out.Note = "Prowlarr has no applications, so nothing is synced anywhere; app_add connects one"
 			return out, nil
 		}
-		dead := map[int]bool{}
+		dead := map[prowlarr.AppProfileID]bool{}
 		for _, p := range s.profiles {
 			if !boolv(p.EnableRss) && !boolv(p.EnableAutomaticSearch) && !boolv(p.EnableInteractiveSearch) {
 				dead[p.Id] = true
@@ -115,13 +115,13 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 		var tested map[int]testRow
 		if in.Test && len(s.apps) > 0 {
 			res, err := s.r.client.PostApplicationsTestAll(ctx)
-			results, err := testAllAnswer(res.HttpResponse, res.Model, err)
 			if err != nil {
 				return auditOut{}, err
 			}
+			results := res.Answer
 			tested = map[int]testRow{}
 			for _, row := range results {
-				tested[row.Id] = testResults([]prowlarr.ProviderTestAllResult{row}, nil)[0]
+				tested[row.Id] = testResults[int]([]prowlarr.ProviderTestAllResult{row}, nil)[0]
 			}
 		}
 		for a := range s.apps {
@@ -189,7 +189,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 			}
 			out.Scanned++
 			solved := slices.ContainsFunc(s.proxies, func(p prowlarr.IndexerProxyResource) bool {
-				return p.Implementation == "FlareSolverr" && slices.ContainsFunc(p.Tags, func(t int) bool { return slices.Contains(i.Tags, t) })
+				return p.Implementation == "FlareSolverr" && slices.ContainsFunc(p.Tags, func(t prowlarr.TagID) bool { return slices.Contains(i.Tags, t) })
 			})
 			if solved {
 				continue
@@ -206,20 +206,20 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 		var tested map[int]testRow
 		if in.Test && len(s.proxies) > 0 {
 			res, err := s.r.client.PostIndexerProxyTestAll(ctx)
-			results, err := testAllAnswer(res.HttpResponse, res.Model, err)
 			if err != nil {
 				return auditOut{}, err
 			}
+			results := res.Answer
 			tested = map[int]testRow{}
 			for _, row := range results {
-				tested[row.Id] = testResults([]prowlarr.ProviderTestAllResult{row}, nil)[0]
+				tested[row.Id] = testResults[int]([]prowlarr.ProviderTestAllResult{row}, nil)[0]
 			}
 		}
 		for _, p := range s.proxies {
 			out.Scanned++
 			users := 0
 			for _, i := range s.indexers {
-				if slices.ContainsFunc(p.Tags, func(t int) bool { return slices.Contains(i.Tags, t) }) {
+				if slices.ContainsFunc(p.Tags, func(t prowlarr.TagID) bool { return slices.Contains(i.Tags, t) }) {
 					users++
 				}
 			}
@@ -263,7 +263,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 		if err != nil {
 			return auditOut{}, err
 		}
-		clients := map[int]*prowlarr.DownloadClientResource{}
+		clients := map[prowlarr.DownloadClientID]*prowlarr.DownloadClientResource{}
 		for c := range s.clients {
 			clients[s.clients[c].Id] = &s.clients[c]
 		}
@@ -290,13 +290,13 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 		var tested map[int]testRow
 		if in.Test {
 			res, err := s.r.client.PostDownloadClientTestAll(ctx)
-			results, err := testAllAnswer(res.HttpResponse, res.Model, err)
 			if err != nil {
 				return auditOut{}, err
 			}
+			results := res.Answer
 			tested = map[int]testRow{}
 			for _, row := range results {
-				tested[row.Id] = testResults([]prowlarr.ProviderTestAllResult{row}, nil)[0]
+				tested[row.Id] = testResults[int]([]prowlarr.ProviderTestAllResult{row}, nil)[0]
 			}
 		}
 		for _, c := range s.clients {
@@ -317,7 +317,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 					Detail: "Prowlarr's health check: " + outsideSaid(h.Message), Fix: "downloadclient_test says why; downloadclient_edit its settings",
 				})
 			}
-			if tr, ok := tested[c.Id]; ok && !tr.OK {
+			if tr, ok := tested[int(c.Id)]; ok && !tr.OK {
 				out.report(finding{
 					Subject: c.Name, Kind: "download_client", Problem: "client_failing",
 					Detail: "its test fails: " + strings.Join(tr.Problems, "; "), Fix: "downloadclient_edit its settings, or enable=false",

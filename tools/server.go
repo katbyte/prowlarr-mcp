@@ -91,14 +91,14 @@ func registerServerTools(r *registry) {
 		if err != nil {
 			return nil, infoOut{}, err
 		}
-		s := st.Model
+		s := st.Answer
 		out := infoOut{
 			ProwlarrMCPVersion: version.Version,
 			Version:            s.Version, InstanceName: s.InstanceName, Branch: s.Branch,
 			OS:     strings.TrimSpace(s.OsName + " " + s.OsVersion),
-			Docker: boolv(s.IsDocker), Runtime: strings.TrimSpace(s.RuntimeName + " " + s.RuntimeVersion),
+			Docker: s.IsDocker, Runtime: strings.TrimSpace(s.RuntimeName + " " + s.RuntimeVersion),
 			Database: strings.TrimSpace(string(s.DatabaseType) + " " + s.DatabaseVersion),
-			URLBase:  s.UrlBase, Authentication: string(s.Authentication), StartTime: s.StartTime,
+			URLBase:  s.UrlBase, Authentication: string(s.Authentication), StartTime: shownTime(s.StartTime),
 			ByProtocol: map[string]int{},
 		}
 		if s.PackageAuthor != "" || s.PackageUpdateMechanism != "" {
@@ -127,22 +127,22 @@ func registerServerTools(r *registry) {
 		if err != nil {
 			return nil, infoOut{}, err
 		}
-		out.Applications = len(apps.Model)
+		out.Applications = len(apps.Answer)
 		dcs, err := pc.GetDownloadClient(ctx)
 		if err != nil {
 			return nil, infoOut{}, err
 		}
-		out.DownloadClients = len(dcs.Model)
+		out.DownloadClients = len(dcs.Answer)
 		proxies, err := pc.GetIndexerProxy(ctx)
 		if err != nil {
 			return nil, infoOut{}, err
 		}
-		out.Proxies = len(proxies.Model)
+		out.Proxies = len(proxies.Answer)
 		health, err := pc.GetHealth(ctx)
 		if err != nil {
 			return nil, infoOut{}, err
 		}
-		out.Health = projectHealth(health.Model)
+		out.Health = projectHealth(health.Answer)
 
 		return nil, out, nil
 	})
@@ -169,7 +169,7 @@ func registerServerTools(r *registry) {
 			return nil, healthOut{}, err
 		}
 
-		page, where := paged(projectHealth(res.Model), in.Limit, in.Offset, defaultLimit)
+		page, where := paged(projectHealth(res.Answer), in.Limit, in.Offset, defaultLimit)
 
 		return nil, healthOut{pageOut: where, Checks: page}, nil
 	})
@@ -194,12 +194,12 @@ func registerServerTools(r *registry) {
 		if err != nil {
 			return nil, tasksOut{}, err
 		}
-		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		page, where := paged(res.Answer, in.Limit, in.Offset, defaultLimit)
 		out := tasksOut{pageOut: where}
 		for _, t := range page {
 			out.Tasks = append(out.Tasks, taskRow{
 				Name: t.TaskName, Title: t.Name, IntervalMinutes: t.Interval,
-				LastRun: t.LastExecution, LastDuration: t.LastDuration, NextRun: t.NextExecution,
+				LastRun: shownTime(t.LastExecution), LastDuration: t.LastDuration, NextRun: shownTime(t.NextExecution),
 			})
 		}
 
@@ -218,9 +218,9 @@ func registerServerTools(r *registry) {
 		if err != nil {
 			return nil, commandOut{}, err
 		}
-		names := make([]string, 0, len(res.Model))
+		names := make([]string, 0, len(res.Answer))
 		name := ""
-		for _, t := range res.Model {
+		for _, t := range res.Answer {
 			if strings.EqualFold(t.TaskName, strings.TrimSpace(in.Name)) || strings.EqualFold(t.Name, strings.TrimSpace(in.Name)) {
 				name = t.TaskName
 			}
@@ -261,11 +261,11 @@ func registerServerTools(r *registry) {
 			return nil, logsOut{}, err
 		}
 		out := logsOut{}
-		for _, f := range app.Model {
-			out.Files = append(out.Files, logFile{Name: f.Filename, Kind: "app", Modified: f.LastWriteTime})
+		for _, f := range app.Answer {
+			out.Files = append(out.Files, logFile{Name: f.Filename, Kind: "app", Modified: shownTime(f.LastWriteTime)})
 		}
-		for _, f := range upd.Model {
-			out.Files = append(out.Files, logFile{Name: f.Filename, Kind: "update", Modified: f.LastWriteTime})
+		for _, f := range upd.Answer {
+			out.Files = append(out.Files, logFile{Name: f.Filename, Kind: "update", Modified: shownTime(f.LastWriteTime)})
 		}
 		slices.SortStableFunc(out.Files, func(a, b logFile) int { return strings.Compare(b.Modified, a.Modified) })
 		out.Files, out.pageOut = paged(out.Files, in.Limit, in.Offset, defaultLimit)
@@ -320,11 +320,11 @@ func registerServerTools(r *registry) {
 		// every page of the newest 4000 is read, so the count is of all that
 		// match and not only of the ones answered
 		for page := 1; page <= 20; page++ {
-			res, err := pc.GetLog(ctx, prowlarr.GetLogOperationOptions{Page: new(page), PageSize: new(200), SortKey: "time", SortDirection: prowlarr.SortDirectionDescending})
+			res, err := pc.GetLog(ctx, prowlarr.GetLogOptions{Page: new(page), PageSize: new(200), SortKey: "time", SortDirection: prowlarr.SortDirectionDescending})
 			if err != nil {
 				return nil, logOut{}, err
 			}
-			for _, e := range res.Model.Records {
+			for _, e := range res.Answer.Records {
 				if !wanted[strings.ToLower(e.Level)] {
 					continue
 				}
@@ -333,10 +333,10 @@ func registerServerTools(r *registry) {
 				}
 				out.Total++
 				if out.Total > offset && len(out.Entries) < limit {
-					out.Entries = append(out.Entries, logEntry{Time: e.Time, Level: e.Level, Logger: e.Logger, Message: outsideSaid(e.Message), Exception: outsideSaid(firstLine(e.Exception))})
+					out.Entries = append(out.Entries, logEntry{Time: shownTime(e.Time), Level: e.Level, Logger: e.Logger, Message: outsideSaid(e.Message), Exception: outsideSaid(firstLine(e.Exception))})
 				}
 			}
-			if len(res.Model.Records) < 200 {
+			if len(res.Answer.Records) < 200 {
 				break
 			}
 		}
@@ -370,7 +370,7 @@ func registerServerTools(r *registry) {
 		if err != nil {
 			return nil, updatesOut{}, err
 		}
-		out := updatesOut{Current: st.Model.Version, Mechanism: string(st.Model.PackageUpdateMechanism)}
+		out := updatesOut{Current: st.Answer.Version, Mechanism: string(st.Answer.PackageUpdateMechanism)}
 		res, err := pc.GetUpdate(ctx)
 		if err != nil {
 			// Prowlarr asks its update service on every read, and answers a
@@ -381,12 +381,12 @@ func registerServerTools(r *registry) {
 			}
 			return nil, updatesOut{}, err
 		}
-		for _, u := range res.Model {
-			row := updateRow{Version: u.Version, Released: u.ReleaseDate, Installed: boolv(u.Installed), Latest: boolv(u.Latest)}
+		for _, u := range res.Answer {
+			row := updateRow{Version: u.Version, Released: shownTime(u.ReleaseDate), Installed: u.Installed, Latest: u.Latest}
 			if u.Changes != nil {
 				row.New, row.Fixed = outsideLines(u.Changes.New), outsideLines(u.Changes.Fixed)
 			}
-			if row.Latest && !row.Installed && u.Version != st.Model.Version {
+			if row.Latest && !row.Installed && u.Version != st.Answer.Version {
 				out.UpdateAvailable = true
 			}
 			out.Updates = append(out.Updates, row)
@@ -399,15 +399,15 @@ func registerServerTools(r *registry) {
 
 // failingNow maps the indexers Prowlarr is holding back after failures to
 // their status: those it has disabled until a time still to come.
-func (r *registry) failingNow(ctx context.Context) (map[int]prowlarr.IndexerStatusResource, error) {
+func (r *registry) failingNow(ctx context.Context) (map[prowlarr.IndexerID]prowlarr.IndexerStatusResource, error) {
 	res, err := r.client.GetIndexerStatus(ctx)
 	if err != nil {
 		return nil, err
 	}
 	now := time.Now()
-	out := map[int]prowlarr.IndexerStatusResource{}
-	for _, s := range res.Model {
-		if t := parseTime(s.DisabledTill); !t.IsZero() && t.After(now) {
+	out := map[prowlarr.IndexerID]prowlarr.IndexerStatusResource{}
+	for _, s := range res.Answer {
+		if t := s.DisabledTill.Time; !t.IsZero() && t.After(now) {
 			out[s.IndexerId] = s
 		}
 	}
@@ -448,7 +448,7 @@ func (r *registry) logTail(ctx context.Context, name, contains string, limit int
 	}
 	var body io.ReadCloser
 	var names []string
-	for _, f := range app.Model {
+	for _, f := range app.Answer {
 		names = append(names, f.Filename)
 		if strings.EqualFold(f.Filename, name) && body == nil {
 			res, err := r.client.GetLogFileByFilename(ctx, f.Filename)
@@ -458,7 +458,7 @@ func (r *registry) logTail(ctx context.Context, name, contains string, limit int
 			body = res.HttpResponse.Body
 		}
 	}
-	for _, f := range upd.Model {
+	for _, f := range upd.Answer {
 		names = append(names, f.Filename)
 		if strings.EqualFold(f.Filename, name) && body == nil {
 			res, err := r.client.GetLogFileUpdateByFilename(ctx, f.Filename)

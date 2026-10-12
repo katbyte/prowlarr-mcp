@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/katbyte/pandorest/client"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
 
@@ -56,8 +57,14 @@ func parseTime(stamp string) time.Time {
 	return time.Time{}
 }
 
-// stampUTC renders a time the way Prowlarr takes one in a query.
-func stampUTC(t time.Time) string { return t.UTC().Format(time.RFC3339) }
+// shownTime is one of Prowlarr's dates as a tool answers it, "" when there is none.
+func shownTime(t prowlarr.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+
+	return t.UTC().Format(time.RFC3339)
+}
 
 // humanSize renders a byte count the way a person reads a release size.
 func humanSize(n int64) string {
@@ -351,42 +358,22 @@ func sortedKeys[V any](m map[string]V) []string {
 // Lookups ---------------------------------------------------------------------
 
 // named is a thing Prowlarr knows by id that a tool accepts by name.
-type named interface {
-	prowlarr.IndexerResource | prowlarr.ApplicationResource | prowlarr.AppProfileResource |
-		prowlarr.IndexerProxyResource | prowlarr.DownloadClientResource | prowlarr.NotificationResource
-}
-
-// nameAndID reads the name and id every named thing carries.
-func nameAndID[T named](x *T) (name string, id int) {
-	switch v := any(x).(type) {
-	case *prowlarr.IndexerResource:
-		return v.Name, v.Id
-	case *prowlarr.ApplicationResource:
-		return v.Name, v.Id
-	case *prowlarr.AppProfileResource:
-		return v.Name, v.Id
-	case *prowlarr.IndexerProxyResource:
-		return v.Name, v.Id
-	case *prowlarr.DownloadClientResource:
-		return v.Name, v.Id
-	case *prowlarr.NotificationResource:
-		return v.Name, v.Id
-	}
-
-	return "", 0
+type named[K ~int] interface {
+	GetName() string
+	GetId() K
 }
 
 // find picks one of a list by name (any case) or id, and otherwise answers an
 // error naming what there is: "no indexer "x" (have: a, b)".
-func find[T named](list []T, ref, kind string) (*T, error) {
+func find[K ~int, T named[K]](list []T, ref, kind string) (*T, error) {
 	ref = strings.TrimSpace(ref)
 	if ref == "" {
 		return nil, fmt.Errorf("name the %s", kind)
 	}
 	names := make([]string, 0, len(list))
 	for i := range list {
-		name, id := nameAndID(&list[i])
-		if strings.EqualFold(name, ref) || strconv.Itoa(id) == ref {
+		name := list[i].GetName()
+		if strings.EqualFold(name, ref) || strconv.Itoa(int(list[i].GetId())) == ref {
 			return &list[i], nil
 		}
 		names = append(names, name)
@@ -406,7 +393,7 @@ func (r *registry) indexers(ctx context.Context) ([]prowlarr.IndexerResource, er
 		return nil, err
 	}
 
-	return res.Model, nil
+	return res.Answer, nil
 }
 
 // resolveIndexer finds an indexer by name or id.
@@ -447,8 +434,8 @@ func (r *registry) resolveIndexers(ctx context.Context, refs []string) ([]prowla
 }
 
 // indexerNames maps indexer ids to names.
-func indexerNames(list []prowlarr.IndexerResource) map[int]string {
-	out := make(map[int]string, len(list))
+func indexerNames(list []prowlarr.IndexerResource) map[prowlarr.IndexerID]string {
+	out := make(map[prowlarr.IndexerID]string, len(list))
 	for _, i := range list {
 		out[i.Id] = i.Name
 	}
@@ -463,7 +450,7 @@ func (r *registry) resolveApp(ctx context.Context, ref string) (*prowlarr.Applic
 		return nil, err
 	}
 
-	return find(res.Model, ref, "application")
+	return find(res.Answer, ref, "application")
 }
 
 // resolveProfile finds a sync profile by name or id.
@@ -473,17 +460,17 @@ func (r *registry) resolveProfile(ctx context.Context, ref string) (*prowlarr.Ap
 		return nil, err
 	}
 
-	return find(res.Model, ref, "sync profile")
+	return find(res.Answer, ref, "sync profile")
 }
 
 // profileNames maps sync profile ids to names.
-func (r *registry) profileNames(ctx context.Context) (map[int]string, error) {
+func (r *registry) profileNames(ctx context.Context) (map[prowlarr.AppProfileID]string, error) {
 	res, err := r.client.GetAppProfile(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[int]string, len(res.Model))
-	for _, p := range res.Model {
+	out := make(map[prowlarr.AppProfileID]string, len(res.Answer))
+	for _, p := range res.Answer {
 		out[p.Id] = p.Name
 	}
 
@@ -497,19 +484,19 @@ func (r *registry) resolveDownloadClient(ctx context.Context, ref string) (*prow
 		return nil, err
 	}
 
-	return find(res.Model, ref, "download client")
+	return find(res.Answer, ref, "download client")
 }
 
 // Tags ----------------------------------------------------------------------
 
 // tagLabels maps tag ids to labels.
-func (r *registry) tagLabels(ctx context.Context) (map[int]string, error) {
+func (r *registry) tagLabels(ctx context.Context) (map[prowlarr.TagID]string, error) {
 	res, err := r.client.GetTag(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[int]string, len(res.Model))
-	for _, t := range res.Model {
+	out := make(map[prowlarr.TagID]string, len(res.Answer))
+	for _, t := range res.Answer {
 		out[t.Id] = t.Label
 	}
 
@@ -517,13 +504,13 @@ func (r *registry) tagLabels(ctx context.Context) (map[int]string, error) {
 }
 
 // labels names a list of tag ids, sorted.
-func labels(ids []int, byID map[int]string) []string {
+func labels(ids []prowlarr.TagID, byID map[prowlarr.TagID]string) []string {
 	out := make([]string, 0, len(ids))
 	for _, id := range ids {
 		if l, ok := byID[id]; ok {
 			out = append(out, l)
 		} else {
-			out = append(out, strconv.Itoa(id))
+			out = append(out, strconv.Itoa(int(id)))
 		}
 	}
 	slices.Sort(out)
@@ -534,28 +521,28 @@ func labels(ids []int, byID map[int]string) []string {
 // resolveTags turns tag labels into ids. A label Prowlarr does not have is
 // created when create is set, and an error naming the existing labels
 // otherwise. Prowlarr stores labels lower case, so matching ignores case.
-func (r *registry) resolveTags(ctx context.Context, refs []string, create bool) ([]int, error) {
+func (r *registry) resolveTags(ctx context.Context, refs []string, create bool) ([]prowlarr.TagID, error) {
 	res, err := r.client.GetTag(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := []int{}
+	out := []prowlarr.TagID{}
 	for _, ref := range refs {
 		ref = strings.TrimSpace(ref)
 		if ref == "" {
 			continue
 		}
-		id := 0
-		for _, t := range res.Model {
-			if strings.EqualFold(t.Label, ref) || strconv.Itoa(t.Id) == ref {
+		var id prowlarr.TagID
+		for _, t := range res.Answer {
+			if strings.EqualFold(t.Label, ref) || strconv.Itoa(int(t.Id)) == ref {
 				id = t.Id
 				break
 			}
 		}
 		if id == 0 {
 			if !create {
-				have := make([]string, 0, len(res.Model))
-				for _, t := range res.Model {
+				have := make([]string, 0, len(res.Answer))
+				for _, t := range res.Answer {
 					have = append(have, t.Label)
 				}
 				slices.Sort(have)
@@ -565,11 +552,11 @@ func (r *registry) resolveTags(ctx context.Context, refs []string, create bool) 
 			if err != nil {
 				return nil, fmt.Errorf("creating tag %q: %w", ref, err)
 			}
-			if made.Model == nil {
+			if made.Answer == nil {
 				return nil, fmt.Errorf("creating tag %q: %w", ref, errEmptyAnswer)
 			}
-			id = made.Model.Id
-			res.Model = append(res.Model, *made.Model)
+			id = made.Answer.Id
+			res.Answer = append(res.Answer, *made.Answer)
 		}
 		if !slices.Contains(out, id) {
 			out = append(out, id)
@@ -581,7 +568,7 @@ func (r *registry) resolveTags(ctx context.Context, refs []string, create bool) 
 
 // editTags applies a tag change: replace sets the list, add and remove edit
 // the one there is.
-func editTags(have, set, add, remove []int, replace bool) []int {
+func editTags(have, set, add, remove []prowlarr.TagID, replace bool) []prowlarr.TagID {
 	out := slices.Clone(have)
 	if replace {
 		out = slices.Clone(set)
@@ -591,9 +578,9 @@ func editTags(have, set, add, remove []int, replace bool) []int {
 			out = append(out, id)
 		}
 	}
-	out = slices.DeleteFunc(out, func(id int) bool { return slices.Contains(remove, id) })
+	out = slices.DeleteFunc(out, func(id prowlarr.TagID) bool { return slices.Contains(remove, id) })
 	if out == nil {
-		out = []int{}
+		out = []prowlarr.TagID{}
 	}
 	slices.Sort(out)
 
@@ -608,7 +595,7 @@ func editTags(have, set, add, remove []int, replace bool) []int {
 // hanging the session.
 const commandWait = 60 * time.Second
 
-// commandPoll is how often a running command is looked at.
+// commandPoll is how often a restarting Prowlarr is asked whether it is back.
 var commandPoll = 500 * time.Millisecond
 
 // commandOut is what a tool that ran a command reports about it.
@@ -630,7 +617,7 @@ func projectCommand(c *prowlarr.CommandResource) commandOut {
 
 	return commandOut{
 		ID: c.Id, Name: name, Status: string(c.Status), Message: outsideSaid(c.Message),
-		Started: c.Started, Ended: c.Ended, Duration: c.Duration,
+		Started: shownTime(c.Started), Ended: shownTime(c.Ended), Duration: c.Duration,
 	}
 }
 
@@ -648,36 +635,31 @@ func (r *registry) runCommand(ctx context.Context, name string, fields map[strin
 	if err != nil {
 		return commandOut{}, fmt.Errorf("queueing %s: %w", name, err)
 	}
-	cmd := res.Model
+	cmd := res.Answer
 	if wait <= 0 {
 		return projectCommand(cmd), nil
 	}
 
-	deadline := time.Now().Add(wait)
-	for !commandDone(cmd.Status) && time.Now().Before(deadline) {
-		select {
-		case <-ctx.Done():
-			return projectCommand(cmd), ctx.Err()
-		case <-time.After(commandPoll):
-		}
-		got, err := r.client.GetCommandById(ctx, cmd.Id)
-		if err != nil {
-			return projectCommand(cmd), fmt.Errorf("checking %s: %w", name, err)
-		}
-		cmd = got.Model
+	got, err := r.client.WaitForCommand(ctx, cmd.Id, wait)
+	if got.Answer != nil {
+		cmd = got.Answer
 	}
 	out := projectCommand(cmd)
-	switch cmd.Status {
-	case prowlarr.CommandStatusFailed, prowlarr.CommandStatusAborted, prowlarr.CommandStatusCancelled, prowlarr.CommandStatusOrphaned:
+
+	switch {
+	case err == nil, errors.Is(err, client.ErrCommandRunning):
+		return out, nil
+	case errors.Is(err, client.ErrCommandFailed):
+		// said again here, so what Prowlarr wrote is marked as its words and an exception is cut to its first line
 		msg := cmd.Message
 		if cmd.Exception != "" {
 			msg = strings.TrimSpace(msg + " " + firstLine(cmd.Exception))
 		}
+
 		return out, fmt.Errorf("%s %s: %s", name, cmd.Status, outsideSaid(msg))
 	default:
+		return out, fmt.Errorf("checking %s: %w", name, err)
 	}
-
-	return out, nil
 }
 
 // commandDone reports whether a command has stopped, one way or another.

@@ -5,9 +5,9 @@ package prowlarr
 // DevelopmentConfigResource is the "DevelopmentConfigResource" schema.
 type DevelopmentConfigResource struct {
 	ConsoleLogLevel    string `json:"consoleLogLevel"`
-	FilterSentryEvents *bool  `json:"filterSentryEvents,omitempty"`
+	FilterSentryEvents bool   `json:"filterSentryEvents"`
 	Id                 int    `json:"id"`
-	LogIndexerResponse *bool  `json:"logIndexerResponse,omitempty"`
+	LogIndexerResponse bool   `json:"logIndexerResponse"`
 	LogRotate          int    `json:"logRotate"`
-	LogSql             *bool  `json:"logSql,omitempty"`
+	LogSql             bool   `json:"logSql"`
 }

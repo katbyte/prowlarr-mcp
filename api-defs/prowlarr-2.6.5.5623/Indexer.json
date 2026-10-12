@@ -26,7 +26,8 @@
           "Name": "id",
           "Argument": "id",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         }
       ],
@@ -61,7 +62,8 @@
           "Name": "id",
           "Argument": "id",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         }
       ],
@@ -234,7 +236,8 @@
           "Name": "id",
           "Argument": "id",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         }
       ],
@@ -276,7 +279,8 @@
           "Name": "AppProfileId",
           "JsonName": "appProfileId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "AppProfileID"
           },
           "Nullable": true
         },
@@ -302,7 +306,8 @@
           "Type": {
             "Type": "List",
             "NestedItem": {
-              "Type": "Integer"
+              "Type": "ID",
+              "ReferenceName": "IndexerID"
             }
           },
           "Nullable": true
@@ -361,7 +366,8 @@
           "Type": {
             "Type": "List",
             "NestedItem": {
-              "Type": "Integer"
+              "Type": "ID",
+              "ReferenceName": "TagID"
             }
           },
           "Nullable": true
@@ -484,14 +490,15 @@
           "Name": "Added",
           "JsonName": "added",
           "Type": {
-            "Type": "String"
+            "Type": "DateTime"
           }
         },
         {
           "Name": "AppProfileId",
           "JsonName": "appProfileId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "AppProfileID"
           }
         },
         {
@@ -530,7 +537,8 @@
           "Name": "DownloadClientId",
           "JsonName": "downloadClientId",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "DownloadClientID"
           }
         },
         {
@@ -564,7 +572,8 @@
           "Name": "Id",
           "JsonName": "id",
           "Type": {
-            "Type": "Integer"
+            "Type": "ID",
+            "ReferenceName": "IndexerID"
           }
         },
         {
@@ -729,7 +738,8 @@
           "Type": {
             "Type": "List",
             "NestedItem": {
-              "Type": "Integer"
+              "Type": "ID",
+              "ReferenceName": "TagID"
             }
           },
           "Nullable": true

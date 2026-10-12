@@ -571,7 +571,7 @@ func TestAuditHealth(t *testing.T) {
 	})
 	if !named {
 		held, heldErr := sdk.GetIndexerStatus(suite.Ctx)
-		t.Fatalf("a failing indexer does not raise Prowlarr's indexer check: %q; the search answered %v, %v; Prowlarr holds back %+v, %v; health: %v", detail, searched["by_indexer"], searchErr, held.Model, heldErr, findings(t, suite.Call(t, "audit_health", nil)))
+		t.Fatalf("a failing indexer does not raise Prowlarr's indexer check: %q; the search answered %v, %v; Prowlarr holds back %+v, %v; health: %v", detail, searched["by_indexer"], searchErr, held.Answer, heldErr, findings(t, suite.Call(t, "audit_health", nil)))
 	}
 	retire(t, idxRevoked)
 	suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})

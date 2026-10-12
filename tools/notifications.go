@@ -85,7 +85,7 @@ func sendError(what string, err error) error {
 	return err
 }
 
-func projectNotification(n *prowlarr.NotificationResource, tags map[int]string) notificationRow {
+func projectNotification(n *prowlarr.NotificationResource, tags map[prowlarr.TagID]string) notificationRow {
 	row := notificationRow{ID: n.Id, Name: n.Name, Kind: n.Implementation, On: sentFor(n), HealthWarnings: boolv(n.IncludeHealthWarnings), ManualGrabs: boolv(n.IncludeManualGrabs), Tags: labels(n.Tags, tags)}
 	row.Settings, row.SecretsSet = settings(n.Fields)
 
@@ -111,7 +111,7 @@ func registerNotificationTools(r *registry) {
 		if err != nil {
 			return nil, listOut{}, err
 		}
-		page, where := paged(res.Model, in.Limit, in.Offset, defaultLimit)
+		page, where := paged(res.Answer, in.Limit, in.Offset, defaultLimit)
 		out := listOut{pageOut: where}
 		for i := range page {
 			out.Notifications = append(out.Notifications, projectNotification(&page[i], tags))
@@ -139,12 +139,12 @@ func registerNotificationTools(r *registry) {
 			return nil, notificationRow{}, err
 		}
 		var n *prowlarr.NotificationResource
-		kinds := make([]string, 0, len(schema.Model))
-		for i := range schema.Model {
-			if strings.EqualFold(schema.Model[i].Implementation, in.Kind) {
-				n = &schema.Model[i]
+		kinds := make([]string, 0, len(schema.Answer))
+		for i := range schema.Answer {
+			if strings.EqualFold(schema.Answer[i].Implementation, in.Kind) {
+				n = &schema.Answer[i]
 			}
-			kinds = append(kinds, schema.Model[i].Implementation)
+			kinds = append(kinds, schema.Answer[i].Implementation)
 		}
 		if n == nil {
 			slices.Sort(kinds)
@@ -181,13 +181,13 @@ func registerNotificationTools(r *registry) {
 		made, err := forcedAdd(in.Force,
 			func(on bool) { _ = sendFor(n, in.On, on) },
 			func() (*prowlarr.NotificationResource, error) {
-				res, addErr := pc.PostNotification(ctx, *n, prowlarr.PostNotificationOperationOptions{ForceSave: new(in.Force)})
-				return res.Model, addErr
+				res, addErr := pc.PostNotification(ctx, *n, in.Force)
+				return res.Answer, addErr
 			},
 			func(created *prowlarr.NotificationResource) (*prowlarr.NotificationResource, error) {
 				n.Id = created.Id
-				res, saveErr := pc.PutNotificationById(ctx, created.Id, *n, prowlarr.PutNotificationByIdOperationOptions{ForceSave: new(true)})
-				return res.Model, saveErr
+				res, saveErr := pc.PutNotificationById(ctx, created.Id, *n, true)
+				return res.Answer, saveErr
 			})
 		if err != nil {
 			return nil, notificationRow{}, sendError("the notification", err)
@@ -222,7 +222,7 @@ func registerNotificationTools(r *registry) {
 		if err != nil {
 			return nil, notificationRow{}, err
 		}
-		found, err := find(all.Model, in.Notification, "notification")
+		found, err := find(all.Answer, in.Notification, "notification")
 		if err != nil {
 			return nil, notificationRow{}, err
 		}
@@ -236,7 +236,7 @@ func registerNotificationTools(r *registry) {
 		if err != nil {
 			return nil, notificationRow{}, err
 		}
-		n := read.Model
+		n := read.Answer
 		if n == nil {
 			return nil, notificationRow{}, errEmptyAnswer
 		}
@@ -272,7 +272,7 @@ func registerNotificationTools(r *registry) {
 			return nil, notificationRow{}, err
 		}
 		if in.Tags != nil || in.AddTags != nil || in.RemoveTags != nil {
-			var set, addIDs, removeIDs []int
+			var set, addIDs, removeIDs []prowlarr.TagID
 			if set, err = r.resolveTags(ctx, in.Tags, true); err != nil {
 				return nil, notificationRow{}, err
 			}
@@ -285,7 +285,7 @@ func registerNotificationTools(r *registry) {
 			n.Tags = editTags(n.Tags, set, addIDs, removeIDs, in.Tags != nil)
 		}
 
-		res, err := pc.PutNotificationById(ctx, n.Id, *n, prowlarr.PutNotificationByIdOperationOptions{ForceSave: new(in.Force)})
+		res, err := pc.PutNotificationById(ctx, n.Id, *n, in.Force)
 		if err != nil {
 			return nil, notificationRow{}, sendError(n.Name, err)
 		}
@@ -294,7 +294,7 @@ func registerNotificationTools(r *registry) {
 			return nil, notificationRow{}, err
 		}
 
-		return nil, projectNotification(res.Model, tags), nil
+		return nil, projectNotification(res.Answer, tags), nil
 	})
 
 	type testOut struct {
@@ -312,16 +312,15 @@ func registerNotificationTools(r *registry) {
 			return nil, testOut{}, err
 		}
 		names := map[int]string{}
-		for _, n := range res.Model {
+		for _, n := range res.Answer {
 			names[n.Id] = n.Name
 		}
 		test := func(n *prowlarr.NotificationResource) (testRow, error) { return testNotification(ctx, pc, n) }
 
 		if in.Notification == "" {
 			all, allErr := pc.PostNotificationTestAll(ctx)
-			results, allErr := testAllAnswer(all.HttpResponse, all.Model, allErr)
 			if client.StatusCode(allErr) < http.StatusInternalServerError {
-				return nil, testOut{Results: testResults(results, names)}, allErr
+				return nil, testOut{Results: testResults(all.Answer, names)}, allErr
 			}
 
 			// one that cannot be sent fails the test of them all with a 500
@@ -329,11 +328,11 @@ func registerNotificationTools(r *registry) {
 			// is tested by itself: the ones sent for something, which are
 			// the ones the test of them all tests
 			rows := []testRow{}
-			for i := range res.Model {
-				if len(sentFor(&res.Model[i])) == 0 {
+			for i := range res.Answer {
+				if len(sentFor(&res.Answer[i])) == 0 {
 					continue
 				}
-				row, testErr := test(&res.Model[i])
+				row, testErr := test(&res.Answer[i])
 				if testErr != nil {
 					return nil, testOut{}, testErr
 				}
@@ -343,7 +342,7 @@ func registerNotificationTools(r *registry) {
 
 			return nil, testOut{Results: rows}, nil
 		}
-		n, err := find(res.Model, in.Notification, "notification")
+		n, err := find(res.Answer, in.Notification, "notification")
 		if err != nil {
 			return nil, testOut{}, err
 		}
@@ -364,7 +363,7 @@ func registerNotificationTools(r *registry) {
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
-		n, err := find(all.Model, in.Notification, "notification")
+		n, err := find(all.Answer, in.Notification, "notification")
 		if err != nil {
 			return nil, deletedOut{}, err
 		}
@@ -386,7 +385,7 @@ func registerNotificationTools(r *registry) {
 // be sent answers a 500 with why, where the other providers answer a 400: it
 // is the test that failed, not the asking.
 func testNotification(ctx context.Context, pc *prowlarr.Client, n *prowlarr.NotificationResource) (testRow, error) {
-	_, err := pc.PostNotificationTest(ctx, *n, prowlarr.PostNotificationTestOperationOptions{ForceTest: new(true)})
+	_, err := pc.PostNotificationTest(ctx, *n, true)
 	row, err := testOne(n.Name, err)
 	if client.StatusCode(err) >= http.StatusInternalServerError {
 		row.Problems = outsideLines(client.Messages(err))
