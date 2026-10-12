@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package integration
+package prowlarr_test
 
 import (
 	"net/http"
@@ -24,7 +24,7 @@ func TestReadSweep(t *testing.T) {
 	need(t)
 
 	// the definitions the SDK was generated from: the highest release checked in
-	at, err := config.Service{Name: "prowlarr"}.In("..").Resolve()
+	at, err := config.Service{Name: "prowlarr"}.In("../..").Resolve()
 	if err != nil {
 		t.Fatal(err)
 	}

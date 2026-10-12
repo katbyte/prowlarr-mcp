@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package integration
+package prowlarr_test
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -82,13 +81,13 @@ func runSuite(m *testing.M) int {
 	}
 	proxy = p
 	if err := start(); err != nil {
-		fmt.Fprintln(os.Stderr, "integration setup:", err)
+		fmt.Fprintln(os.Stderr, "acceptance/prowlarr setup:", err)
 		stop()
 		return 1
 	}
 	code := m.Run()
 	if err := cleanup(); err != nil {
-		fmt.Fprintln(os.Stderr, "integration cleanup:", err)
+		fmt.Fprintln(os.Stderr, "acceptance/prowlarr cleanup:", err)
 		if code == 0 {
 			code = 1
 		}
@@ -213,9 +212,9 @@ func seed() error {
 		idx.Name, idx.Enable, idx.AppProfileId, idx.Tags, idx.Presets = s.name, new(true), fx.profile, []int{fx.tag}, nil
 		setField(idx.Fields, "baseUrl", sites.Indexer(s.site).URL())
 		setField(idx.Fields, "apiKey", siteKey)
-		made, err := sdk.PostIndexer(ctx, idx, prowlarr.PostIndexerOperationOptions{})
-		if err != nil {
-			return fmt.Errorf("%s: %w", s.name, err)
+		made, postErr := sdk.PostIndexer(ctx, idx, prowlarr.PostIndexerOperationOptions{})
+		if postErr != nil {
+			return fmt.Errorf("%s: %w", s.name, postErr)
 		}
 		*s.id = made.Model.Id
 	}
@@ -377,6 +376,13 @@ func checkHealth() error {
 	return nil
 }
 
-func contains(haystack, needle string) bool {
-	return strings.Contains(strings.ToLower(haystack), strings.ToLower(needle))
+// model is the answer behind p, failing the test when the server sent none.
+func model[T any](t *testing.T, p *T) T {
+	t.Helper()
+
+	if p == nil {
+		t.Fatal("the answer from Prowlarr had nothing in it")
+	}
+
+	return *p
 }

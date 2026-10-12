@@ -1,21 +1,22 @@
-//go:build integration
+//go:build acceptance
 
-package acceptance
+package tools_test
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
 
-	acc "github.com/katbyte/go-kt/mcp/acctest"
+	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/prowlarr-mcp/internal/fakes/servarr"
 )
 
 func appRow(t *testing.T, name string) map[string]any {
 	t.Helper()
 
-	for _, row := range acc.Rows(t, suite.Call(t, "app_list", nil)["apps"], "apps") {
-		if acc.Str(row["name"]) == name {
+	for _, row := range acctest.Rows(t, suite.Call(t, "app_list", nil)["apps"], "apps") {
+		if acctest.Str(row["name"]) == name {
 			return row
 		}
 	}
@@ -26,46 +27,46 @@ func appRow(t *testing.T, name string) map[string]any {
 
 func TestAppList(t *testing.T) {
 	sonarr := appRow(t, appSonarr)
-	if acc.Str(sonarr["kind"]) != "Sonarr" || acc.Str(sonarr["sync_level"]) != "fullSync" || acc.Str(sonarr["base_url"]) != appsUp.URL("sonarr") ||
-		!strings.Contains(acc.Str(sonarr["sync_categories"]), "5000") || len(acc.Strs(t, sonarr["tags"], "tags")) != 0 {
+	if acctest.Str(sonarr["kind"]) != "Sonarr" || acctest.Str(sonarr["sync_level"]) != "fullSync" || acctest.Str(sonarr["base_url"]) != appsUp.URL("sonarr") ||
+		!strings.Contains(acctest.Str(sonarr["sync_categories"]), "5000") || len(acctest.Strs(t, sonarr["tags"], "tags")) != 0 {
 		t.Errorf("%s = %v", appSonarr, sonarr)
 	}
 	radarr := appRow(t, appRadarr)
 	// Radarr takes only the indexers tagged movies
-	if acc.Num(t, radarr["indexers_synced"], "indexers_synced") != 2 {
+	if acctest.Num(t, radarr["indexers_synced"], "indexers_synced") != 2 {
 		t.Errorf("%s receives %v indexers, want the two tagged %s", appRadarr, radarr["indexers_synced"], tagMovies)
 	}
-	if acc.Num(t, appRow(t, appLidarr)["indexers_synced"], "indexers_synced") != 0 {
+	if acctest.Num(t, appRow(t, appLidarr)["indexers_synced"], "indexers_synced") != 0 {
 		t.Errorf("%s receives indexers, but no indexer carries its tag", appLidarr)
 	}
 }
 
 func TestAppGet(t *testing.T) {
 	out := suite.Call(t, "app_get", map[string]any{"app": appRadarr})
-	if got := acc.Strs(t, out["synced"], "synced"); !slices.Equal(got, []string{idxTorrent, idxUsenet}) {
+	if got := acctest.Strs(t, out["synced"], "synced"); !slices.Equal(got, []string{idxTorrent, idxUsenet}) {
 		t.Errorf("%s receives %v", appRadarr, got)
 	}
 	skipped := map[string]string{}
-	for _, s := range acc.Rows(t, out["skipped"], "skipped") {
-		skipped[acc.Str(s["indexer"])] = acc.Str(s["rule"])
+	for _, s := range acctest.Rows(t, out["skipped"], "skipped") {
+		skipped[acctest.Str(s["indexer"])] = acctest.Str(s["rule"])
 	}
 	if skipped[idxAnime] != "no_shared_tag" || skipped[idxTorrentCopy] != "no_shared_tag" {
 		t.Errorf("skipped = %v", skipped)
 	}
 	// the API key is named, never shown
-	if _, shown := acc.Object(t, out["settings"], "settings")["apiKey"]; shown || !slices.Contains(acc.Strs(t, out["secrets_set"], "secrets_set"), "apiKey") {
+	if _, shown := acctest.Object(t, out["settings"], "settings")["apiKey"]; shown || !slices.Contains(acctest.Strs(t, out["secrets_set"], "secrets_set"), "apiKey") {
 		t.Errorf("settings %v, secrets_set %v", out["settings"], out["secrets_set"])
 	}
 
 	// Sonarr takes every indexer carrying TV, and the anime one by its anime
 	// categories; not the music one
 	out = suite.Call(t, "app_get", map[string]any{"app": appSonarr})
-	got := acc.Strs(t, out["synced"], "synced")
+	got := acctest.Strs(t, out["synced"], "synced")
 	if !slices.Contains(got, idxAnime) || slices.Contains(got, idxMusic) {
 		t.Errorf("%s receives %v", appSonarr, got)
 	}
-	for _, s := range acc.Rows(t, out["skipped"], "skipped") {
-		if acc.Str(s["indexer"]) == idxMusic && acc.Str(s["rule"]) != "no_shared_category" {
+	for _, s := range acctest.Rows(t, out["skipped"], "skipped") {
+		if acctest.Str(s["indexer"]) == idxMusic && acctest.Str(s["rule"]) != "no_shared_category" {
 			t.Errorf("the music indexer is skipped for %v", s)
 		}
 	}
@@ -76,16 +77,16 @@ func TestAppGet(t *testing.T) {
 // rules the tools work sync out by are Prowlarr's.
 func TestAppSyncMatchesWhatArrives(t *testing.T) {
 	out := suite.Call(t, "app_sync", map[string]any{"force": true})
-	if st := acc.Str(acc.Object(t, out["command"], "command")["status"]); st != "completed" {
+	if st := acctest.Str(acctest.Object(t, out["command"], "command")["status"]); st != "completed" {
 		t.Fatalf("sync = %v", out["command"])
 	}
 	for _, app := range []struct{ name, fake string }{{appSonarr, "sonarr"}, {appRadarr, "radarr"}} {
 		detail := suite.Call(t, "app_get", map[string]any{"app": app.name})
-		want, held := acc.Strs(t, detail["synced"], "synced"), acc.Strs(t, detail["held_back"], "held_back")
+		want, held := acctest.Strs(t, detail["synced"], "synced"), acctest.Strs(t, detail["held_back"], "held_back")
 		var got []string
 		// a held-back indexer stays where it already is, and is not added
 		// anywhere new until it recovers, so it may or may not be there
-		ok := acc.EventuallyWithin(patience, func() bool {
+		ok := acctest.EventuallyWithin(patience, func() bool {
 			got = got[:0]
 			for _, i := range appsUp.Indexers(app.fake) {
 				got = append(got, strings.TrimSuffix(i.Name, " (Prowlarr)"))
@@ -104,7 +105,7 @@ func TestAppSyncMatchesWhatArrives(t *testing.T) {
 	}
 	// what Prowlarr wrote into them: its own address, and the categories
 	for _, i := range appsUp.Indexers("radarr") {
-		if base, _ := i.Value("baseUrl").(string); !strings.HasPrefix(base, "http://localhost:9696/") {
+		if base := fmt.Sprint(i.Value("baseUrl")); !strings.HasPrefix(base, "http://localhost:9696/") {
 			t.Errorf("%s in Radarr points at %v", i.Name, i.Value("baseUrl"))
 		}
 		if cats := i.Categories(); len(cats) == 0 || slices.ContainsFunc(cats, func(c int) bool { return c < 2000 || c >= 3000 }) {
@@ -114,13 +115,13 @@ func TestAppSyncMatchesWhatArrives(t *testing.T) {
 }
 
 func TestAppTest(t *testing.T) {
-	res := acc.Rows(t, suite.Call(t, "app_test", map[string]any{"app": appSonarr})["results"], "results")
+	res := acctest.Rows(t, suite.Call(t, "app_test", map[string]any{"app": appSonarr})["results"], "results")
 	if len(res) != 1 || res[0]["ok"] != true {
 		t.Errorf("testing Sonarr = %v", res)
 	}
 	byName := map[string]bool{}
-	for _, r := range acc.Rows(t, suite.Call(t, "app_test", nil)["results"], "results") {
-		byName[acc.Str(r["name"])] = r["ok"] == true
+	for _, r := range acctest.Rows(t, suite.Call(t, "app_test", nil)["results"], "results") {
+		byName[acctest.Str(r["name"])] = r["ok"] == true
 	}
 	if !byName[appRadarr] || byName[appLidarr] {
 		t.Errorf("testing every application = %v", byName)
@@ -133,7 +134,7 @@ func TestAppTest(t *testing.T) {
 
 func TestAppEdit(t *testing.T) {
 	out := suite.Call(t, "app_edit", map[string]any{"app": appRadarr, "sync_categories": []int{2000, 2040}})
-	if got := acc.Str(acc.Object(t, out["app"], "app")["sync_categories"]); got != "2000, 2040" {
+	if got := acctest.Str(acctest.Object(t, out["app"], "app")["sync_categories"]); got != "2000, 2040" {
 		t.Errorf("sync categories = %q", got)
 	}
 	t.Cleanup(func() {
@@ -146,7 +147,7 @@ func TestAppEdit(t *testing.T) {
 	// carrying films
 	suite.Call(t, "app_edit", map[string]any{"app": appRadarr, "tags": []string{}})
 	t.Cleanup(func() { _, _ = suite.Invoke("app_edit", map[string]any{"app": appRadarr, "tags": []string{tagMovies}}) })
-	if n := acc.Num(t, appRow(t, appRadarr)["indexers_synced"], "indexers_synced"); n <= 2 {
+	if n := acctest.Num(t, appRow(t, appRadarr)["indexers_synced"], "indexers_synced"); n <= 2 {
 		t.Errorf("with no tags Radarr receives %d indexers, want more than the two tagged", n)
 	}
 }
@@ -156,13 +157,13 @@ func TestAppAddAndDelete(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := suite.Call(t, "app_add", map[string]any{"kind": "Readarr", "name": "Books", "base_url": appsUp.URL("readarr"), "api_key": "readarrkey"})
-	row := acc.Object(t, out["app"], "app")
-	if acc.Str(row["kind"]) != "Readarr" || acc.Str(row["name"]) != "Books" || acc.Str(row["sync_level"]) != "fullSync" {
+	row := acctest.Object(t, out["app"], "app")
+	if acctest.Str(row["kind"]) != "Readarr" || acctest.Str(row["name"]) != "Books" || acctest.Str(row["sync_level"]) != "fullSync" {
 		t.Errorf("added = %v", row)
 	}
 	// it was not given the address it reaches Prowlarr by, so it was given
 	// the one the tools use, and told that it may be wrong
-	if !strings.Contains(acc.Str(out["next"]), "prowlarr_url") {
+	if !strings.Contains(acctest.Str(out["next"]), "prowlarr_url") {
 		t.Errorf("next = %q, want the warning about a local address", out["next"])
 	}
 	// a wrong key fails the test and is refused
@@ -172,7 +173,7 @@ func TestAppAddAndDelete(t *testing.T) {
 	if msg := suite.CallErr(t, "app_add", map[string]any{"kind": "Plex", "base_url": "http://x", "api_key": "k"}); !strings.Contains(msg, "Sonarr") {
 		t.Errorf("an unknown kind = %q", msg)
 	}
-	if got := suite.Call(t, "app_delete", map[string]any{"app": "Books", "confirm": true}); acc.Str(got["deleted"]) != "Books" {
+	if got := suite.Call(t, "app_delete", map[string]any{"app": "Books", "confirm": true}); acctest.Str(got["deleted"]) != "Books" {
 		t.Errorf("deleted = %v", got)
 	}
 }
@@ -180,27 +181,27 @@ func TestAppAddAndDelete(t *testing.T) {
 func TestProfiles(t *testing.T) {
 	out := suite.Call(t, "profile_list", nil)
 	byName := map[string]map[string]any{}
-	for _, p := range acc.Rows(t, out["profiles"], "profiles") {
-		byName[acc.Str(p["name"])] = p
+	for _, p := range acctest.Rows(t, out["profiles"], "profiles") {
+		byName[acctest.Str(p["name"])] = p
 	}
 	std, nothing := byName["Standard"], byName[profileNothing]
-	if std == nil || std["rss"] != true || !slices.Contains(acc.Strs(t, std["indexers"], "indexers"), idxUsenet) {
+	if std == nil || std["rss"] != true || !slices.Contains(acctest.Strs(t, std["indexers"], "indexers"), idxUsenet) {
 		t.Errorf("Standard = %v", std)
 	}
-	if nothing == nil || nothing["rss"] != false || nothing["automatic_search"] != false || !slices.Contains(acc.Strs(t, nothing["indexers"], "indexers"), idxAnime) {
+	if nothing == nil || nothing["rss"] != false || nothing["automatic_search"] != false || !slices.Contains(acctest.Strs(t, nothing["indexers"], "indexers"), idxAnime) {
 		t.Errorf("%s = %v", profileNothing, nothing)
 	}
 
 	edited := suite.Call(t, "profile_edit", map[string]any{"profile": profileSpare, "minimum_seeders": 5, "interactive_search": false})
-	if acc.Num(t, edited["minimum_seeders"], "minimum_seeders") != 5 || edited["interactive_search"] != false || edited["rss"] != true {
+	if acctest.Num(t, edited["minimum_seeders"], "minimum_seeders") != 5 || edited["interactive_search"] != false || edited["rss"] != true {
 		t.Errorf("edited = %v", edited)
 	}
 
 	made := suite.Call(t, "profile_create", map[string]any{"name": "Temporary"})
-	if made["rss"] != true || acc.Num(t, made["minimum_seeders"], "minimum_seeders") != 1 {
+	if made["rss"] != true || acctest.Num(t, made["minimum_seeders"], "minimum_seeders") != 1 {
 		t.Errorf("created = %v", made)
 	}
-	if got := suite.Call(t, "profile_delete", map[string]any{"profile": "Temporary", "confirm": true}); acc.Str(got["deleted"]) != "Temporary" {
+	if got := suite.Call(t, "profile_delete", map[string]any{"profile": "Temporary", "confirm": true}); acctest.Str(got["deleted"]) != "Temporary" {
 		t.Errorf("deleted = %v", got)
 	}
 	// one in use is refused, naming who uses it

@@ -14,11 +14,10 @@ on:
       - 'scripts/testenv.sh'
       - 'scripts/testdata/**'
       - 'acceptance/**'
-      - 'integration/**'
       # sdk/pandorest's tests re-import the spec and regenerate the SDK,
       # failing when the definitions in api-defs/ or sdk/prowlarr is stale
       - 'api-defs/**'
-      - '.github/workflows/pr-integration.yaml'
+      - '.github/workflows/pr-tests.yaml'
   workflow_dispatch:
 
 permissions:
@@ -41,8 +40,8 @@ jobs:
 
   # one job per suite, so a failure names which layer broke: the client's view
   # of the API, or the tools' behaviour on top of it
-  integration:
-    name: integration (sdk/prowlarr against a real Prowlarr)
+  acceptance-sdk:
+    name: acceptance (sdk/prowlarr against a real Prowlarr)
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -58,16 +57,16 @@ jobs:
       # applications are fakes the suite runs on the host, and the container
       # has no internet, so this needs no network beyond the image.
       - name: Run the SDK suite
-        run: make testacc-integration
+        run: make testacc-sdk
 
       - name: Tear down
         if: always()
         run: |
-          PROWLARR_TEST_CONTAINER=prowlarr-mcp-integration \
-            PROWLARR_TEST_DATA="$HOME/.cache/prowlarr-mcp/testenv/integration" \
+          PROWLARR_TEST_CONTAINER=prowlarr-mcp-sdk \
+            PROWLARR_TEST_DATA="$HOME/.cache/prowlarr-mcp/testenv/sdk" \
             scripts/testenv.sh down || true
 
-  acceptance:
+  acceptance-tools:
     name: acceptance (tools against a real Prowlarr)
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -80,11 +79,11 @@ jobs:
           go-version-file: ./.go-version
 
       - name: Run the tool suite
-        run: make testacc-acceptance
+        run: make testacc-tools
 
       - name: Tear down
         if: always()
         run: |
-          PROWLARR_TEST_CONTAINER=prowlarr-mcp-acceptance \
-            PROWLARR_TEST_DATA="$HOME/.cache/prowlarr-mcp/testenv/acceptance" \
+          PROWLARR_TEST_CONTAINER=prowlarr-mcp-tools \
+            PROWLARR_TEST_DATA="$HOME/.cache/prowlarr-mcp/testenv/tools" \
             scripts/testenv.sh down || true

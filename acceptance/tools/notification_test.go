@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package acceptance
+package tools_test
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"sync"
 	"testing"
 
-	acc "github.com/katbyte/go-kt/mcp/acctest"
+	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/prowlarr-mcp/lib/testenv"
 )
 
@@ -37,14 +37,18 @@ func newHook(t *testing.T) *hook {
 	if err != nil {
 		t.Fatal(err)
 	}
-	port := ln.Addr().(*net.TCPAddr).Port //nolint:forcetypeassert,revive // a TCP listener's address is a TCP address
-	h := &hook{url: "http://" + net.JoinHostPort(testenv.Host(), strconv.Itoa(port)) + "/hook"}
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		t.Fatalf("the listener's address is a %T, not a TCP address", ln.Addr())
+	}
+
+	h := &hook{url: "http://" + net.JoinHostPort(testenv.Host(), strconv.Itoa(addr.Port)) + "/hook"}
 	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { //nolint:gosec // a test server on the host for the length of one test
 		raw, _ := io.ReadAll(r.Body)
 		var body map[string]any
 		_ = json.Unmarshal(raw, &body)
 		h.mu.Lock()
-		h.events = append(h.events, acc.Str(body["eventType"]))
+		h.events = append(h.events, acctest.Str(body["eventType"]))
 		h.bodies = append(h.bodies, body)
 		h.mu.Unlock()
 		w.WriteHeader(http.StatusOK)
@@ -69,10 +73,10 @@ func (h *hook) got() []string {
 // it is told to send those.
 func TestNotifications(t *testing.T) {
 	// none are set up; the listing and the test of every one still answer
-	if got := acc.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications"); len(got) != 0 {
+	if got := acctest.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications"); len(got) != 0 {
 		t.Fatalf("notifications = %v", got)
 	}
-	if got := acc.Rows(t, suite.Call(t, "notification_test", nil)["results"], "results"); len(got) != 0 {
+	if got := acctest.Rows(t, suite.Call(t, "notification_test", nil)["results"], "results"); len(got) != 0 {
 		t.Errorf("testing none = %v", got)
 	}
 	if msg := suite.CallErr(t, "notification_test", map[string]any{"notification": "Discord"}); !strings.Contains(msg, "has none") {
@@ -86,21 +90,21 @@ func TestNotifications(t *testing.T) {
 
 	// Prowlarr sends a test through it before it saves it
 	made := suite.Call(t, "notification_add", map[string]any{"kind": "webhook", "name": name, "on": []string{"health_issue"}, "settings": map[string]any{"url": h.url}})
-	if acc.Str(made["kind"]) != "Webhook" || !slices.Equal(acc.Strs(t, made["on"], "on"), []string{"health_issue"}) || acc.IsBool(made["manual_grabs"], true) {
+	if acctest.Str(made["kind"]) != "Webhook" || !slices.Equal(acctest.Strs(t, made["on"], "on"), []string{"health_issue"}) || acctest.IsBool(made["manual_grabs"], true) {
 		t.Errorf("added = %v", made)
 	}
 	if got := h.got(); !slices.Equal(got, []string{"Test"}) {
 		t.Errorf("adding it sent %v, want the one test", got)
 	}
-	listed := acc.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications")
-	if len(listed) != 1 || acc.Str(listed[0]["name"]) != name || acc.Object(t, listed[0]["settings"], "settings")["url"] != h.url {
+	listed := acctest.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications")
+	if len(listed) != 1 || acctest.Str(listed[0]["name"]) != name || acctest.Object(t, listed[0]["settings"], "settings")["url"] != h.url {
 		t.Errorf("listed = %v", listed)
 	}
 
 	// tested by name, and with every other one
 	for _, args := range []map[string]any{{"notification": name}, nil} {
-		res := acc.Rows(t, suite.Call(t, "notification_test", args)["results"], "results")
-		if len(res) != 1 || !acc.IsBool(res[0]["ok"], true) {
+		res := acctest.Rows(t, suite.Call(t, "notification_test", args)["results"], "results")
+		if len(res) != 1 || !acctest.IsBool(res[0]["ok"], true) {
 			t.Errorf("notification_test %v = %v", args, res)
 		}
 	}
@@ -110,17 +114,17 @@ func TestNotifications(t *testing.T) {
 
 	// renamed, and sent for grabs as well, Prowlarr's own included
 	edited := suite.Call(t, "notification_edit", map[string]any{"notification": name, "name": renamed, "add_on": []string{"grab"}, "manual_grabs": true})
-	if acc.Str(edited["name"]) != renamed || !slices.Equal(acc.Strs(t, edited["on"], "on"), []string{"grab", "health_issue"}) || !acc.IsBool(edited["manual_grabs"], true) {
+	if acctest.Str(edited["name"]) != renamed || !slices.Equal(acctest.Strs(t, edited["on"], "on"), []string{"grab", "health_issue"}) || !acctest.IsBool(edited["manual_grabs"], true) {
 		t.Errorf("edited = %v", edited)
 	}
 	before := len(h.got())
-	grabFrom(t, idxTorrent, "arrival")
-	if !acc.EventuallyWithin(patience, func() bool { return slices.Contains(h.got()[before:], "Grab") }) {
+	grabTorrent(t, "arrival")
+	if !acctest.EventuallyWithin(patience, func() bool { return slices.Contains(h.got()[before:], "Grab") }) {
 		t.Errorf("a grab sent no word: the hook has %v", h.got())
 	}
 	// and no longer, once it is told not to
 	edited = suite.Call(t, "notification_edit", map[string]any{"notification": renamed, "on": []string{"health_issue"}})
-	if !slices.Equal(acc.Strs(t, edited["on"], "on"), []string{"health_issue"}) {
+	if !slices.Equal(acctest.Strs(t, edited["on"], "on"), []string{"health_issue"}) {
 		t.Errorf("after replacing what it is sent for = %v", edited)
 	}
 
@@ -141,30 +145,30 @@ func TestNotifications(t *testing.T) {
 	}
 	nowhere["force"] = true
 	suite.DeleteLaterIfThere(t, "notification_delete", map[string]any{"notification": "Nowhere", "confirm": true}, "no notification")
-	if forced := suite.Call(t, "notification_add", nowhere); !slices.Equal(acc.Strs(t, forced["on"], "on"), []string{"health_issue"}) {
+	if forced := suite.Call(t, "notification_add", nowhere); !slices.Equal(acctest.Strs(t, forced["on"], "on"), []string{"health_issue"}) {
 		t.Errorf("forced = %v", forced)
 	}
-	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": "Nowhere"})["results"], "results"); len(res) != 1 || acc.IsBool(res[0]["ok"], true) {
+	if res := acctest.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": "Nowhere"})["results"], "results"); len(res) != 1 || acctest.IsBool(res[0]["ok"], true) {
 		t.Errorf("testing one that cannot be reached = %v", res)
 	}
 	// Prowlarr fails the test of every one outright when one cannot be sent,
 	// without saying which: the tool still answers for each, by name
-	every := acc.Rows(t, suite.Call(t, "notification_test", nil)["results"], "results")
-	if len(every) != 2 || acc.Str(every[0]["name"]) != "Nowhere" || acc.IsBool(every[0]["ok"], true) || acc.Str(every[1]["name"]) != renamed || !acc.IsBool(every[1]["ok"], true) {
+	every := acctest.Rows(t, suite.Call(t, "notification_test", nil)["results"], "results")
+	if len(every) != 2 || acctest.Str(every[0]["name"]) != "Nowhere" || acctest.IsBool(every[0]["ok"], true) || acctest.Str(every[1]["name"]) != renamed || !acctest.IsBool(every[1]["ok"], true) {
 		t.Errorf("testing every one, one of which cannot be reached = %v", every)
 	}
 
 	// deleted only once it is confirmed
 	would := suite.Call(t, "notification_delete", map[string]any{"notification": "Nowhere"})
-	if acc.Str(would["would_delete"]) != "Nowhere" || len(acc.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications")) != 2 {
+	if acctest.Str(would["would_delete"]) != "Nowhere" || len(acctest.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications")) != 2 {
 		t.Errorf("without confirm = %v", would)
 	}
 	for _, n := range []string{"Nowhere", renamed} {
-		if gone := suite.Call(t, "notification_delete", map[string]any{"notification": n, "confirm": true}); acc.Str(gone["deleted"]) != n {
+		if gone := suite.Call(t, "notification_delete", map[string]any{"notification": n, "confirm": true}); acctest.Str(gone["deleted"]) != n {
 			t.Errorf("deleting %s = %v", n, gone)
 		}
 	}
-	if left := acc.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications"); len(left) != 0 {
+	if left := acctest.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications"); len(left) != 0 {
 		t.Errorf("after deleting both = %v", left)
 	}
 }
@@ -188,22 +192,22 @@ func TestANotificationsCredentialIsNamedNotShown(t *testing.T) {
 	}
 
 	rows := map[string]map[string]any{}
-	for _, row := range acc.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications") {
-		rows[acc.Str(row["name"])] = row
+	for _, row := range acctest.Rows(t, suite.Call(t, "notification_list", nil)["notifications"], "notifications") {
+		rows[acctest.Str(row["name"])] = row
 	}
 	if len(rows) != 2 {
 		t.Fatalf("notifications = %v", rows)
 	}
 
-	shown := acc.Object(t, rows[chat]["settings"], "settings")
-	if set := acc.Strs(t, rows[chat]["secrets_set"], "secrets_set"); !slices.Equal(set, []string{"webHookUrl"}) || shown["webHookUrl"] != nil || shown["author"] != "the suite" {
+	shown := acctest.Object(t, rows[chat]["settings"], "settings")
+	if set := acctest.Strs(t, rows[chat]["secrets_set"], "secrets_set"); !slices.Equal(set, []string{"webHookUrl"}) || shown["webHookUrl"] != nil || shown["author"] != "the suite" {
 		t.Errorf("Discord names %v as set and shows %v", set, shown)
 	}
-	if got := acc.Object(t, rows[hooked]["settings"], "settings")["url"]; got != h.url+"?token=REDACTED" {
+	if got := acctest.Object(t, rows[hooked]["settings"], "settings")["url"]; got != h.url+"?token=REDACTED" {
 		t.Errorf("the hook's address is shown as %v", got)
 	}
 	// it is still sent to the address it was given, token and all
-	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hooked})["results"], "results"); len(res) != 1 || !acc.IsBool(res[0]["ok"], true) {
+	if res := acctest.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hooked})["results"], "results"); len(res) != 1 || !acctest.IsBool(res[0]["ok"], true) {
 		t.Errorf("testing the hook = %v", res)
 	}
 	// and an edit of something else keeps the address Prowlarr holds; forced
@@ -211,12 +215,12 @@ func TestANotificationsCredentialIsNamedNotShown(t *testing.T) {
 	suite.Call(t, "notification_edit", map[string]any{"notification": chat, "force": true, "settings": map[string]any{"author": "the suite, again"}})
 	suite.Call(t, "notification_edit", map[string]any{"notification": hooked, "health_warnings": true})
 	before := len(h.got())
-	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hooked})["results"], "results"); len(res) != 1 || !acc.IsBool(res[0]["ok"], true) || len(h.got()) <= before {
+	if res := acctest.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hooked})["results"], "results"); len(res) != 1 || !acctest.IsBool(res[0]["ok"], true) || len(h.got()) <= before {
 		t.Errorf("testing the hook after an edit = %v, and the hook has %v", res, h.got())
 	}
 
 	for _, n := range []string{chat, hooked} {
-		if gone := suite.Call(t, "notification_delete", map[string]any{"notification": n, "confirm": true}); acc.Str(gone["deleted"]) != n {
+		if gone := suite.Call(t, "notification_delete", map[string]any{"notification": n, "confirm": true}); acctest.Str(gone["deleted"]) != n {
 			t.Errorf("deleting %s = %v", n, gone)
 		}
 	}

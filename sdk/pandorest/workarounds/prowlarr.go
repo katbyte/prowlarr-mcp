@@ -19,7 +19,7 @@ import (
 // every operation is documented as a 200, and an action returning object or
 // IActionResult is documented as answering nothing. What follows was read off
 // the controllers (Prowlarr.Api.V1, Prowlarr.Http) and confirmed by the
-// integration suite against the same release.
+// client suite (acceptance/prowlarr) against the same release.
 
 const prowlarr = "prowlarr"
 

@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package acceptance
+package tools_test
 
 import (
 	"os"
@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	acc "github.com/katbyte/go-kt/mcp/acctest"
+	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/prowlarr-mcp/lib/testenv"
 )
 
@@ -75,7 +75,7 @@ func TestAuditFailing(t *testing.T) {
 		}
 	}
 	noneOf(t, got, append(healthy, idx1337x, idxMilkie)...)
-	if acc.Num(t, out["scanned"], "scanned") < len(genericIndexers) {
+	if acctest.Num(t, out["scanned"], "scanned") < len(genericIndexers) {
 		t.Errorf("scanned %v, want every enabled indexer", out["scanned"])
 	}
 
@@ -142,7 +142,7 @@ func TestAuditSlow(t *testing.T) {
 
 func TestAuditUnused(t *testing.T) {
 	// a grab from the main torrent indexer, which earns it its keep
-	grabFrom(t, idxTorrent, "arrival")
+	grabTorrent(t, "arrival")
 	search(t, "severance", idxUsenet)
 
 	out := suite.Call(t, "audit_unused", map[string]any{"min_age_days": 0})
@@ -157,7 +157,7 @@ func TestAuditUnused(t *testing.T) {
 
 	// by default the new indexers are left alone
 	out = suite.Call(t, "audit_unused", nil)
-	if n := acc.Num(t, out["total_findings"], "total_findings"); n != 0 || !strings.Contains(acc.Str(out["note"]), "not judged") {
+	if n := acctest.Num(t, out["total_findings"], "total_findings"); n != 0 || !strings.Contains(acctest.Str(out["note"]), "not judged") {
 		t.Errorf("default = %d findings, note %q; want every indexer too new to judge", n, out["note"])
 	}
 
@@ -179,12 +179,12 @@ func TestAuditLimits(t *testing.T) {
 	if !ok || !strings.Contains(detail, "last hour") {
 		t.Errorf("the limit reached is not reported: %v", findings(t, out))
 	}
-	if acc.Num(t, out["scanned"], "scanned") != 1 {
+	if acctest.Num(t, out["scanned"], "scanned") != 1 {
 		t.Errorf("scanned %v, want only the indexer with a limit", out["scanned"])
 	}
 
 	// a grab, then a grab limit of one: spent as well
-	grabFrom(t, idxTorrent, "dune")
+	grabTorrent(t, "dune")
 	suite.Call(t, "indexer_edit", map[string]any{"indexer": idxTorrent, "grab_limit": 1, "limits_unit": "hour"})
 	t.Cleanup(func() {
 		_, _ = suite.Invoke("indexer_edit", map[string]any{"indexer": idxTorrent, "grab_limit": 0})
@@ -193,7 +193,7 @@ func TestAuditLimits(t *testing.T) {
 	if detail, ok := finding(t, out, idxTorrent, "grab_limit_reached"); !ok || !strings.Contains(detail, "grabs in the last hour") {
 		t.Errorf("the grab limit reached is not reported: %q %v", detail, findings(t, out))
 	}
-	if acc.Num(t, out["scanned"], "scanned") != 2 {
+	if acctest.Num(t, out["scanned"], "scanned") != 2 {
 		t.Errorf("scanned %v, want the two indexers with a limit", out["scanned"])
 	}
 
@@ -251,7 +251,7 @@ func TestAuditDuplicates(t *testing.T) {
 	if !ok || !strings.Contains(detail, idxTorrentCopy) {
 		t.Errorf("the copy is not reported: %v", findings(t, out))
 	}
-	if n := acc.Num(t, out["total_findings"], "total_findings"); n != 1 {
+	if n := acctest.Num(t, out["total_findings"], "total_findings"); n != 1 {
 		t.Errorf("%d duplicates, want the one pair: %v", n, findings(t, out))
 	}
 
@@ -287,11 +287,11 @@ func TestAuditSeeding(t *testing.T) {
 
 	// the fix, on every private torrent indexer at once
 	suite.Call(t, "indexer_bulk_edit", map[string]any{"protocol": "torrent", "privacy": "private", "seed_ratio": 1.5, "seed_time": 4320})
-	if n := acc.Num(t, suite.Call(t, "audit_seeding", nil)["total_findings"], "total_findings"); n != 0 {
+	if n := acctest.Num(t, suite.Call(t, "audit_seeding", nil)["total_findings"], "total_findings"); n != 0 {
 		t.Errorf("%d still without a seed goal after indexer_bulk_edit", n)
 	}
 	// and the goal reached the indexer's own settings
-	settings := acc.Object(t, suite.Call(t, "indexer_get", map[string]any{"indexer": idxTorrent})["settings"], "settings")
+	settings := acctest.Object(t, suite.Call(t, "indexer_get", map[string]any{"indexer": idxTorrent})["settings"], "settings")
 	if settings["torrentBaseSettings.seedRatio"] != 1.5 || settings["torrentBaseSettings.seedTime"] != float64(4320) {
 		t.Errorf("settings after the bulk edit = %v", settings)
 	}
@@ -302,12 +302,12 @@ func TestAuditVIP(t *testing.T) {
 	if detail, ok := finding(t, out, idxUsenet, "vip_expiring"); !ok || !strings.Contains(detail, "in 5 days") {
 		t.Errorf("%s's VIP is not reported running out: %q %v", idxUsenet, detail, findings(t, out))
 	}
-	if n := acc.Num(t, out["scanned"], "scanned"); n != 1 {
+	if n := acctest.Num(t, out["scanned"], "scanned"); n != 1 {
 		t.Errorf("scanned %d, want only the indexer with a VIP expiry", n)
 	}
 	// Prowlarr refuses an expiry in the past, so the window is moved instead:
 	// with a two day warning, five days away is fine
-	if n := acc.Num(t, suite.Call(t, "audit_vip", map[string]any{"days": 2})["total_findings"], "total_findings"); n != 0 {
+	if n := acctest.Num(t, suite.Call(t, "audit_vip", map[string]any{"days": 2})["total_findings"], "total_findings"); n != 0 {
 		t.Errorf("days=2 found %d, want nothing", n)
 	}
 	if msg := suite.CallErr(t, "indexer_edit", map[string]any{"indexer": idxUsenet, "vip_expiration": vipIn(-3)}); !strings.Contains(msg, "VipExpiration") {
@@ -479,7 +479,7 @@ func TestAuditNotifications(t *testing.T) {
 		}
 	}
 	noneOf(t, got, "notifications", "Audit Nowhere")
-	if acc.Num(t, out["scanned"], "scanned") != 3 {
+	if acctest.Num(t, out["scanned"], "scanned") != 3 {
 		t.Errorf("scanned %v, want the three", out["scanned"])
 	}
 
@@ -507,23 +507,22 @@ func TestAuditNotifications(t *testing.T) {
 // the scheduled backup is not running: the file's own time is what Prowlarr
 // reports, so one is aged on disk.
 func TestAuditBackups(t *testing.T) {
-	for _, b := range acc.Rows(t, suite.Call(t, "backup_list", map[string]any{"limit": 1000})["backups"], "backups") {
-		suite.Call(t, "backup_delete", map[string]any{"backup": acc.Str(b["name"]), "confirm": true})
+	for _, b := range acctest.Rows(t, suite.Call(t, "backup_list", map[string]any{"limit": 1000})["backups"], "backups") {
+		suite.Call(t, "backup_delete", map[string]any{"backup": acctest.Str(b["name"]), "confirm": true})
 	}
 	out := suite.Call(t, "audit_backups", nil)
 	if detail, ok := finding(t, out, "backups", "no_backup"); !ok || !strings.Contains(detail, "every") {
 		t.Errorf("with no backup = %v", findings(t, out))
 	}
 
-	made := acc.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")
-	name := acc.Str(made["name"])
+	made := acctest.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")
+	name := acctest.Str(made["name"])
 	suite.DeleteLaterIfThere(t, "backup_delete", map[string]any{"backup": name, "confirm": true}, "no backup")
 	cleared(t, "audit_backups", nil, "backups")
 
 	// aged past the schedule
-	path := filepath.Join(testenv.DataDir(), "config", "Backups", acc.Str(made["type"]), name)
 	old := time.Now().Add(-40 * 24 * time.Hour)
-	if err := os.Chtimes(path, old, old); err != nil {
+	if err := os.Chtimes(filepath.Join(testenv.DataDir(), "config", "Backups", acctest.Str(made["type"]), name), old, old); err != nil {
 		t.Fatal(err)
 	}
 	out = suite.Call(t, "audit_backups", nil)
@@ -531,18 +530,18 @@ func TestAuditBackups(t *testing.T) {
 		t.Errorf("with a backup aged 40 days = %v", findings(t, out))
 	}
 	// and the fix is a fresh one
-	fresh := acc.Str(acc.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
+	fresh := acctest.Str(acctest.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
 	suite.DeleteLaterIfThere(t, "backup_delete", map[string]any{"backup": fresh, "confirm": true}, "no backup")
 	cleared(t, "audit_backups", nil, "backups")
 }
 
 func TestAuditHealth(t *testing.T) {
 	out := suite.Call(t, "audit_health", nil)
-	if n := acc.Num(t, out["total_findings"], "total_findings"); n == 0 {
+	if n := acctest.Num(t, out["total_findings"], "total_findings"); n == 0 {
 		t.Fatalf("no health findings, but Prowlarr warns about its allowed hosts at least: %v", out)
 	}
-	for _, f := range acc.Rows(t, out["findings"], "findings") {
-		if p := acc.Str(f["problem"]); p != "warning" && p != "error" {
+	for _, f := range acctest.Rows(t, out["findings"], "findings") {
+		if p := acctest.Str(f["problem"]); p != "warning" && p != "error" {
 			t.Errorf("a %s among warnings and errors", p)
 		}
 	}
@@ -564,7 +563,7 @@ func TestAuditHealth(t *testing.T) {
 	// until it does, and a run in which it never does says what Prowlarr
 	// was holding back, for whoever looks next.
 	var detail string
-	named := acc.EventuallyWithin(patience, func() bool {
+	named := acctest.EventuallyWithin(patience, func() bool {
 		suite.Call(t, "task_run", map[string]any{"name": "CheckHealth"})
 		detail, _ = finding(t, suite.Call(t, "audit_health", nil), "IndexerStatusCheck", "warning")
 
@@ -587,22 +586,22 @@ func TestAuditHealth(t *testing.T) {
 // own with the same defaults.
 func TestAuditAll(t *testing.T) {
 	out := suite.Call(t, "audit_all", nil)
-	auditRows := acc.Rows(t, out["audits"], "audits")
+	auditRows := acctest.Rows(t, out["audits"], "audits")
 	var names []string
 	total := 0
 	for _, row := range auditRows {
-		name := acc.Str(row["audit"])
+		name := acctest.Str(row["audit"])
 		names = append(names, name)
-		total += acc.Num(t, row["findings"], "findings")
+		total += acctest.Num(t, row["findings"], "findings")
 		if name == "audit_failing" {
 			continue // Prowlarr's hold on a failing indexer can lapse between the two calls
 		}
-		alone := acc.Num(t, suite.Call(t, name, nil)["total_findings"], "total_findings")
-		if got := acc.Num(t, row["findings"], "findings"); got != alone {
+		alone := acctest.Num(t, suite.Call(t, name, nil)["total_findings"], "total_findings")
+		if got := acctest.Num(t, row["findings"], "findings"); got != alone {
 			t.Errorf("audit_all says %s found %d, alone it finds %d", name, got, alone)
 		}
 	}
-	if total != acc.Num(t, out["total_findings"], "total_findings") {
+	if total != acctest.Num(t, out["total_findings"], "total_findings") {
 		t.Errorf("total_findings %v is not the sum of the rows, %d", out["total_findings"], total)
 	}
 	// every audit tool is in it
@@ -627,14 +626,14 @@ func toolNamesWith(t *testing.T, prefix string) []string {
 	return out
 }
 
-// grabFrom searches one indexer and grabs the first release found.
-func grabFrom(t *testing.T, indexer, query string) map[string]any {
+// grabTorrent searches the torrent indexer and grabs the first release found.
+func grabTorrent(t *testing.T, query string) map[string]any {
 	t.Helper()
 
-	found := acc.Rows(t, search(t, query, indexer)["releases"], "releases")
+	found := acctest.Rows(t, search(t, query, idxTorrent)["releases"], "releases")
 	if len(found) == 0 {
-		t.Fatalf("searching %s for %q found nothing to grab", indexer, query)
+		t.Fatalf("searching %s for %q found nothing to grab", idxTorrent, query)
 	}
 
-	return suite.Call(t, "release_grab", map[string]any{"indexer": indexer, "guid": acc.Str(found[0]["guid"])})
+	return suite.Call(t, "release_grab", map[string]any{"indexer": idxTorrent, "guid": acctest.Str(found[0]["guid"])})
 }

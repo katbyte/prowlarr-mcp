@@ -1,16 +1,15 @@
-//go:build integration
+//go:build acceptance
 
 // The harness: scripts/testenv.sh brings the container up and exports
 // PROWLARR_SERVER, PROWLARR_TOKEN and PROWLARR_TEST_*; the suite starts the
 // fakes Prowlarr talks to, then builds every fixture through the MCP tools
 // rather than the HTTP API, so the setup is itself a test of indexer_add,
 // app_add, proxy_add and the rest.
-package acceptance
+package tools_test
 
 import (
 	"context"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	acc "github.com/katbyte/go-kt/mcp/acctest"
+	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/go-kt/test/services/arrserver"
 	"github.com/katbyte/go-kt/test/services/newznab"
 	"github.com/katbyte/prowlarr-mcp/internal/fakes/servarr"
@@ -34,7 +33,7 @@ import (
 var (
 	// suite drives the tools through an MCP session; until start connects
 	// it, every call skips
-	suite   = &acc.Suite{NotReady: testenv.NotConfigured}
+	suite   = &acctest.Suite{NotReady: testenv.NotConfigured}
 	sdk     *prowlarr.Client
 	sitesUp *newznab.Server
 	appsUp  *servarr.Server
@@ -51,16 +50,15 @@ const (
 	defaultAppPort     = 19692
 )
 
-// testMain starts the proxy Prowlarr reaches the world through, connects,
-// seeds the fixtures, and runs.
-func testMain(m *testing.M) {
+// runSuite starts the proxy Prowlarr reaches the world through, connects, seeds the fixtures and runs the tests, answering the exit code.
+func runSuite(m *testing.M) int {
 	if !testenv.Configured() {
-		os.Exit(m.Run()) // every test skips
+		return m.Run() // every test skips
 	}
 	p, err := testenv.StartProxy(context.Background(), home)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "proxy:", err)
-		os.Exit(1)
+		return 1
 	}
 	proxy = p
 	// the trackers the catalogue's own indexers are pointed at are sites the
@@ -69,8 +67,8 @@ func testMain(m *testing.M) {
 	for _, site := range []string{currentURL1337x, retiredURL1337x, unlistedURLMilki} {
 		u, err := url.Parse(site)
 		if err != nil {
-			fmt.Fprintln(os.Stderr, "acceptance setup:", err)
-			os.Exit(1)
+			fmt.Fprintln(os.Stderr, "acceptance/tools setup:", err)
+			return 1
 		}
 		proxy.Serve(u.Hostname(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			http.Error(w, "the site is down", http.StatusServiceUnavailable)
@@ -78,8 +76,8 @@ func testMain(m *testing.M) {
 	}
 	if err := start(); err != nil {
 		stop()
-		fmt.Fprintln(os.Stderr, "acceptance setup:", err)
-		os.Exit(1)
+		fmt.Fprintln(os.Stderr, "acceptance/tools setup:", err)
+		return 1
 	}
 
 	code := m.Run()
@@ -105,7 +103,7 @@ func testMain(m *testing.M) {
 	// every registered tool must have answered something above, not only
 	// refused it. Only a whole-suite run can say that, so a -run or -skip
 	// filter skips the check.
-	if acc.WholeRun() {
+	if acctest.WholeRun() {
 		report, err := suite.CoverageReport()
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "\n"+err.Error())
@@ -117,7 +115,7 @@ func testMain(m *testing.M) {
 		}
 	}
 
-	os.Exit(code)
+	return code
 }
 
 // start runs the fakes, connects an MCP session to the tools, and seeds the
@@ -147,7 +145,7 @@ func start() error {
 	if _, err := tools.RegisterAll(srv, sdk, tools.Options{EnableDelete: true}); err != nil {
 		return err
 	}
-	connected, err := acc.Connect(context.Background(), srv)
+	connected, err := acctest.Connect(context.Background(), srv)
 	if err != nil {
 		return err
 	}
@@ -194,8 +192,8 @@ func seed() error {
 	if err != nil {
 		return err
 	}
-	for _, row := range acc.RowsOf(list["indexers"]) {
-		have[acc.Str(row["name"])] = true
+	for _, row := range acctest.RowsOf(list["indexers"]) {
+		have[acctest.Str(row["name"])] = true
 	}
 
 	for _, label := range []string{tagStray} {
@@ -230,7 +228,7 @@ func seed() error {
 		{"definition": "Milkie", "base_url": unlistedURLMilki, "force": true, "settings": map[string]any{"apikey": "milkiekey"}},
 		{"definition": "Across The Tasman", "disabled": true, "force": true, "settings": map[string]any{"username": "u", "password": "p"}},
 	} {
-		if have[acc.Str(c["definition"])] {
+		if have[acctest.Str(c["definition"])] {
 			continue
 		}
 		if _, err := suite.Invoke("indexer_add", c); err != nil {
@@ -288,8 +286,8 @@ func seedApps() error {
 	if err != nil {
 		return err
 	}
-	for _, row := range acc.RowsOf(list["apps"]) {
-		have[acc.Str(row["name"])] = true
+	for _, row := range acctest.RowsOf(list["apps"]) {
+		have[acctest.Str(row["name"])] = true
 	}
 	for _, a := range []map[string]any{
 		{"kind": "Sonarr", "base_url": appsUp.URL("sonarr"), "api_key": "sonarrkey", "prowlarr_url": "http://" + testenv.Container() + ":9696"},
@@ -298,7 +296,7 @@ func seedApps() error {
 		// not served at all, and tagged for indexers that do not exist
 		{"kind": "Lidarr", "base_url": appsUp.URL("lidarr"), "api_key": "lidarrkey", "prowlarr_url": "http://prowlarr:9696", "tags": []string{tagMusicOnly}, "force": true},
 	} {
-		name := acc.Str(a["kind"])
+		name := acctest.Str(a["kind"])
 		if have[name] {
 			continue
 		}
@@ -316,14 +314,14 @@ func seedProviders() error {
 		return err
 	}
 	haveProfile := map[string]bool{}
-	for _, row := range acc.RowsOf(profiles["profiles"]) {
-		haveProfile[acc.Str(row["name"])] = true
+	for _, row := range acctest.RowsOf(profiles["profiles"]) {
+		haveProfile[acctest.Str(row["name"])] = true
 	}
 	for _, p := range []map[string]any{
 		{"name": profileNothing, "rss": false, "automatic_search": false, "interactive_search": false},
 		{"name": profileSpare},
 	} {
-		if haveProfile[acc.Str(p["name"])] {
+		if haveProfile[acctest.Str(p["name"])] {
 			continue
 		}
 		if _, err := suite.Invoke("profile_create", p); err != nil {
@@ -336,15 +334,15 @@ func seedProviders() error {
 		return err
 	}
 	haveProxy := map[string]bool{}
-	for _, row := range acc.RowsOf(proxies["proxies"]) {
-		haveProxy[acc.Str(row["name"])] = true
+	for _, row := range acctest.RowsOf(proxies["proxies"]) {
+		haveProxy[acctest.Str(row["name"])] = true
 	}
 	for _, p := range []map[string]any{
 		// nothing listens there, so it fails its test: forced
 		{"kind": "FlareSolverr", "name": proxyFlare, "host": "http://" + testenv.Host() + ":1", "tags": []string{tagFlaresolverr}, "force": true},
 		{"kind": "Http", "name": proxyIdle, "host": "proxy.invalid", "port": 3128, "tags": []string{tagIdle}, "force": true},
 	} {
-		if haveProxy[acc.Str(p["name"])] {
+		if haveProxy[acctest.Str(p["name"])] {
 			continue
 		}
 		if _, err := suite.Invoke("proxy_add", p); err != nil {
@@ -357,15 +355,15 @@ func seedProviders() error {
 		return err
 	}
 	haveClient := map[string]bool{}
-	for _, row := range acc.RowsOf(clients["download_clients"]) {
-		haveClient[acc.Str(row["name"])] = true
+	for _, row := range acctest.RowsOf(clients["download_clients"]) {
+		haveClient[acctest.Str(row["name"])] = true
 	}
 	for _, c := range []map[string]any{
 		{"kind": "TorrentBlackhole", "name": clientTorrent, "settings": map[string]any{"torrentFolder": "/downloads/torrent"}},
 		{"kind": "UsenetBlackhole", "name": clientUsenet, "settings": map[string]any{"nzbFolder": "/downloads/usenet"}},
 		{"kind": "TorrentBlackhole", "name": clientSpare, "priority": 2, "settings": map[string]any{"torrentFolder": "/downloads/torrent"}},
 	} {
-		if haveClient[acc.Str(c["name"])] {
+		if haveClient[acctest.Str(c["name"])] {
 			continue
 		}
 		if _, err := suite.Invoke("downloadclient_add", c); err != nil {
@@ -402,9 +400,10 @@ func vipIn(days int) string { return time.Now().UTC().AddDate(0, 0, days).Format
 func findings(t *testing.T, out map[string]any) []string {
 	t.Helper()
 
-	var got []string
-	for _, f := range acc.Rows(t, out["findings"], "findings") {
-		got = append(got, acc.Str(f["subject"])+"/"+acc.Str(f["problem"]))
+	rows := acctest.Rows(t, out["findings"], "findings")
+	got := make([]string, 0, len(rows))
+	for _, f := range rows {
+		got = append(got, acctest.Str(f["subject"])+"/"+acctest.Str(f["problem"]))
 	}
 	slices.Sort(got)
 
@@ -416,9 +415,9 @@ func findings(t *testing.T, out map[string]any) []string {
 func finding(t *testing.T, out map[string]any, subject, problem string) (string, bool) {
 	t.Helper()
 
-	for _, f := range acc.Rows(t, out["findings"], "findings") {
-		if acc.Str(f["subject"]) == subject && acc.Str(f["problem"]) == problem {
-			return acc.Str(f["detail"]), true
+	for _, f := range acctest.Rows(t, out["findings"], "findings") {
+		if acctest.Str(f["subject"]) == subject && acctest.Str(f["problem"]) == problem {
+			return acctest.Str(f["detail"]), true
 		}
 	}
 
@@ -429,8 +428,8 @@ func finding(t *testing.T, out map[string]any, subject, problem string) (string,
 func indexerRow(t *testing.T, name string) map[string]any {
 	t.Helper()
 
-	for _, row := range acc.Rows(t, suite.Call(t, "indexer_list", nil)["indexers"], "indexers") {
-		if acc.Str(row["name"]) == name {
+	for _, row := range acctest.Rows(t, suite.Call(t, "indexer_list", nil)["indexers"], "indexers") {
+		if acctest.Str(row["name"]) == name {
 			return row
 		}
 	}
@@ -443,7 +442,7 @@ func indexerRow(t *testing.T, name string) map[string]any {
 func indexerID(t *testing.T, name string) int {
 	t.Helper()
 
-	return acc.Num(t, indexerRow(t, name)["id"], "id")
+	return acctest.Num(t, indexerRow(t, name)["id"], "id")
 }
 
 // search runs a search against some indexers, the way an application would,
@@ -460,18 +459,3 @@ const patience = 30 * time.Second
 
 // definitionsDir is where the container reads its tracker definitions from.
 func definitionsDir() string { return filepath.Join(testenv.DataDir(), "config", "Definitions") }
-
-// freePort finds a port nothing listens on, for a server a test starts.
-func freePort(t *testing.T) int {
-	t.Helper()
-
-	var lc net.ListenConfig
-	ln, err := lc.Listen(t.Context(), "tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = ln.Close() }()
-	a, _ := ln.Addr().(*net.TCPAddr)
-
-	return a.Port
-}

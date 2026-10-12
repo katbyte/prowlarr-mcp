@@ -69,7 +69,7 @@ jobs:
       - name: Tear down
         if: always()
         run: |
-          for s in integration acceptance; do
+          for s in sdk tools; do
             PROWLARR_TEST_CONTAINER=prowlarr-mcp-$s \
               PROWLARR_TEST_DATA="$HOME/.cache/prowlarr-mcp/testenv/$s" scripts/testenv.sh down || true
           done

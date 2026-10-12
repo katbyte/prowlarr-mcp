@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package acceptance
+package tools_test
 
 import (
 	"encoding/json"
@@ -10,37 +10,37 @@ import (
 	"testing"
 	"time"
 
-	acc "github.com/katbyte/go-kt/mcp/acctest"
+	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/go-kt/test/services/arrserver"
 	"github.com/katbyte/prowlarr-mcp/lib/testenv"
 )
 
 func TestServerInfo(t *testing.T) {
 	out := suite.Call(t, "server_info", nil)
-	if !strings.HasPrefix(acc.Str(out["version"]), "2.") || acc.Str(out["prowlarr_mcp_version"]) == "" || out["docker"] != true {
+	if !strings.HasPrefix(acctest.Str(out["version"]), "2.") || acctest.Str(out["prowlarr_mcp_version"]) == "" || out["docker"] != true {
 		t.Errorf("server_info = %v", out)
 	}
-	if n := acc.Num(t, out["indexers"], "indexers"); n != len(genericIndexers)+3 {
+	if n := acctest.Num(t, out["indexers"], "indexers"); n != len(genericIndexers)+3 {
 		t.Errorf("%d indexers, want %d", n, len(genericIndexers)+3)
 	}
-	if acc.Num(t, out["applications"], "applications") != 3 || acc.Num(t, out["proxies"], "proxies") != 2 {
+	if acctest.Num(t, out["applications"], "applications") != 3 || acctest.Num(t, out["proxies"], "proxies") != 2 {
 		t.Errorf("applications %v, proxies %v", out["applications"], out["proxies"])
 	}
-	byProtocol := acc.Object(t, out["indexers_by_protocol"], "indexers_by_protocol")
+	byProtocol := acctest.Object(t, out["indexers_by_protocol"], "indexers_by_protocol")
 	if byProtocol["usenet"] != float64(2) {
 		t.Errorf("by protocol = %v", byProtocol)
 	}
-	if len(acc.Rows(t, out["health"], "health")) == 0 {
+	if len(acctest.Rows(t, out["health"], "health")) == 0 {
 		t.Error("no health checks, but Prowlarr warns about its allowed hosts at least")
 	}
 }
 
 func TestServerHealth(t *testing.T) {
-	checks := acc.Rows(t, suite.Call(t, "server_health", map[string]any{"check": true})["checks"], "checks")
-	var sources []string
+	checks := acctest.Rows(t, suite.Call(t, "server_health", map[string]any{"check": true})["checks"], "checks")
+	sources := make([]string, 0, len(checks))
 	for _, c := range checks {
-		sources = append(sources, acc.Str(c["source"]))
-		if acc.Str(c["source"]) == "AllowedHostsCheck" && acc.Str(c["fix"]) == "" {
+		sources = append(sources, acctest.Str(c["source"]))
+		if acctest.Str(c["source"]) == "AllowedHostsCheck" && acctest.Str(c["fix"]) == "" {
 			t.Errorf("no fix named for %v", c)
 		}
 	}
@@ -50,7 +50,7 @@ func TestServerHealth(t *testing.T) {
 	// errors first
 	seenWarning := false
 	for _, c := range checks {
-		switch acc.Str(c["type"]) {
+		switch acctest.Str(c["type"]) {
 		case "warning":
 			seenWarning = true
 		case "error":
@@ -62,10 +62,11 @@ func TestServerHealth(t *testing.T) {
 }
 
 func TestTasks(t *testing.T) {
-	var names []string
-	for _, task := range acc.Rows(t, suite.Call(t, "task_list", nil)["tasks"], "tasks") {
-		names = append(names, acc.Str(task["name"]))
-		if acc.Num(t, task["interval_minutes"], "interval_minutes") <= 0 {
+	listed := acctest.Rows(t, suite.Call(t, "task_list", nil)["tasks"], "tasks")
+	names := make([]string, 0, len(listed))
+	for _, task := range listed {
+		names = append(names, acctest.Str(task["name"]))
+		if acctest.Num(t, task["interval_minutes"], "interval_minutes") <= 0 {
 			t.Errorf("task = %v", task)
 		}
 	}
@@ -76,14 +77,14 @@ func TestTasks(t *testing.T) {
 	}
 
 	out := suite.Call(t, "task_run", map[string]any{"name": "backup"})
-	if acc.Str(out["status"]) != "completed" || acc.Str(out["command"]) != "Backup" {
+	if acctest.Str(out["status"]) != "completed" || acctest.Str(out["command"]) != "Backup" {
 		t.Errorf("task_run backup = %v", out)
 	}
 	if msg := suite.CallErr(t, "task_run", map[string]any{"name": "Defragment"}); !strings.Contains(msg, "CheckHealth") {
 		t.Errorf("an unknown task = %q", msg)
 	}
 	// queued without waiting
-	if out := suite.Call(t, "task_run", map[string]any{"name": "CheckHealth", "wait": -1}); acc.Str(out["status"]) == "" {
+	if out := suite.Call(t, "task_run", map[string]any{"name": "CheckHealth", "wait": -1}); acctest.Str(out["status"]) == "" {
 		t.Errorf("queued = %v", out)
 	}
 }
@@ -92,27 +93,27 @@ func TestTasks(t *testing.T) {
 // confirmed.
 func TestBackups(t *testing.T) {
 	made := suite.Call(t, "backup_create", nil)
-	backup := acc.Object(t, made["backup"], "backup")
-	name := acc.Str(backup["name"])
-	if name == "" || acc.Str(backup["type"]) != "manual" || acc.Num(t, backup["size"], "size") == 0 || acc.Str(acc.Object(t, made["command"], "command")["status"]) != "completed" {
+	backup := acctest.Object(t, made["backup"], "backup")
+	name := acctest.Str(backup["name"])
+	if name == "" || acctest.Str(backup["type"]) != "manual" || acctest.Num(t, backup["size"], "size") == 0 || acctest.Str(acctest.Object(t, made["command"], "command")["status"]) != "completed" {
 		t.Fatalf("backup_create = %v", made)
 	}
 	suite.DeleteLaterIfThere(t, "backup_delete", map[string]any{"backup": name, "confirm": true}, "no backup")
 
-	listed := acc.Rows(t, suite.Call(t, "backup_list", nil)["backups"], "backups")
-	if len(listed) == 0 || acc.Str(listed[0]["name"]) != name {
+	listed := acctest.Rows(t, suite.Call(t, "backup_list", nil)["backups"], "backups")
+	if len(listed) == 0 || acctest.Str(listed[0]["name"]) != name {
 		t.Errorf("the newest backup listed is %v, want %s", listed, name)
 	}
 	// the scheduled task writes one the same way
 	suite.Call(t, "task_run", map[string]any{"name": "Backup"})
 
 	would := suite.Call(t, "backup_delete", map[string]any{"backup": name})
-	if acc.Str(would["would_delete"]) != name || len(acc.Strs(t, would["loses"], "loses")) == 0 {
+	if acctest.Str(would["would_delete"]) != name || len(acctest.Strs(t, would["loses"], "loses")) == 0 {
 		t.Errorf("without confirm = %v", would)
 	}
 	stillThere := func() bool {
-		for _, b := range acc.Rows(t, suite.Call(t, "backup_list", nil)["backups"], "backups") {
-			if acc.Str(b["name"]) == name {
+		for _, b := range acctest.Rows(t, suite.Call(t, "backup_list", nil)["backups"], "backups") {
+			if acctest.Str(b["name"]) == name {
 				return true
 			}
 		}
@@ -122,7 +123,7 @@ func TestBackups(t *testing.T) {
 	if !stillThere() {
 		t.Fatal("the backup went without confirm")
 	}
-	if gone := suite.Call(t, "backup_delete", map[string]any{"backup": name, "confirm": true}); acc.Str(gone["deleted"]) != name || stillThere() {
+	if gone := suite.Call(t, "backup_delete", map[string]any{"backup": name, "confirm": true}); acctest.Str(gone["deleted"]) != name || stillThere() {
 		t.Errorf("with confirm = %v, still listed %v", gone, stillThere())
 	}
 	if msg := suite.CallErr(t, "backup_restore", map[string]any{"backup": name, "confirm": true}); !strings.Contains(msg, "no backup") {
@@ -134,17 +135,17 @@ func TestBackups(t *testing.T) {
 // queued at once is taken off the queue before it starts.
 func TestCommands(t *testing.T) {
 	all := suite.Call(t, "command_list", nil)
-	rows := acc.Rows(t, all["commands"], "commands")
-	if len(rows) == 0 || acc.Num(t, all["total"], "total") < len(rows) {
+	rows := acctest.Rows(t, all["commands"], "commands")
+	if len(rows) == 0 || acctest.Num(t, all["total"], "total") < len(rows) {
 		t.Fatalf("command_list = %v", all)
 	}
 	// the health checks the suite ran as it started are among them, finished
-	done := acc.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "completed"})["commands"], "commands")
-	i := slices.IndexFunc(done, func(c map[string]any) bool { return acc.Str(c["name"]) == "CheckHealth" })
-	if i < 0 || acc.Str(done[i]["status"]) != "completed" || acc.Str(done[i]["queued"]) == "" {
+	done := acctest.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "completed"})["commands"], "commands")
+	i := slices.IndexFunc(done, func(c map[string]any) bool { return acctest.Str(c["name"]) == "CheckHealth" })
+	if i < 0 || acctest.Str(done[i]["status"]) != "completed" || acctest.Str(done[i]["queued"]) == "" {
 		t.Fatalf("the finished commands lack the health check: %v", done)
 	}
-	if msg := suite.CallErr(t, "command_cancel", map[string]any{"id": acc.Num(t, done[i]["command_id"], "command_id")}); !strings.Contains(msg, "already completed") {
+	if msg := suite.CallErr(t, "command_cancel", map[string]any{"id": acctest.Num(t, done[i]["command_id"], "command_id")}); !strings.Contains(msg, "already completed") {
 		t.Errorf("cancelling a finished command = %q", msg)
 	}
 	if msg := suite.CallErr(t, "command_list", map[string]any{"status": "done"}); !strings.Contains(msg, "status must be") {
@@ -154,14 +155,15 @@ func TestCommands(t *testing.T) {
 	// every scheduled task queued at once is more than Prowlarr runs at a
 	// time, so some wait their turn, and one that is waiting can be cancelled.
 	// Which ones wait is Prowlarr's to say, so it is tried until one is caught
-	var tasks []string
-	for _, task := range acc.Rows(t, suite.Call(t, "task_list", nil)["tasks"], "tasks") {
-		tasks = append(tasks, acc.Str(task["name"]))
+	listed := acctest.Rows(t, suite.Call(t, "task_list", nil)["tasks"], "tasks")
+	tasks := make([]string, 0, len(listed))
+	for _, task := range listed {
+		tasks = append(tasks, acctest.Str(task["name"]))
 	}
 	idle := func() bool {
-		return acc.Num(t, suite.Call(t, "command_list", map[string]any{"status": "running"})["total"], "total") == 0
+		return acctest.Num(t, suite.Call(t, "command_list", map[string]any{"status": "running"})["total"], "total") == 0
 	}
-	t.Cleanup(func() { acc.EventuallyWithin(2*time.Minute, idle) })
+	t.Cleanup(func() { acctest.EventuallyWithin(2*time.Minute, idle) })
 
 	// a task is over in well under a second, so every task is queued at the same moment and the queue read again and again while they go in;
 	// the whole thing is tried again when none was caught waiting
@@ -181,23 +183,23 @@ func TestCommands(t *testing.T) {
 				going = false
 			default:
 			}
-			queued = acc.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "queued"})["commands"], "commands")
+			queued = acctest.Rows(t, suite.Call(t, "command_list", map[string]any{"status": "queued"})["commands"], "commands")
 		}
 		<-done
 
 		for _, c := range queued {
-			out, err := suite.Invoke("command_cancel", map[string]any{"id": acc.Num(t, c["command_id"], "command_id")})
+			out, err := suite.Invoke("command_cancel", map[string]any{"id": acctest.Num(t, c["command_id"], "command_id")})
 			if err != nil {
 				continue // it started between the listing and the cancel
 			}
-			if got := acc.Object(t, out["cancelled"], "cancelled"); acc.Str(got["status"]) != "cancelled" || acc.Str(got["command"]) != acc.Str(c["command"]) || acc.Str(c["name"]) == "" {
+			if got := acctest.Object(t, out["cancelled"], "cancelled"); acctest.Str(got["status"]) != "cancelled" || acctest.Str(got["command"]) != acctest.Str(c["command"]) || acctest.Str(c["name"]) == "" {
 				t.Errorf("cancelled = %v, want %v", got, c)
 			}
 			cancelled = true
 
 			break
 		}
-		if !acc.EventuallyWithin(2*time.Minute, idle) {
+		if !acctest.EventuallyWithin(2*time.Minute, idle) {
 			t.Fatal("the commands queued never finished")
 		}
 	}
@@ -219,15 +221,15 @@ func TestServerSettings(t *testing.T) {
 		t.Fatalf("Prowlarr's API key is in the answer: %s", raw)
 	}
 	sections := map[string]map[string]any{}
-	for _, sec := range acc.Rows(t, out["sections"], "sections") {
-		sections[acc.Str(sec["section"])] = sec
+	for _, sec := range acctest.Rows(t, out["sections"], "sections") {
+		sections[acctest.Str(sec["section"])] = sec
 	}
 	host := sections["host"]
 	if len(sections) != 3 || host == nil || sections["ui"] == nil || sections["development"] == nil {
 		t.Fatalf("sections = %v", out)
 	}
-	settings := acc.Object(t, host["settings"], "settings")
-	if settings["port"] != float64(9696) || acc.Str(settings["logLevel"]) != "debug" || !slices.Contains(acc.Strs(t, host["credentials"], "credentials"), "apiKey") {
+	settings := acctest.Object(t, host["settings"], "settings")
+	if settings["port"] != float64(9696) || acctest.Str(settings["logLevel"]) != "debug" || !slices.Contains(acctest.Strs(t, host["credentials"], "credentials"), "apiKey") {
 		t.Errorf("the host section = %v", host)
 	}
 
@@ -236,23 +238,23 @@ func TestServerSettings(t *testing.T) {
 	// the first change has to say which hosts it answers to. That is the fix
 	// for its allowed hosts health warning, and it takes confirm, since a
 	// wrong list cuts off whoever reaches it by another name
-	keep := acc.Num(t, settings["backupRetention"], "backupRetention")
-	if acc.Str(settings["allowedHosts"]) == "" {
+	keep := acctest.Num(t, settings["backupRetention"], "backupRetention")
+	if acctest.Str(settings["allowedHosts"]) == "" {
 		if msg := suite.CallErr(t, "server_settings_edit", map[string]any{"section": "host", "settings": map[string]any{"backupRetention": keep + 1}}); !strings.Contains(msg, "Allowed Hosts") {
 			t.Errorf("a change while no allowed hosts are set = %q, want Prowlarr's own refusal", msg)
 		}
 		hosts := strings.Join([]string{"127.0.0.1", "localhost", testenv.Host(), testenv.Container()}, ",")
 		would := suite.Call(t, "server_settings_edit", map[string]any{"section": "host", "settings": map[string]any{"allowedHosts": hosts}})
-		if len(acc.Rows(t, would["would_change"], "would_change")) != 1 || len(acc.Rows(t, would["changed"], "changed")) != 0 {
+		if len(acctest.Rows(t, would["would_change"], "would_change")) != 1 || len(acctest.Rows(t, would["changed"], "changed")) != 0 {
 			t.Errorf("naming the allowed hosts without confirm = %v", would)
 		}
 		named := suite.Call(t, "server_settings_edit", map[string]any{"section": "host", "settings": map[string]any{"allowedHosts": hosts}, "confirm": true})
-		if acc.Object(t, named["settings"], "settings")["allowedHosts"] != hosts {
+		if acctest.Object(t, named["settings"], "settings")["allowedHosts"] != hosts {
 			t.Fatalf("naming the allowed hosts = %v", named)
 		}
 		// and the warning it was the fix for is gone from the next run of checks
-		for _, c := range acc.Rows(t, suite.Call(t, "server_health", map[string]any{"check": true})["checks"], "checks") {
-			if acc.Str(c["source"]) == "AllowedHostsCheck" {
+		for _, c := range acctest.Rows(t, suite.Call(t, "server_health", map[string]any{"check": true})["checks"], "checks") {
+			if acctest.Str(c["source"]) == "AllowedHostsCheck" {
 				t.Errorf("the allowed hosts warning is still there after naming them: %v", c)
 			}
 		}
@@ -261,12 +263,12 @@ func TestServerSettings(t *testing.T) {
 	// a setting changed by name, in whatever case, and read back
 	suite.PutBack(t, "server_settings_edit", map[string]any{"section": "host", "settings": map[string]any{"backupRetention": keep}})
 	edited := suite.Call(t, "server_settings_edit", map[string]any{"section": "Host", "settings": map[string]any{"BackupRetention": keep + 3}})
-	changed := acc.Rows(t, edited["changed"], "changed")
-	if len(changed) != 1 || acc.Str(changed[0]["setting"]) != "backupRetention" || changed[0]["to"] != float64(keep+3) || acc.Object(t, edited["settings"], "settings")["backupRetention"] != float64(keep+3) {
+	changed := acctest.Rows(t, edited["changed"], "changed")
+	if len(changed) != 1 || acctest.Str(changed[0]["setting"]) != "backupRetention" || changed[0]["to"] != float64(keep+3) || acctest.Object(t, edited["settings"], "settings")["backupRetention"] != float64(keep+3) {
 		t.Errorf("edited = %v", edited)
 	}
-	one := acc.Rows(t, suite.Call(t, "server_settings", map[string]any{"section": "host"})["sections"], "sections")
-	if len(one) != 1 || acc.Object(t, one[0]["settings"], "settings")["backupRetention"] != float64(keep+3) {
+	one := acctest.Rows(t, suite.Call(t, "server_settings", map[string]any{"section": "host"})["sections"], "sections")
+	if len(one) != 1 || acctest.Object(t, one[0]["settings"], "settings")["backupRetention"] != float64(keep+3) {
 		t.Errorf("read back = %v", one)
 	}
 	if msg := suite.CallErr(t, "server_settings_edit", map[string]any{"section": "host", "settings": map[string]any{"backupRetention": keep + 3}}); !strings.Contains(msg, "already has that value") {
@@ -274,20 +276,20 @@ func TestServerSettings(t *testing.T) {
 	}
 
 	// the web interface's settings, the same way
-	theme := acc.Str(acc.Object(t, sections["ui"]["settings"], "settings")["theme"])
+	theme := acctest.Str(acctest.Object(t, sections["ui"]["settings"], "settings")["theme"])
 	suite.PutBack(t, "server_settings_edit", map[string]any{"section": "ui", "settings": map[string]any{"theme": theme}})
 	other := "dark"
 	if theme == other {
 		other = "light"
 	}
-	if ui := suite.Call(t, "server_settings_edit", map[string]any{"section": "ui", "settings": map[string]any{"theme": other}}); acc.Object(t, ui["settings"], "settings")["theme"] != other {
+	if ui := suite.Call(t, "server_settings_edit", map[string]any{"section": "ui", "settings": map[string]any{"theme": other}}); acctest.Object(t, ui["settings"], "settings")["theme"] != other {
 		t.Errorf("the theme = %v", ui)
 	}
 
 	// how Prowlarr is reached is not changed without confirm, and is not
 	// changed here with it: the suite would lose the server
 	would := suite.Call(t, "server_settings_edit", map[string]any{"section": "host", "settings": map[string]any{"port": 9797}})
-	if len(acc.Rows(t, would["would_change"], "would_change")) != 1 || len(acc.Rows(t, would["changed"], "changed")) != 0 || acc.Object(t, would["settings"], "settings")["port"] != float64(9696) {
+	if len(acctest.Rows(t, would["would_change"], "would_change")) != 1 || len(acctest.Rows(t, would["changed"], "changed")) != 0 || acctest.Object(t, would["settings"], "settings")["port"] != float64(9696) {
 		t.Errorf("a change of port without confirm = %v", would)
 	}
 	// one that takes confirm, and that Prowlarr takes and does not keep: a
@@ -295,8 +297,8 @@ func TestServerSettings(t *testing.T) {
 	// sign in. The tool reads the section back, so it says so rather than
 	// reporting a change that did not happen
 	named := suite.Call(t, "server_settings_edit", map[string]any{"section": "host", "settings": map[string]any{"username": "someone"}, "confirm": true})
-	dropped := acc.Rows(t, named["not_kept"], "not_kept")
-	if len(dropped) != 1 || acc.Str(dropped[0]["setting"]) != "username" || len(acc.Rows(t, named["changed"], "changed")) != 0 || acc.Object(t, named["settings"], "settings")["username"] != "" {
+	dropped := acctest.Rows(t, named["not_kept"], "not_kept")
+	if len(dropped) != 1 || acctest.Str(dropped[0]["setting"]) != "username" || len(acctest.Rows(t, named["changed"], "changed")) != 0 || acctest.Object(t, named["settings"], "settings")["username"] != "" {
 		t.Errorf("a username given to a Prowlarr nobody signs in to = %v", named)
 	}
 
@@ -312,19 +314,19 @@ func TestServerSettings(t *testing.T) {
 }
 
 func TestServerLogs(t *testing.T) {
-	files := acc.Rows(t, suite.Call(t, "server_logs", nil)["files"], "files")
-	if len(files) == 0 || acc.Str(files[0]["kind"]) != "app" || !strings.HasPrefix(acc.Str(files[0]["name"]), "prowlarr") {
+	files := acctest.Rows(t, suite.Call(t, "server_logs", nil)["files"], "files")
+	if len(files) == 0 || acctest.Str(files[0]["kind"]) != "app" || !strings.HasPrefix(acctest.Str(files[0]["name"]), "prowlarr") {
 		t.Fatalf("log files = %v", files)
 	}
 
 	// the recorded warnings and errors: offline, Prowlarr cannot reach its
 	// definitions service, and says so
-	entries := acc.Rows(t, suite.Call(t, "server_log", map[string]any{"level": "warn", "limit": 20})["entries"], "entries")
+	entries := acctest.Rows(t, suite.Call(t, "server_log", map[string]any{"level": "warn", "limit": 20})["entries"], "entries")
 	if len(entries) == 0 {
 		t.Error("no warnings recorded")
 	}
 	for _, e := range entries {
-		if l := strings.ToLower(acc.Str(e["level"])); l != "warn" && l != "error" && l != "fatal" {
+		if l := strings.ToLower(acctest.Str(e["level"])); l != "warn" && l != "error" && l != "fatal" {
 			t.Errorf("a %s entry among warnings", l)
 		}
 	}
@@ -333,7 +335,7 @@ func TestServerLogs(t *testing.T) {
 	// newest that has is the one read
 	var lines []map[string]any
 	for _, file := range files {
-		if lines = acc.Rows(t, suite.Call(t, "server_log", map[string]any{"file": acc.Str(file["name"]), "contains": idxTorrent, "limit": 10})["entries"], "entries"); len(lines) > 0 {
+		if lines = acctest.Rows(t, suite.Call(t, "server_log", map[string]any{"file": acctest.Str(file["name"]), "contains": idxTorrent, "limit": 10})["entries"], "entries"); len(lines) > 0 {
 			break
 		}
 	}
@@ -341,7 +343,7 @@ func TestServerLogs(t *testing.T) {
 		t.Errorf("no lines mentioning %s in any of %d log files", idxTorrent, len(files))
 	}
 	for _, l := range lines {
-		if !strings.Contains(acc.Str(l["message"]), idxTorrent) {
+		if !strings.Contains(acctest.Str(l["message"]), idxTorrent) {
 			t.Errorf("line %q does not mention %s", l["message"], idxTorrent)
 		}
 	}
@@ -356,8 +358,8 @@ func TestServerLogs(t *testing.T) {
 func TestServerUpdates(t *testing.T) {
 	// the update server knows of no release until the suite gives it some
 	out := suite.Call(t, "server_updates", nil)
-	current := acc.Str(out["current"])
-	if !strings.HasPrefix(current, "2.") || len(acc.Rows(t, out["updates"], "updates")) != 0 || acc.IsBool(out["update_available"], true) {
+	current := acctest.Str(out["current"])
+	if !strings.HasPrefix(current, "2.") || len(acctest.Rows(t, out["updates"], "updates")) != 0 || acctest.IsBool(out["update_available"], true) {
 		t.Fatalf("server_updates with no releases = %v", out)
 	}
 
@@ -366,22 +368,22 @@ func TestServerUpdates(t *testing.T) {
 	t.Cleanup(func() { home.Offer() })
 	home.Offer(arrserver.Update{Version: older, Fixed: []string{"an old fault"}}, arrserver.Update{Version: current})
 	out = suite.Call(t, "server_updates", nil)
-	rows := acc.Rows(t, out["updates"], "updates")
-	if len(rows) != 2 || acc.Str(rows[0]["version"]) != current || !acc.IsBool(rows[0]["installed"], true) || acc.Str(rows[1]["version"]) != older || acc.IsBool(out["update_available"], true) {
+	rows := acctest.Rows(t, out["updates"], "updates")
+	if len(rows) != 2 || acctest.Str(rows[0]["version"]) != current || !acctest.IsBool(rows[0]["installed"], true) || acctest.Str(rows[1]["version"]) != older || acctest.IsBool(out["update_available"], true) {
 		t.Errorf("server_updates with nothing newer = %v", out)
 	}
-	if fixed := acc.Strs(t, acc.OrEmptyList(rows[1]["fixed"]), "fixed"); len(fixed) != 1 || fixed[0] != "an old fault" {
+	if fixed := acctest.Strs(t, acctest.OrEmptyList(rows[1]["fixed"]), "fixed"); len(fixed) != 1 || fixed[0] != "an old fault" {
 		t.Errorf("the older release's fixes = %v", fixed)
 	}
 
 	// and one after it: this install is behind, and says what it is missing
 	home.Offer(arrserver.Update{Version: newer, New: []string{"a new thing"}}, arrserver.Update{Version: current})
 	out = suite.Call(t, "server_updates", nil)
-	rows = acc.Rows(t, out["updates"], "updates")
-	if len(rows) != 2 || acc.Str(rows[0]["version"]) != newer || !acc.IsBool(rows[0]["latest"], true) || acc.IsBool(rows[0]["installed"], true) || !acc.IsBool(out["update_available"], true) {
+	rows = acctest.Rows(t, out["updates"], "updates")
+	if len(rows) != 2 || acctest.Str(rows[0]["version"]) != newer || !acctest.IsBool(rows[0]["latest"], true) || acctest.IsBool(rows[0]["installed"], true) || !acctest.IsBool(out["update_available"], true) {
 		t.Errorf("server_updates with a newer release = %v", out)
 	}
-	if added := acc.Strs(t, acc.OrEmptyList(rows[0]["new"]), "new"); len(added) != 1 || added[0] != "a new thing" {
+	if added := acctest.Strs(t, acctest.OrEmptyList(rows[0]["new"]), "new"); len(added) != 1 || added[0] != "a new thing" {
 		t.Errorf("the newer release's changes = %v", added)
 	}
 
@@ -390,7 +392,7 @@ func TestServerUpdates(t *testing.T) {
 	home.SetDown(true)
 	t.Cleanup(func() { home.SetDown(false) })
 	out = suite.Call(t, "server_updates", nil)
-	if acc.Str(out["current"]) != current || !strings.Contains(acc.Str(out["unavailable"]), "update service") {
+	if acctest.Str(out["current"]) != current || !strings.Contains(acctest.Str(out["unavailable"]), "update service") {
 		t.Errorf("server_updates with the update server down = %v", out)
 	}
 }
@@ -399,9 +401,9 @@ func TestServerUpdates(t *testing.T) {
 // to use it: the tag made since is gone, and everything made before is as it
 // was. It is the last test in the suite, since it takes Prowlarr down.
 func TestBackupRestoreAndRestart(t *testing.T) {
-	indexersBefore := acc.Num(t, suite.Call(t, "indexer_list", nil)["total"], "total")
+	indexersBefore := acctest.Num(t, suite.Call(t, "indexer_list", nil)["total"], "total")
 	made := suite.Call(t, "backup_create", nil)
-	name := acc.Str(acc.Object(t, made["backup"], "backup")["name"])
+	name := acctest.Str(acctest.Object(t, made["backup"], "backup")["name"])
 	if name == "" {
 		t.Fatalf("backup_create = %v", made)
 	}
@@ -411,8 +413,8 @@ func TestBackupRestoreAndRestart(t *testing.T) {
 	suite.Call(t, "tag_create", map[string]any{"label": since})
 	suite.DeleteLaterIfThere(t, "tag_delete", map[string]any{"label": since}, "no tag")
 	has := func() bool {
-		for _, tag := range acc.Rows(t, suite.Call(t, "tag_list", nil)["tags"], "tags") {
-			if acc.Str(tag["label"]) == since {
+		for _, tag := range acctest.Rows(t, suite.Call(t, "tag_list", nil)["tags"], "tags") {
+			if acctest.Str(tag["label"]) == since {
 				return true
 			}
 		}
@@ -422,29 +424,29 @@ func TestBackupRestoreAndRestart(t *testing.T) {
 
 	// without confirm it says what it would write over, and writes nothing
 	would := suite.Call(t, "backup_restore", map[string]any{"backup": name})
-	if acc.Str(would["would_restore"]) != name || len(acc.Strs(t, would["overwrites"], "overwrites")) == 0 || !has() {
+	if acctest.Str(would["would_restore"]) != name || len(acctest.Strs(t, would["overwrites"], "overwrites")) == 0 || !has() {
 		t.Fatalf("without confirm = %v, tag there %v", would, has())
 	}
 
 	restored := suite.Call(t, "backup_restore", map[string]any{"backup": name, "confirm": true})
-	if acc.Str(restored["restored"]) != name || !strings.Contains(acc.Str(restored["note"]), "server_restart") {
+	if acctest.Str(restored["restored"]) != name || !strings.Contains(acctest.Str(restored["note"]), "server_restart") {
 		t.Fatalf("restored = %v", restored)
 	}
 	back := suite.Call(t, "server_restart", map[string]any{"wait": 120})
-	if !acc.IsBool(back["restarted"], true) || acc.Str(back["start_time"]) == "" {
+	if !acctest.IsBool(back["restarted"], true) || acctest.Str(back["start_time"]) == "" {
 		t.Fatalf("server_restart = %v", back)
 	}
 
 	// the restored database is the one in use: what was made since is gone,
 	// and what was there is there
 	if has() {
-		t.Errorf("the tag made after the backup is still there after the restore")
+		t.Error("the tag made after the backup is still there after the restore")
 	}
-	if got := acc.Num(t, suite.Call(t, "indexer_list", nil)["total"], "total"); got != indexersBefore {
+	if got := acctest.Num(t, suite.Call(t, "indexer_list", nil)["total"], "total"); got != indexersBefore {
 		t.Errorf("%d indexers after the restore, %d before the backup", got, indexersBefore)
 	}
 	// Prowlarr checks its health as it starts, with the suite's proxy there to answer it this time
-	if !acc.EventuallyWithin(patience, func() bool { return acc.Num(t, suite.Call(t, "server_health", nil)["total"], "total") > 0 }) {
+	if !acctest.EventuallyWithin(patience, func() bool { return acctest.Num(t, suite.Call(t, "server_health", nil)["total"], "total") > 0 }) {
 		t.Error("the restarted Prowlarr reports no health checks")
 	}
 }

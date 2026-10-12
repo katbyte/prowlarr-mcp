@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package integration
+package prowlarr_test
 
 import (
 	"bytes"
@@ -91,12 +91,12 @@ func TestIndexerWrites(t *testing.T) {
 	}
 
 	i.Priority = 12
-	put, err := sdk.PutIndexerById(ctx, i.Id, *i, prowlarr.PutIndexerByIdOperationOptions{})
+	put, err := sdk.PutIndexerById(ctx, i.Id, model(t, i), prowlarr.PutIndexerByIdOperationOptions{})
 	if err != nil || put.HttpResponse.StatusCode != http.StatusAccepted || put.Model.Priority != 12 {
 		t.Fatalf("update = %v, %v", put.HttpResponse.Status, err)
 	}
 	// the masked key sent back keeps the key
-	if _, err := sdk.PostIndexerTest(ctx, *put.Model, prowlarr.PostIndexerTestOperationOptions{ForceTest: new(true)}); err != nil {
+	if _, err := sdk.PostIndexerTest(ctx, model(t, put.Model), prowlarr.PostIndexerTestOperationOptions{ForceTest: new(true)}); err != nil {
 		t.Errorf("testing the saved indexer: %v", err)
 	}
 
@@ -117,7 +117,7 @@ func TestIndexerWrites(t *testing.T) {
 		t.Errorf("an unknown indexer = %v", err)
 	}
 	// a validation failure reads as what Prowlarr said
-	bad := *put.Model
+	bad := model(t, put.Model)
 	bad.Priority = 99
 	if _, err := sdk.PutIndexerById(ctx, bad.Id, bad, prowlarr.PutIndexerByIdOperationOptions{}); client.StatusCode(err) != http.StatusBadRequest || !strings.Contains(err.Error(), "Priority") {
 		t.Errorf("a priority out of range = %v", err)
@@ -196,7 +196,7 @@ func TestApplicationSync(t *testing.T) {
 	if err != nil || app.Model.SyncLevel != prowlarr.ApplicationSyncLevelFullSync || field(app.Model.Fields, "baseUrl") != apps.URL(fakeSonarr) {
 		t.Fatalf("application = %+v, %v", app.Model, err)
 	}
-	if _, err := sdk.PostApplicationsTest(ctx, *app.Model, prowlarr.PostApplicationsTestOperationOptions{}); err != nil {
+	if _, err := sdk.PostApplicationsTest(ctx, model(t, app.Model), prowlarr.PostApplicationsTestOperationOptions{}); err != nil {
 		t.Errorf("testing it: %v", err)
 	}
 	all, err := sdk.PostApplicationsTestAll(ctx)
@@ -224,7 +224,7 @@ func TestApplicationSync(t *testing.T) {
 	}
 
 	app.Model.SyncLevel = prowlarr.ApplicationSyncLevelAddOnly
-	put, err := sdk.PutApplicationsById(ctx, fx.app, *app.Model, prowlarr.PutApplicationsByIdOperationOptions{})
+	put, err := sdk.PutApplicationsById(ctx, fx.app, model(t, app.Model), prowlarr.PutApplicationsByIdOperationOptions{})
 	if err != nil || put.Model.SyncLevel != prowlarr.ApplicationSyncLevelAddOnly {
 		t.Errorf("update = %+v, %v", put.Model, err)
 	}
@@ -307,7 +307,7 @@ func TestTagsProfilesAndDetails(t *testing.T) {
 		t.Fatalf("profile = %+v, %v", profile.Model, err)
 	}
 	profile.Model.MinimumSeeders = 4
-	if res, err := sdk.PutAppProfileById(ctx, fx.profile, *profile.Model); err != nil || res.Model.MinimumSeeders != 4 {
+	if res, err := sdk.PutAppProfileById(ctx, fx.profile, model(t, profile.Model)); err != nil || res.Model.MinimumSeeders != 4 {
 		t.Errorf("profile update = %v", err)
 	}
 	if schema, err := sdk.GetAppProfileSchema(ctx); err != nil || schema.Model == nil {
@@ -334,12 +334,12 @@ func TestConfigRoundTrips(t *testing.T) {
 	// hosts, which Prowlarr reads back and then refuses to save, so the round
 	// trip is refused as read and taken once the hosts are named
 	if host.Model.AllowedHosts == "" {
-		if _, err := sdk.PutConfigHostById(ctx, 1, *host.Model); client.StatusCode(err) != http.StatusBadRequest || !strings.Contains(err.Error(), "Allowed Hosts") {
+		if _, err := sdk.PutConfigHostById(ctx, 1, model(t, host.Model)); client.StatusCode(err) != http.StatusBadRequest || !strings.Contains(err.Error(), "Allowed Hosts") {
 			t.Errorf("host round trip with no allowed hosts = %v", err)
 		}
 	}
 	host.Model.AllowedHosts = "127.0.0.1,localhost," + testenv.Host()
-	put, err := sdk.PutConfigHostById(ctx, 1, *host.Model)
+	put, err := sdk.PutConfigHostById(ctx, 1, model(t, host.Model))
 	if err != nil || put.Model.AllowedHosts != host.Model.AllowedHosts || put.Model.ApiKey != host.Model.ApiKey || put.Model.Port != 9696 {
 		t.Errorf("host round trip with the hosts named = %+v, %v", put.Model, err)
 	}
@@ -347,21 +347,21 @@ func TestConfigRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sdk.PutConfigUiById(ctx, 1, *ui.Model); err != nil {
+	if _, err := sdk.PutConfigUiById(ctx, 1, model(t, ui.Model)); err != nil {
 		t.Errorf("ui round trip: %v", err)
 	}
 	dc, err := sdk.GetConfigDownloadClient(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sdk.PutConfigDownloadClientById(ctx, 1, *dc.Model); err != nil {
+	if _, err := sdk.PutConfigDownloadClientById(ctx, 1, model(t, dc.Model)); err != nil {
 		t.Errorf("download client config round trip: %v", err)
 	}
 	dev, err := sdk.GetConfigDevelopment(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sdk.PutConfigDevelopmentById(ctx, 1, *dev.Model); err != nil {
+	if _, err := sdk.PutConfigDevelopmentById(ctx, 1, model(t, dev.Model)); err != nil {
 		t.Errorf("development config round trip: %v", err)
 	}
 	again, err := sdk.GetConfigHost(ctx)
@@ -378,13 +378,13 @@ func TestProvidersReadAndUpdate(t *testing.T) {
 		t.Fatalf("download client = %+v, %v", dc.Model, err)
 	}
 	dc.Model.Priority = 5
-	if res, err := sdk.PutDownloadClientById(ctx, fx.client, *dc.Model, prowlarr.PutDownloadClientByIdOperationOptions{}); err != nil || res.Model.Priority != 5 {
+	if res, err := sdk.PutDownloadClientById(ctx, fx.client, model(t, dc.Model), prowlarr.PutDownloadClientByIdOperationOptions{}); err != nil || res.Model.Priority != 5 {
 		t.Errorf("download client update = %v", err)
 	}
 	if res, err := sdk.PostDownloadClientTestAll(ctx); err != nil || len(res.Model) != 1 {
 		t.Errorf("download client test all = %v", err)
 	}
-	if _, err := sdk.PostDownloadClientTest(ctx, *dc.Model, prowlarr.PostDownloadClientTestOperationOptions{}); err != nil {
+	if _, err := sdk.PostDownloadClientTest(ctx, model(t, dc.Model), prowlarr.PostDownloadClientTestOperationOptions{}); err != nil {
 		t.Errorf("download client test = %v", err)
 	}
 	if res, err := sdk.PutDownloadClientBulk(ctx, prowlarr.DownloadClientBulkResource{Ids: []int{fx.client}, Priority: 1}); err != nil || len(res.Model) != 1 {
@@ -396,7 +396,7 @@ func TestProvidersReadAndUpdate(t *testing.T) {
 		t.Fatalf("proxy = %+v, %v", px.Model, err)
 	}
 	px.Model.Name = proxyName + " Renamed"
-	if res, err := sdk.PutIndexerProxyById(ctx, fx.proxy, *px.Model, prowlarr.PutIndexerProxyByIdOperationOptions{}); err != nil || res.Model.Name != proxyName+" Renamed" {
+	if res, err := sdk.PutIndexerProxyById(ctx, fx.proxy, model(t, px.Model), prowlarr.PutIndexerProxyByIdOperationOptions{}); err != nil || res.Model.Name != proxyName+" Renamed" {
 		t.Errorf("proxy update = %v", err)
 	}
 	// none of the proxies is used, so testing them all tests none
@@ -408,7 +408,7 @@ func TestProvidersReadAndUpdate(t *testing.T) {
 	if err != nil || note.Model.Implementation != "Webhook" || boolv(note.Model.OnGrab) {
 		t.Fatalf("notification = %+v, %v", note.Model, err)
 	}
-	if res, err := sdk.PutNotificationById(ctx, fx.webhook, *note.Model, prowlarr.PutNotificationByIdOperationOptions{}); err != nil || res.HttpResponse.StatusCode != http.StatusAccepted {
+	if res, err := sdk.PutNotificationById(ctx, fx.webhook, model(t, note.Model), prowlarr.PutNotificationByIdOperationOptions{}); err != nil || res.HttpResponse.StatusCode != http.StatusAccepted {
 		t.Errorf("notification update = %v", err)
 	}
 }
@@ -477,31 +477,31 @@ func TestProviderActions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := sdk.PostIndexerActionByName(ctx, "nothing", *idx.Model)
+	res, err := sdk.PostIndexerActionByName(ctx, "nothing", model(t, idx.Model))
 	isJSON("an indexer's action", res.Model, err)
 	app, err := sdk.GetApplicationsById(ctx, fx.app)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res2, err := sdk.PostApplicationsActionByName(ctx, "nothing", *app.Model)
+	res2, err := sdk.PostApplicationsActionByName(ctx, "nothing", model(t, app.Model))
 	isJSON("an application's action", res2.Model, err)
 	dc, err := sdk.GetDownloadClientById(ctx, fx.client)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res3, err := sdk.PostDownloadClientActionByName(ctx, "nothing", *dc.Model)
+	res3, err := sdk.PostDownloadClientActionByName(ctx, "nothing", model(t, dc.Model))
 	isJSON("a download client's action", res3.Model, err)
 	px, err := sdk.GetIndexerProxyById(ctx, fx.proxy)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res4, err := sdk.PostIndexerProxyActionByName(ctx, "nothing", *px.Model)
+	res4, err := sdk.PostIndexerProxyActionByName(ctx, "nothing", model(t, px.Model))
 	isJSON("a proxy's action", res4.Model, err)
 	note, err := sdk.GetNotificationById(ctx, fx.webhook)
 	if err != nil {
 		t.Fatal(err)
 	}
-	res5, err := sdk.PostNotificationActionByName(ctx, "nothing", *note.Model)
+	res5, err := sdk.PostNotificationActionByName(ctx, "nothing", model(t, note.Model))
 	isJSON("a notification's action", res5.Model, err)
 }
 

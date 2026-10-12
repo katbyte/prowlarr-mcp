@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package integration
+package prowlarr_test
 
 import (
 	"fmt"
@@ -17,9 +17,9 @@ import (
 // against declares it: a line each of family, name, type and privacy. The
 // tools' unit tests read it and refuse a setting that is neither hidden as a
 // credential nor on the list of ones somebody has looked at.
-const settingsFile = "../tools/testdata/settings.txt"
+const settingsFile = "../../tools/testdata/settings.txt"
 
-const settingsHeader = "# Every setting of every kind of provider, as Prowlarr declares it: family, name, type, privacy.\n# Written from a real Prowlarr by the client suite: PROWLARR_TEST_WRITE_SETTINGS=1 make testacc-integration\n"
+const settingsHeader = "# Every setting of every kind of provider, as Prowlarr declares it: family, name, type, privacy.\n# Written from a real Prowlarr by the client suite: PROWLARR_TEST_WRITE_SETTINGS=1 make testacc-sdk\n"
 
 // What is a credential is Prowlarr's to mark, and it leaves some unmarked.
 // The tools' rule for those is checked against the list in settingsFile, so

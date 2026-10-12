@@ -5,6 +5,7 @@ version: "2"
 
 run:
   timeout: 60m
+  build-tags: [acceptance] # the suites that run against a real server are behind this tag, and are linted like everything else
   modules-download-mode: vendor
 
 issues:
@@ -82,13 +83,22 @@ linters:
           - goconst
       # tool names, protocols, query keys and fixture names repeat the same short words by
       # design in the tools, the clients and the suites; constants would only add indirection
-      - path: '(tools|sdk/prowlarr|internal/fakes|acceptance|integration)/.*\.go'
+      - path: '(tools|sdk/prowlarr|internal/fakes|acceptance)/.*\.go'
         linters:
           - goconst
       # paths, statuses and schema names are what the workarounds for the document are made of
       - path: 'sdk/pandorest/.*\.go'
         linters:
           - goconst
+      # the suites under acceptance/ share one real server and the fixtures in it, so their tests run one after another
+      - path: 'acceptance/.*\.go'
+        linters:
+          - paralleltest
+      # a tool's answer is read as a map of any, where `x != true` is the check: an any is not a bool to shorten it to
+      - path: 'acceptance/.*\.go'
+        text: 'bool-literal-in-expr'
+        linters:
+          - revive
       # the idiomatic `if err := f(); err != nil` scoping shadows err on purpose; still flag other variables
       # and err shadows outside the if-statement form (source scopes the rule to the if idiom only)
       - text: 'shadow: declaration of "err"'

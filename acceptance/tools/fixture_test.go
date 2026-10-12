@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-package acceptance
+package tools_test
 
 import (
 	"time"

@@ -4,9 +4,8 @@
 // through is set up. The machinery is go-kt's (test/env and
 // test/replayproxy).
 //
-// The acceptance suite (../../acceptance) drives the tools over MCP and the
-// integration suite (../../integration) drives the generated SDK; each runs
-// against a container and a proxy of its own.
+// The tool suite (../../acceptance/tools) drives the tools over MCP and the client suite (../../acceptance/prowlarr) drives the generated SDK; each
+// runs against a container and a proxy of its own.
 package testenv
 
 import (

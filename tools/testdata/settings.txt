@@ -1,5 +1,5 @@
 # Every setting of every kind of provider, as Prowlarr declares it: family, name, type, privacy.
-# Written from a real Prowlarr by the client suite: PROWLARR_TEST_WRITE_SETTINGS=1 make testacc-integration
+# Written from a real Prowlarr by the client suite: PROWLARR_TEST_WRITE_SETTINGS=1 make testacc-sdk
 application animeSyncCategories select normal
 application apiKey textbox apiKey
 application authPassword password password

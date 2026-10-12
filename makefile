@@ -211,24 +211,26 @@ test: build ## Run tests
 # applications the suite runs on the host: the SDK tests create and delete
 # indexers of their own, which would trample the tool suite's fixtures, so the
 # two can run side by side
-PORT_acceptance=19696
-INDEXER_PORT_acceptance=19691
-APP_PORT_acceptance=19692
-PROXY_PORT_acceptance=19693
-PORT_integration=19796
-INDEXER_PORT_integration=19791
-APP_PORT_integration=19792
-PROXY_PORT_integration=19793
+DIR_tools=acceptance/tools
+PORT_tools=19696
+INDEXER_PORT_tools=19691
+APP_PORT_tools=19692
+PROXY_PORT_tools=19693
+DIR_sdk=acceptance/prowlarr
+PORT_sdk=19796
+INDEXER_PORT_sdk=19791
+APP_PORT_sdk=19792
+PROXY_PORT_sdk=19793
 
-test-integration: ## Run the SDK tests (sdk/prowlarr) against an already-running Prowlarr
+test-sdk: ## Run the SDK tests (sdk/prowlarr) against an already-running Prowlarr
 	@[ -n "${PROWLARR_SERVER}" ] && [ -n "${PROWLARR_TOKEN}" ] || \
 		(echo 'PROWLARR_SERVER and PROWLARR_TOKEN must be set; or use "make testacc"'; exit 1)
-	go test -tags integration -count=1 ./integration/... -timeout ${TEST_TIMEOUT} -v
+	go test -tags acceptance -count=1 ./$(DIR_sdk)/... -timeout ${TEST_TIMEOUT} -v
 
-test-acceptance: ## Run the tool tests (behaviour, audits) against an already-running Prowlarr
+test-tools: ## Run the tool tests (behaviour, audits) against an already-running Prowlarr
 	@[ -n "${PROWLARR_SERVER}" ] && [ -n "${PROWLARR_TOKEN}" ] || \
 		(echo 'PROWLARR_SERVER and PROWLARR_TOKEN must be set; or use "make testacc"'; exit 1)
-	go test -tags integration -count=1 ./acceptance/... -timeout ${TEST_TIMEOUT} -v
+	go test -tags acceptance -count=1 ./$(DIR_tools)/... -timeout ${TEST_TIMEOUT} -v
 
 # live SUITE [EXTRA GO TEST FLAGS] - start a container, run one suite, tear it down
 define live
@@ -245,35 +247,35 @@ define live
 		trap 'st=$$?; [ $$st -eq 0 ] || scripts/testenv.sh logs; \
 			scripts/testenv.sh down; rm -f '"$$env"'; exit $$st' EXIT; \
 		. ./"$$env"; \
-		go test -tags integration -count=1 ./$(1)/... -timeout ${TEST_TIMEOUT} -v $(2)
+		go test -tags acceptance -count=1 ./$(DIR_$(1))/... -timeout ${TEST_TIMEOUT} -v $(2)
 endef
 
-testacc-integration: ## SDK tests in a throwaway Prowlarr
-	$(call live,integration)
+testacc-sdk: ## SDK tests in a throwaway Prowlarr
+	$(call live,sdk)
 
-testacc-acceptance: ## Tool tests in a throwaway Prowlarr
-	$(call live,acceptance)
+testacc-tools: ## Tool tests in a throwaway Prowlarr
+	$(call live,tools)
 
-testacc: testacc-integration testacc-acceptance ## Run both live suites, each in its own container
+testacc: testacc-sdk testacc-tools ## Run both live suites, each in its own container
 
 # Coverage has to span all three suites or it lies: the unit tests alone report
 # a fraction for tools/, because almost everything real happens in the live
-# suites behind the integration tag. Each writes binary coverage into its own
+# suites behind the acceptance tag. Each writes binary coverage into its own
 # directory and covdata merges them, which is stdlib tooling rather than a
 # third-party merger.
 COVERDIR?=.coverage
 COVERPKG=./tools/...,./sdk/...,./lib/...,./cli/...,./internal/...
 SDKS=/sdk/prowlarr/
-COVERDIRS=$(COVERDIR)/unit,$(COVERDIR)/integration,$(COVERDIR)/acceptance
+COVERDIRS=$(COVERDIR)/unit,$(COVERDIR)/sdk,$(COVERDIR)/tools
 
 cover: ## Run every suite with coverage and report the total
 	@rm -rf $(COVERDIR)
-	@mkdir -p $(COVERDIR)/unit $(COVERDIR)/integration $(COVERDIR)/acceptance
+	@mkdir -p $(COVERDIR)/unit $(COVERDIR)/sdk $(COVERDIR)/tools
 	@echo "==> unit..."
 	@go test -count=1 -coverpkg=$(COVERPKG) ./tools/ ./cli/ ./sdk/... ./lib/... ./internal/... \
 		-args -test.gocoverdir=$(CURDIR)/$(COVERDIR)/unit >/dev/null
-	@$(MAKE) --no-print-directory cover-integration
-	@$(MAKE) --no-print-directory cover-acceptance
+	@$(MAKE) --no-print-directory cover-sdk
+	@$(MAKE) --no-print-directory cover-tools
 	@go tool covdata textfmt -i=$(COVERDIRS) -o=$(COVERDIR)/coverage.all
 	@# sdk/prowlarr is generated, one mechanical method per operation (122 of
 	@# them); the suites exercise the ones the tools rely on, so the total is for
@@ -287,11 +289,11 @@ cover: ## Run every suite with coverage and report the total
 	@echo "==> per package"
 	@go tool covdata percent -i=$(COVERDIRS)
 
-cover-integration:
-	$(call live,integration,-coverpkg=$(COVERPKG) -args -test.gocoverdir=$(CURDIR)/$(COVERDIR)/integration)
+cover-sdk:
+	$(call live,sdk,-coverpkg=$(COVERPKG) -args -test.gocoverdir=$(CURDIR)/$(COVERDIR)/sdk)
 
-cover-acceptance:
-	$(call live,acceptance,-coverpkg=$(COVERPKG) -args -test.gocoverdir=$(CURDIR)/$(COVERDIR)/acceptance)
+cover-tools:
+	$(call live,tools,-coverpkg=$(COVERPKG) -args -test.gocoverdir=$(CURDIR)/$(COVERDIR)/tools)
 
 cover-html: cover ## Run every suite with coverage and open the HTML report
 	@go tool cover -html=$(COVERDIR)/coverage.out

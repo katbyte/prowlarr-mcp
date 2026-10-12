@@ -1,6 +1,6 @@
-//go:build integration
+//go:build acceptance
 
-// Package acceptance covers every tool against a real Prowlarr running in
+// Package tools_test covers every tool against a real Prowlarr running in
 // Docker - the API wrappers and the audits alike - so response shapes, query
 // encoding and Prowlarr's own rules are checked against the thing
 // prowlarr-mcp actually talks to rather than a stub.
@@ -12,13 +12,16 @@
 // tools themselves (indexer_add, app_add, proxy_add...), so the setup is part
 // of the coverage.
 //
-//	make testacc-acceptance                     # container started and torn down
+//	make testacc-tools                     # container started and torn down
 //
 //	eval "$(scripts/testenv.sh up)"             # or drive it by hand
-//	go test -tags integration ./acceptance/...
+//	go test -tags acceptance ./acceptance/tools/...
 //	scripts/testenv.sh down
-package acceptance
+package tools_test
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
-func TestMain(m *testing.M) { testMain(m) }
+func TestMain(m *testing.M) { os.Exit(runSuite(m)) }

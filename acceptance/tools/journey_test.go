@@ -1,4 +1,4 @@
-//go:build integration
+//go:build acceptance
 
 // Journeys: the tools chained the way a real session chains them, and held to
 // what they say about themselves. The per-tool tests prove each tool answers;
@@ -8,9 +8,10 @@
 // read a page at a time is the list read whole, and that a delete does
 // nothing until it is confirmed. A 200 from Prowlarr is not proof of any of
 // it, so each is read back from Prowlarr itself.
-package acceptance
+package tools_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -19,7 +20,7 @@ import (
 	"sync"
 	"testing"
 
-	acc "github.com/katbyte/go-kt/mcp/acctest"
+	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/go-kt/test/services/arrserver"
 	"github.com/katbyte/prowlarr-mcp/internal/fakes/servarr"
 	"github.com/katbyte/prowlarr-mcp/lib/testenv"
@@ -170,8 +171,12 @@ func TestJourneySetupAndTeardown(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"profile_delete", map[string]any{"profile": profile}}, {"downloadclient_delete", map[string]any{"client": client}}, {"indexer_delete", map[string]any{"indexer": indexer}},
-		{"app_delete", map[string]any{"app": app}}, {"filter_delete", map[string]any{"filter": filter}}, {"notification_delete", map[string]any{"notification": hook}},
+		{"profile_delete", map[string]any{"profile": profile}},
+		{"downloadclient_delete", map[string]any{"client": client}},
+		{"indexer_delete", map[string]any{"indexer": indexer}},
+		{"app_delete", map[string]any{"app": app}},
+		{"filter_delete", map[string]any{"filter": filter}},
+		{"notification_delete", map[string]any{"notification": hook}},
 	} {
 		later.args["confirm"] = true
 		suite.DeleteLaterIfThere(t, later.tool, later.args, "no ")
@@ -183,8 +188,8 @@ func TestJourneySetupAndTeardown(t *testing.T) {
 	// set up
 	suite.Call(t, "tag_create", map[string]any{"label": tag})
 	suite.Call(t, "profile_create", map[string]any{"name": profile, "minimum_seeders": 2})
-	added := acc.Object(t, suite.Call(t, "indexer_add", map[string]any{"definition": "Generic Torznab", "name": indexer, "base_url": sitesUp.Indexer(siteAnime).URL(), "settings": map[string]any{"apiKey": siteKeys[siteAnime]}, "tags": []string{tag}, "sync_profile": profile})["indexer"], "indexer")
-	if acc.Str(added["sync_profile"]) != profile || !slices.Contains(acc.Strs(t, added["tags"], "tags"), tag) {
+	added := acctest.Object(t, suite.Call(t, "indexer_add", map[string]any{"definition": "Generic Torznab", "name": indexer, "base_url": sitesUp.Indexer(siteAnime).URL(), "settings": map[string]any{"apiKey": siteKeys[siteAnime]}, "tags": []string{tag}, "sync_profile": profile})["indexer"], "indexer")
+	if acctest.Str(added["sync_profile"]) != profile || !slices.Contains(acctest.Strs(t, added["tags"], "tags"), tag) {
 		t.Fatalf("the indexer as added = %v", added)
 	}
 	suite.Call(t, "downloadclient_add", map[string]any{"kind": "TorrentBlackhole", "name": client, "settings": map[string]any{"torrentFolder": "/downloads/torrent"}})
@@ -196,46 +201,46 @@ func TestJourneySetupAndTeardown(t *testing.T) {
 
 	// the application receives the tagged tracker, and only that one
 	suite.Call(t, "app_sync", map[string]any{"force": true})
-	if got := acc.Strs(t, suite.Call(t, "app_get", map[string]any{"app": app})["synced"], "synced"); !slices.Equal(got, []string{indexer}) {
+	if got := acctest.Strs(t, suite.Call(t, "app_get", map[string]any{"app": app})["synced"], "synced"); !slices.Equal(got, []string{indexer}) {
 		t.Errorf("%s receives %v, want only %s", app, got, indexer)
 	}
-	if !acc.EventuallyWithin(patience, func() bool {
+	if !acctest.EventuallyWithin(patience, func() bool {
 		return slices.ContainsFunc(appsUp.Indexers("journey"), func(i servarr.Indexer) bool { return strings.Contains(i.Name, indexer) })
 	}) {
 		t.Errorf("the fake Sonarr never received %s: %v", indexer, appsUp.Indexers("journey"))
 	}
 
 	// a search and a grab through it, which the history then shows
-	found := acc.Rows(t, search(t, "frieren", indexer)["releases"], "releases")
+	found := acctest.Rows(t, search(t, "frieren", indexer)["releases"], "releases")
 	if len(found) == 0 {
 		t.Fatalf("nothing found on %s", indexer)
 	}
-	grabbed := suite.Call(t, "release_grab", map[string]any{"indexer": indexer, "guid": acc.Str(found[0]["guid"]), "download_client": client})
-	if got := acc.Strs(t, grabbed["grabbed"], "grabbed"); len(got) != 1 {
+	grabbed := suite.Call(t, "release_grab", map[string]any{"indexer": indexer, "guid": acctest.Str(found[0]["guid"]), "download_client": client})
+	if got := acctest.Strs(t, grabbed["grabbed"], "grabbed"); len(got) != 1 {
 		t.Errorf("grabbed = %v", grabbed)
 	}
-	if !acc.EventuallyWithin(patience, func() bool {
-		return len(acc.Rows(t, suite.Call(t, "history_list", map[string]any{"indexer": indexer, "event": "grab"})["events"], "events")) == 1
+	if !acctest.EventuallyWithin(patience, func() bool {
+		return len(acctest.Rows(t, suite.Call(t, "history_list", map[string]any{"indexer": indexer, "event": "grab"})["events"], "events")) == 1
 	}) {
 		t.Errorf("the history does not show the grab from %s", indexer)
 	}
 
 	// told when something breaks: the hook hears Prowlarr's test, and a
 	// backup is the way back
-	if res := acc.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hook})["results"], "results"); len(res) != 1 || !acc.IsBool(res[0]["ok"], true) || !slices.Contains(h.got(), "Test") {
+	if res := acctest.Rows(t, suite.Call(t, "notification_test", map[string]any{"notification": hook})["results"], "results"); len(res) != 1 || !acctest.IsBool(res[0]["ok"], true) || !slices.Contains(h.got(), "Test") {
 		t.Errorf("the hook = %v, heard %v", res, h.got())
 	}
-	backup := acc.Str(acc.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
+	backup := acctest.Str(acctest.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
 	suite.DeleteLaterIfThere(t, "backup_delete", map[string]any{"backup": backup, "confirm": true}, "no backup")
 
 	// the audits over the lot: what they report of this journey's own
 	ownFindings := func() map[string][]string {
 		own := map[string][]string{}
-		for _, row := range acc.Rows(t, suite.Call(t, "audit_all", nil)["audits"], "audits") {
-			if acc.Num(t, row["findings"], "findings") == 0 {
+		for _, row := range acctest.Rows(t, suite.Call(t, "audit_all", nil)["audits"], "audits") {
+			if acctest.Num(t, row["findings"], "findings") == 0 {
 				continue
 			}
-			audit := acc.Str(row["audit"])
+			audit := acctest.Str(row["audit"])
 			for _, f := range findings(t, suite.Call(t, audit, map[string]any{"limit": 1000})) {
 				if strings.HasPrefix(f, "Journey ") || strings.HasPrefix(f, tag+"/") {
 					own[audit] = append(own[audit], f)
@@ -273,7 +278,7 @@ func TestJourneySetupAndTeardown(t *testing.T) {
 		{"backup_delete", map[string]any{"backup": backup}},
 	} {
 		step.args["confirm"] = true
-		if gone := suite.Call(t, step.tool, step.args); acc.Str(gone["deleted"]) == "" {
+		if gone := suite.Call(t, step.tool, step.args); acctest.Str(gone["deleted"]) == "" {
 			t.Errorf("%s = %v", step.tool, gone)
 		}
 	}
@@ -304,15 +309,35 @@ func TestJourneyNoAnswerShowsAStoredKey(t *testing.T) {
 		tool string
 		args map[string]any
 	}{
-		{"indexer_test", nil}, {"indexer_test", map[string]any{"indexer": idxDown}}, {"indexer_test", map[string]any{"indexer": idxRevoked}},
-		{"app_test", nil}, {"proxy_test", nil}, {"downloadclient_test", nil},
-		{"audit_failing", map[string]any{"test": true}}, {"audit_apps", map[string]any{"test": true}}, {"audit_proxies", map[string]any{"test": true}}, {"audit_downloadclients", map[string]any{"test": true}},
-		{"audit_health", nil}, {"audit_definitions", nil}, {"server_health", map[string]any{"check": true}}, {"server_info", nil}, {"server_settings", nil},
-		{"server_log", map[string]any{"limit": 1000}}, {"history_list", map[string]any{"limit": 1000}}, {"command_list", nil},
-		{"indexer_list", nil}, {"indexer_get", map[string]any{"indexer": idxDown}}, {"indexer_get", map[string]any{"indexer": "Milkie"}}, {"indexer_stats", nil},
-		{"app_list", nil}, {"app_get", map[string]any{"app": appSonarr}}, {"proxy_list", nil}, {"downloadclient_list", nil}, {"notification_list", nil},
+		{"indexer_test", nil},
+		{"indexer_test", map[string]any{"indexer": idxDown}},
+		{"indexer_test", map[string]any{"indexer": idxRevoked}},
+		{"app_test", nil},
+		{"proxy_test", nil},
+		{"downloadclient_test", nil},
+		{"audit_failing", map[string]any{"test": true}},
+		{"audit_apps", map[string]any{"test": true}},
+		{"audit_proxies", map[string]any{"test": true}},
+		{"audit_downloadclients", map[string]any{"test": true}},
+		{"audit_health", nil},
+		{"audit_definitions", nil},
+		{"server_health", map[string]any{"check": true}},
+		{"server_info", nil},
+		{"server_settings", nil},
+		{"server_log", map[string]any{"limit": 1000}},
+		{"history_list", map[string]any{"limit": 1000}},
+		{"command_list", nil},
+		{"indexer_list", nil},
+		{"indexer_get", map[string]any{"indexer": idxDown}},
+		{"indexer_get", map[string]any{"indexer": "Milkie"}},
+		{"indexer_stats", nil},
+		{"app_list", nil},
+		{"app_get", map[string]any{"app": appSonarr}},
+		{"proxy_list", nil},
+		{"downloadclient_list", nil},
+		{"notification_list", nil},
 		// a save Prowlarr refuses with a 500 that quotes the address it made of this one, the indexer's own key on the end
-		{"indexer_edit", map[string]any{"indexer": idxTorrent, "base_url": "https://someone:a-sign-in-word@site.example/path?passkey=a-pass-key#frag", "force": true}},
+		{"indexer_edit", map[string]any{"indexer": idxTorrent, "base_url": "https://someone:a-sign-in-word@site.example/path?passkey=a-pass-key#frag", "force": true}}, //nolint:gosec // a made-up address, there to prove the sign-in in it is not shown
 	}
 	suite.Secret("a-sign-in-word")
 	suite.Secret("a-pass-key")
@@ -331,11 +356,11 @@ func TestJourneyWritesDoneTwice(t *testing.T) {
 	h := newHook(t)
 	suite.DeleteLaterIfThere(t, "notification_delete", map[string]any{"notification": "Twice Hook", "confirm": true}, "no notification")
 	suite.Call(t, "notification_add", map[string]any{"kind": "Webhook", "name": "Twice Hook", "on": []string{"health_issue"}, "settings": map[string]any{"url": h.url}})
-	filter := acc.Num(t, suite.Call(t, "filter_create", map[string]any{"label": "Twice", "page": "history", "filters": []map[string]any{{"key": "successful", "type": "equal", "value": false}}})["id"], "id")
+	filter := acctest.Num(t, suite.Call(t, "filter_create", map[string]any{"label": "Twice", "page": "history", "filters": []map[string]any{{"key": "successful", "type": "equal", "value": false}}})["id"], "id")
 	suite.DeleteLaterIfThere(t, "filter_delete", map[string]any{"filter": itoa(filter), "confirm": true}, "no filter")
 	rotate := 0
-	for _, sec := range acc.Rows(t, suite.Call(t, "server_settings", map[string]any{"section": "development"})["sections"], "sections") {
-		rotate = acc.Num(t, acc.Object(t, sec["settings"], "settings")["logRotate"], "logRotate")
+	for _, sec := range acctest.Rows(t, suite.Call(t, "server_settings", map[string]any{"section": "development"})["sections"], "sections") {
+		rotate = acctest.Num(t, acctest.Object(t, sec["settings"], "settings")["logRotate"], "logRotate")
 	}
 
 	// each is a call, and the call that puts back what it changed
@@ -412,7 +437,8 @@ func TestJourneyEditsAtOnceAllHold(t *testing.T) {
 		t.Skip(testenv.NotConfigured)
 	}
 	const edits = 8
-	want := []string{"at-once"}
+	want := make([]string, 0, 1+edits)
+	want = append(want, "at-once")
 	for n := range edits {
 		want = append(want, fmt.Sprintf("at-once-%d", n))
 	}
@@ -437,15 +463,15 @@ func TestJourneyEditsAtOnceAllHold(t *testing.T) {
 		}
 	}
 
-	held := acc.Strs(t, indexerRow(t, idxMusic)["tags"], "tags")
+	held := acctest.Strs(t, indexerRow(t, idxMusic)["tags"], "tags")
 	for _, label := range want {
 		if !slices.Contains(held, label) {
 			t.Errorf("%s holds %v after %d edits at once, and not %s", idxMusic, held, edits, label)
 		}
 	}
 	shared := 0
-	for _, tag := range acc.Rows(t, suite.Call(t, "tag_list", nil)["tags"], "tags") {
-		if acc.Str(tag["label"]) == "at-once" {
+	for _, tag := range acctest.Rows(t, suite.Call(t, "tag_list", nil)["tags"], "tags") {
+		if acctest.Str(tag["label"]) == "at-once" {
 			shared++
 		}
 	}
@@ -477,7 +503,7 @@ type listTool struct {
 // walked here.
 func TestJourneyEveryListAddsUpToItsTotal(t *testing.T) {
 	st := suite.Call(t, "server_info", nil)
-	home.Offer(arrserver.Update{Version: "99.0.0.3"}, arrserver.Update{Version: "99.0.0.2"}, arrserver.Update{Version: acc.Str(st["version"])})
+	home.Offer(arrserver.Update{Version: "99.0.0.3"}, arrserver.Update{Version: "99.0.0.2"}, arrserver.Update{Version: acctest.Str(st["version"])})
 	t.Cleanup(func() { home.Offer() })
 
 	lists := map[string]listTool{
@@ -528,7 +554,7 @@ func TestJourneyEveryListAddsUpToItsTotal(t *testing.T) {
 		// does not add up
 		walk := func() (problems []string) {
 			whole := suite.Call(t, tool.Name, with(map[string]any{"limit": 1000}))
-			all, count := append([]any{}, acc.RowsOfAny(whole[l.rows])...), acc.Num(t, whole[total], total)
+			all, count := append([]any{}, acctest.RowsOfAny(whole[l.rows])...), acctest.Num(t, whole[total], total)
 			if len(all) != count || whole["next_offset"] != nil {
 				problems = append(problems, fmt.Sprintf("%s read whole: %d rows, a total of %d, next_offset %v", tool.Name, len(all), count, whole["next_offset"]))
 			}
@@ -539,13 +565,14 @@ func TestJourneyEveryListAddsUpToItsTotal(t *testing.T) {
 			offset, pages := 0, 0
 			for {
 				page := suite.Call(t, tool.Name, with(map[string]any{"limit": size, "offset": offset}))
-				rows := acc.RowsOfAny(page[l.rows])
-				if len(rows) > size || acc.Num(t, page["offset"], "offset") != offset {
+				rows := acctest.RowsOfAny(page[l.rows])
+				if len(rows) > size || acctest.Num(t, page["offset"], "offset") != offset {
 					problems = append(problems, fmt.Sprintf("%s limit %d offset %d answered %d rows from offset %v", tool.Name, size, offset, len(rows), page["offset"]))
 				}
 				walked = append(walked, rows...)
 				next, more := page["next_offset"].(float64)
-				if pages++; !more || pages > 2000 {
+				pages++
+				if !more || pages > 2000 {
 					break
 				}
 				if int(next) != offset+len(rows) {
@@ -571,7 +598,7 @@ func TestJourneyEveryListAddsUpToItsTotal(t *testing.T) {
 				}
 				a, _ := json.Marshal(all)
 				b, _ := json.Marshal(walked)
-				if len(walked) != count || string(a) != string(b) {
+				if len(walked) != count || !bytes.Equal(a, b) {
 					problems = append(problems, fmt.Sprintf("%s a page at a time (%d rows in %d pages of %d) is not the list read whole (%d rows)", tool.Name, len(walked), pages, size, count))
 				}
 			}
@@ -615,14 +642,14 @@ func TestJourneyDeletesAskFirst(t *testing.T) {
 	suite.Call(t, "downloadclient_add", map[string]any{"kind": "TorrentBlackhole", "name": name, "settings": map[string]any{"torrentFolder": "/downloads/torrent"}})
 	suite.Call(t, "notification_add", map[string]any{"kind": "Webhook", "name": name, "on": []string{"health_issue"}, "settings": map[string]any{"url": "http://" + testenv.Host() + ":1/hook"}, "force": true})
 	suite.Call(t, "filter_create", map[string]any{"label": name, "page": "indexerIndex", "filters": []map[string]any{{"key": "protocol", "type": "equal", "value": []string{"torrent"}}}})
-	backup := acc.Str(acc.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
+	backup := acctest.Str(acctest.Object(t, suite.Call(t, "backup_create", nil)["backup"], "backup")["name"])
 	t.Cleanup(func() { _, _ = suite.Invoke("tag_delete", map[string]any{"label": "ask-first"}) })
 
 	deletes := map[string]map[string]any{
 		"indexer_delete": {"indexer": name}, "app_delete": {"app": name}, "profile_delete": {"profile": name}, "proxy_delete": {"proxy": name},
 		"downloadclient_delete": {"client": name}, "notification_delete": {"notification": name}, "filter_delete": {"filter": name}, "backup_delete": {"backup": backup},
 	}
-	backups := func() int { return acc.Num(t, suite.Call(t, "backup_list", nil)["total"], "total") }
+	backups := func() int { return acctest.Num(t, suite.Call(t, "backup_list", nil)["total"], "total") }
 	for tool, args := range deletes {
 		confirmed := maps.Clone(args)
 		confirmed["confirm"] = true
@@ -644,7 +671,7 @@ func TestJourneyDeletesAskFirst(t *testing.T) {
 		if tool.Name == "backup_delete" {
 			want = backup
 		}
-		if acc.Str(would["would_delete"]) != want || would["deleted"] != nil || len(acc.Strs(t, would["loses"], "loses")) == 0 {
+		if acctest.Str(would["would_delete"]) != want || would["deleted"] != nil || len(acctest.Strs(t, would["loses"], "loses")) == 0 {
 			t.Errorf("%s without confirm = %v, want it to say %s would go, and what with it", tool.Name, would, want)
 		}
 	}
@@ -654,7 +681,7 @@ func TestJourneyDeletesAskFirst(t *testing.T) {
 
 	for tool, args := range deletes {
 		args["confirm"] = true
-		if gone := suite.Call(t, tool, args); acc.Str(gone["deleted"]) == "" || gone["would_delete"] != nil {
+		if gone := suite.Call(t, tool, args); acctest.Str(gone["deleted"]) == "" || gone["would_delete"] != nil {
 			t.Errorf("%s with confirm = %v", tool, gone)
 		}
 	}

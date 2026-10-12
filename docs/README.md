@@ -13,7 +13,7 @@ The file is named by the Prowlarr release it was taken from, not by the version 
 Prowlarr generates the document with Swashbuckle at build time and commits it, so the copy in the repository at a tag is exactly what that release serves. A running server does not serve it. To refresh: take the file from the new tag, pretty-print it with `jq .` so the diff is readable, and save it beside the old one under the new release's name. `make pandorest-import` imports the highest release present into a definitions directory of its own, `go run ./sdk/pandorest diff -old api-defs/prowlarr-<old> -new api-defs/prowlarr-<new>` says what changed in API terms (breaking changes are marked), then `make generate`, review, and delete the old pair. A workaround whose bug the new document fixes fails the import and names itself; delete it. The test container's image (`scripts/testenv.sh`) is pinned to the same release and moves with it.
 
 The spec is documentation of intent, not of behaviour: the live suites
-(`integration/`, `acceptance/`) are what prove the shapes against a real
+(`acceptance/prowlarr/`, `acceptance/tools/`) are what prove the shapes against a real
 server, and the quirks they found are recorded below.
 
 ## Where the spec is wrong
@@ -126,7 +126,7 @@ import once it is not.
 - The clock check (`SystemTimeCheck`) asks the same host for the time and raises a health error when it is over a day from the server's own, so an answer to it cannot be recorded once and replayed.
 - .NET honours `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, and on Linux trusts the certificates `SSL_CERT_FILE` names, so a container pointed at a proxy the suites run reaches only what the suites answer and the hosts named in `NO_PROXY`. `scripts/testenv.sh` does exactly that.
 - Prowlarr checks its health as it starts, which in the test container is before a suite's proxy is listening, so each suite runs `CheckHealth` once more in its setup.
-- Every GET in the document is called against a real Prowlarr by the read sweep (`integration/read_sweep_test.go`), and the one that cannot answer in the container is classified there: the upgrade log of a container that is never upgraded in place. A classified GET that starts answering fails the sweep, the way a stale workaround fails the import.
+- Every GET in the document is called against a real Prowlarr by the read sweep (`acceptance/prowlarr/read_sweep_test.go`), and the one that cannot answer in the container is classified there: the upgrade log of a container that is never upgraded in place. A classified GET that starts answering fails the sweep, the way a stale workaround fails the import.
 - The generated models hold booleans as `*bool` and lists as `omitzero`
   slices, so a request body can leave a flag to the server's default, send an
   explicit false, and clear a list with an empty one.
