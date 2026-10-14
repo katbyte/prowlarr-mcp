@@ -1,5 +1,12 @@
 # docs
 
+- [audits.md](audits.md): the full rules of each audit.
+- [tools.md](tools.md): every tool, the toolsets, and allowing or denying single tools.
+- [configuration.md](configuration.md): every setting, serving over HTTP, Docker, and two Prowlarrs.
+- [development.md](development.md): the Go client, building, and the tests.
+- [ROADMAP.md](ROADMAP.md): the design rules behind the tools.
+- This page: Prowlarr's API description, and where it is wrong.
+
 ## The API spec
 
 Prowlarr publishes an OpenAPI document, vendored under `api-defs/` as the reference for `sdk/prowlarr` - and it is a build input. [pandorest](https://github.com/katbyte/pandorest), run through `sdk/pandorest`, imports it into checked-in definitions beside it, fixing the document's known bugs with named workarounds on the way, and generates the client from those definitions. `make generate` runs both steps, `make pandorest-diff` reports what a refreshed document would change, `make gencheck` (and the unit tests) fail when the generated code is stale, and `make apicheck` proves every operation in the spec has a method.
@@ -119,7 +126,7 @@ import once it is not.
 - A notification sent for grabs is sent for the applications' grabs; one made from Prowlarr's own search is sent only when `includeManualGrabs` is set.
 - Saved filters are kept by the page of the web interface they belong to, under `indexerIndex`, `indexerStats`, `history` and `releases`; nothing but that page reads them.
 - With no internet `GET /api/v1/update` answers a 500, and Prowlarr falls back to the definitions in `/config/Definitions/*.yml` rather than its own catalogue - which is what the test container relies on.
-- Once a build is 14 days old, Prowlarr's health checks ask its update server whether there is a newer one (`UpdateCheck`), and do not catch a request that fails: with the update server out of reach the whole `CheckHealth` command fails and no health check is recorded at all, the others included. A Prowlarr cut off from the internet therefore reports no health from two weeks after its release. The live suites passed until then and failed from that day, which is why they now answer the update server themselves (`internal/fakes/servarrcloud`).
+- Once a build is 14 days old, Prowlarr's health checks ask its update server whether there is a newer one (`UpdateCheck`), and do not catch a request that fails: with the update server out of reach the whole `CheckHealth` command fails and no health check is recorded at all, the others included. A Prowlarr cut off from the internet therefore reports no health from two weeks after its release. The live suites passed until then and failed from that day, which is why they now answer the update server themselves (`lib/testenv`).
 - The clock check (`SystemTimeCheck`) asks the same host for the time and raises a health error when it is over a day from the server's own, so an answer to it cannot be recorded once and replayed.
 - .NET honours `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY`, and on Linux trusts the certificates `SSL_CERT_FILE` names, so a container pointed at a proxy the suites run reaches only what the suites answer and the hosts named in `NO_PROXY`. `.scripts/testenv.sh` does exactly that.
 - Prowlarr checks its health as it starts, which in the test container is before a suite's proxy is listening, so each suite runs `CheckHealth` once more in its setup.
