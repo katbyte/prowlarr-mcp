@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
@@ -60,7 +61,7 @@ func (o PutNotificationByIdOptions) ToQuery() *client.QueryParams {
 }
 
 // PutNotificationById calls PUT /api/v1/notification/{id}.
-func (c Client) PutNotificationById(ctx context.Context, id int, input NotificationResource, forceSave ...bool) (result PutNotificationByIdResponse, err error) {
+func (c Client) PutNotificationById(ctx context.Context, id NotificationID, input NotificationResource, forceSave ...bool) (result PutNotificationByIdResponse, err error) {
 	var option PutNotificationByIdOptions
 	if len(forceSave) > 1 {
 		err = fmt.Errorf("PutNotificationById takes one forceSave at most, not %d", len(forceSave))
@@ -79,7 +80,7 @@ func (c Client) PutNotificationById(ctx context.Context, id int, input Notificat
 		HTTPMethod:    http.MethodPut,
 		Operation:     "PutNotificationById",
 		OptionsObject: option,
-		Path:          fmt.Sprintf("/api/v1/notification/%d", id),
+		Path:          fmt.Sprintf("/api/v1/notification/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

@@ -27,7 +27,7 @@ type proxyRow struct {
 }
 
 func projectProxy(p *prowlarr.IndexerProxyResource, idx []prowlarr.IndexerResource, tags map[prowlarr.TagID]string) proxyRow {
-	row := proxyRow{ID: p.Id, Name: p.Name, Kind: p.Implementation, Tags: labels(p.Tags, tags)}
+	row := proxyRow{ID: int(p.Id), Name: p.Name, Kind: p.Implementation, Tags: labels(p.Tags, tags)}
 	row.Settings, _ = settings(p.Fields)
 	for _, i := range idx {
 		if slices.ContainsFunc(p.Tags, func(t prowlarr.TagID) bool { return slices.Contains(i.Tags, t) }) {
@@ -184,7 +184,7 @@ func registerProxyTools(r *registry) {
 
 		// what is sent back is the whole proxy, so it is read once no other
 		// edit of it can run
-		unlock := editing[prowlarr.IndexerProxyResource](r, found.Id, len(in.Tags)+len(in.AddTags) > 0)
+		unlock := editing[prowlarr.IndexerProxyResource](r, int(found.Id), len(in.Tags)+len(in.AddTags) > 0)
 		defer unlock()
 
 		read, err := pc.GetIndexerProxyById(ctx, found.Id)
@@ -247,7 +247,7 @@ func registerProxyTools(r *registry) {
 		}
 		names := map[int]string{}
 		for _, p := range res.Answer {
-			names[p.Id] = p.Name
+			names[int(p.Id)] = p.Name
 		}
 		if in.Proxy == "" {
 			all, testErr := pc.PostIndexerProxyTestAll(ctx)

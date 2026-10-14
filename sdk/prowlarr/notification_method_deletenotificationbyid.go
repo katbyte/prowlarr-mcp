@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
@@ -16,14 +18,14 @@ type DeleteNotificationByIdResponse struct {
 }
 
 // DeleteNotificationById calls DELETE /api/v1/notification/{id}.
-func (c Client) DeleteNotificationById(ctx context.Context, id int) (result DeleteNotificationByIdResponse, err error) {
+func (c Client) DeleteNotificationById(ctx context.Context, id NotificationID) (result DeleteNotificationByIdResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodDelete,
 		Operation:  "DeleteNotificationById",
-		Path:       fmt.Sprintf("/api/v1/notification/%d", id),
+		Path:       fmt.Sprintf("/api/v1/notification/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

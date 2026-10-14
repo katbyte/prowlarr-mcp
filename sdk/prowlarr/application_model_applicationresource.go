@@ -6,7 +6,7 @@ package prowlarr
 type ApplicationResource struct {
 	ConfigContract     string                `json:"configContract,omitempty"`
 	Fields             []Field               `json:"fields,omitzero"`
-	Id                 int                   `json:"id,omitempty"`
+	Id                 ApplicationID         `json:"id,omitempty"`
 	Implementation     string                `json:"implementation,omitempty"`
 	ImplementationName string                `json:"implementationName,omitempty"`
 	InfoLink           string                `json:"infoLink,omitempty"`
@@ -22,4 +22,4 @@ type ApplicationResource struct {
 func (m ApplicationResource) GetName() string { return m.Name }
 
 // GetId is the record's Id, for code that handles records of several types alike.
-func (m ApplicationResource) GetId() int { return m.Id }
+func (m ApplicationResource) GetId() ApplicationID { return m.Id }

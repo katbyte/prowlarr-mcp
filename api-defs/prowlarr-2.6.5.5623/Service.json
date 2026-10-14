@@ -38,6 +38,18 @@
     {
       "Name": "DownloadClientID",
       "Base": "Integer"
+    },
+    {
+      "Name": "ApplicationID",
+      "Base": "Integer"
+    },
+    {
+      "Name": "IndexerProxyID",
+      "Base": "Integer"
+    },
+    {
+      "Name": "NotificationID",
+      "Base": "Integer"
     }
   ]
 }

@@ -48,7 +48,7 @@ type appRow struct {
 
 func projectApp(a *prowlarr.ApplicationResource, idx []prowlarr.IndexerResource, tags map[prowlarr.TagID]string) appRow {
 	row := appRow{
-		ID: a.Id, Name: a.Name, Kind: a.Implementation, SyncLevel: string(a.SyncLevel), Tags: labels(a.Tags, tags),
+		ID: int(a.Id), Name: a.Name, Kind: a.Implementation, SyncLevel: string(a.SyncLevel), Tags: labels(a.Tags, tags),
 		BaseURL: shownAddress(a.Fields, "baseUrl"), ProwlarrURL: shownAddress(a.Fields, "prowlarrUrl"),
 		SyncCategories: categoryRanges(appCategories(a)),
 	}
@@ -303,7 +303,7 @@ func registerAppTools(r *registry) {
 
 		// what is sent back is the whole application, so it is read once no
 		// other edit of it can run
-		unlock := editing[prowlarr.ApplicationResource](r, found.Id, len(in.Tags)+len(in.AddTags) > 0)
+		unlock := editing[prowlarr.ApplicationResource](r, int(found.Id), len(in.Tags)+len(in.AddTags) > 0)
 		defer unlock()
 
 		read, err := pc.GetApplicationsById(ctx, found.Id)
@@ -375,7 +375,7 @@ func registerAppTools(r *registry) {
 		}
 		names := map[int]string{}
 		for _, a := range apps.Answer {
-			names[a.Id] = a.Name
+			names[int(a.Id)] = a.Name
 		}
 		if in.App == "" {
 			res, testErr := pc.PostApplicationsTestAll(ctx)

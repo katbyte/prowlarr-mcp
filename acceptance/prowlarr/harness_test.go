@@ -51,11 +51,14 @@ var releases = []newznab.Release{
 
 // fixtures are the ids of what the suite created.
 type fixtures struct {
-	tag                         prowlarr.TagID
-	profile                     prowlarr.AppProfileID
-	torrent, usenet             prowlarr.IndexerID
-	client                      prowlarr.DownloadClientID
-	filter, proxy, app, webhook int
+	tag             prowlarr.TagID
+	profile         prowlarr.AppProfileID
+	torrent, usenet prowlarr.IndexerID
+	client          prowlarr.DownloadClientID
+	filter          int
+	proxy           prowlarr.IndexerProxyID
+	app             prowlarr.ApplicationID
+	webhook         prowlarr.NotificationID
 }
 
 var (

@@ -6,7 +6,7 @@ package prowlarr
 type IndexerProxyResource struct {
 	ConfigContract        string                 `json:"configContract,omitempty"`
 	Fields                []Field                `json:"fields,omitzero"`
-	Id                    int                    `json:"id,omitempty"`
+	Id                    IndexerProxyID         `json:"id,omitempty"`
 	Implementation        string                 `json:"implementation,omitempty"`
 	ImplementationName    string                 `json:"implementationName,omitempty"`
 	IncludeHealthWarnings *bool                  `json:"includeHealthWarnings,omitempty"`
@@ -25,4 +25,4 @@ type IndexerProxyResource struct {
 func (m IndexerProxyResource) GetName() string { return m.Name }
 
 // GetId is the record's Id, for code that handles records of several types alike.
-func (m IndexerProxyResource) GetId() int { return m.Id }
+func (m IndexerProxyResource) GetId() IndexerProxyID { return m.Id }

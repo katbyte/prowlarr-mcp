@@ -17,3 +17,15 @@ type TagID int
 // DownloadClientID is a kind of id the service tells apart, which the compiler keeps from every other kind;
 // int(id) and DownloadClientID(n) convert one value, client.IDs a list.
 type DownloadClientID int
+
+// ApplicationID is a kind of id the service tells apart, which the compiler keeps from every other kind;
+// int(id) and ApplicationID(n) convert one value, client.IDs a list.
+type ApplicationID int
+
+// IndexerProxyID is a kind of id the service tells apart, which the compiler keeps from every other kind;
+// int(id) and IndexerProxyID(n) convert one value, client.IDs a list.
+type IndexerProxyID int
+
+// NotificationID is a kind of id the service tells apart, which the compiler keeps from every other kind;
+// int(id) and NotificationID(n) convert one value, client.IDs a list.
+type NotificationID int

@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
@@ -16,14 +18,14 @@ type DeleteIndexerProxyByIdResponse struct {
 }
 
 // DeleteIndexerProxyById calls DELETE /api/v1/indexerproxy/{id}.
-func (c Client) DeleteIndexerProxyById(ctx context.Context, id int) (result DeleteIndexerProxyByIdResponse, err error) {
+func (c Client) DeleteIndexerProxyById(ctx context.Context, id IndexerProxyID) (result DeleteIndexerProxyByIdResponse, err error) {
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
 			http.StatusOK,
 		},
 		HTTPMethod: http.MethodDelete,
 		Operation:  "DeleteIndexerProxyById",
-		Path:       fmt.Sprintf("/api/v1/indexerproxy/%d", id),
+		Path:       fmt.Sprintf("/api/v1/indexerproxy/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

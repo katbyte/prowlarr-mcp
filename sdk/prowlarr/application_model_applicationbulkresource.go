@@ -5,7 +5,7 @@ package prowlarr
 // ApplicationBulkResource is the "ApplicationBulkResource" schema.
 type ApplicationBulkResource struct {
 	ApplyTags ApplyTags            `json:"applyTags,omitempty"`
-	Ids       []int                `json:"ids,omitzero"`
+	Ids       []ApplicationID      `json:"ids,omitzero"`
 	SyncLevel ApplicationSyncLevel `json:"syncLevel,omitempty"`
 	Tags      []TagID              `json:"tags,omitzero"`
 }

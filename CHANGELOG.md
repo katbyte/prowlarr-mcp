@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 (2026-10-14)
+
+Only the Go client changes; the tools answer as before.
+
+### Breaking
+
+- in the Go client, applications, proxies and notifications each have their own id type too, so the ids on a tag can only be matched with the right kind of thing
+
+### Added
+
+- the Go client lists every operation it has, with its method, path and group, in `prowlarr.Operations`
+
 ## 0.3.0 (2026-10-12)
 
 Credentials that 0.1.0 and 0.2.0 could show are now hidden; upgrading is recommended.

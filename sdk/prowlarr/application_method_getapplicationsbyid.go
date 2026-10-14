@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
@@ -39,7 +41,7 @@ func (r GetApplicationsByIdResponse) Record() (ApplicationResource, error) {
 }
 
 // GetApplicationsById calls GET /api/v1/applications/{id}.
-func (c Client) GetApplicationsById(ctx context.Context, id int) (result GetApplicationsByIdResponse, err error) {
+func (c Client) GetApplicationsById(ctx context.Context, id ApplicationID) (result GetApplicationsByIdResponse, err error) {
 	result.ApplicationResource = &ApplicationResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
@@ -47,7 +49,7 @@ func (c Client) GetApplicationsById(ctx context.Context, id int) (result GetAppl
 		},
 		HTTPMethod: http.MethodGet,
 		Operation:  "GetApplicationsById",
-		Path:       fmt.Sprintf("/api/v1/applications/%d", id),
+		Path:       fmt.Sprintf("/api/v1/applications/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

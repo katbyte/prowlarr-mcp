@@ -74,12 +74,12 @@ func TestReadSweep(t *testing.T) {
 		Path: map[string]string{
 			"id":                itoa(int(fx.torrent)), // the newznab and download routes, which have no prefix
 			"indexer/id":        itoa(int(fx.torrent)),
-			"applications/id":   itoa(fx.app),
+			"applications/id":   itoa(int(fx.app)),
 			"appprofile/id":     itoa(int(fx.profile)),
 			"customfilter/id":   itoa(fx.filter),
 			"downloadclient/id": itoa(int(fx.client)),
-			"indexerproxy/id":   itoa(fx.proxy),
-			"notification/id":   itoa(fx.webhook),
+			"indexerproxy/id":   itoa(int(fx.proxy)),
+			"notification/id":   itoa(int(fx.webhook)),
 			"tag/id":            itoa(int(fx.tag)),
 			"detail/id":         itoa(int(fx.tag)),
 			"command/id":        itoa(command.Id),

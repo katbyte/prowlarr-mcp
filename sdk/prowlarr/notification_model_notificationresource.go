@@ -6,7 +6,7 @@ package prowlarr
 type NotificationResource struct {
 	ConfigContract              string                 `json:"configContract,omitempty"`
 	Fields                      []Field                `json:"fields,omitzero"`
-	Id                          int                    `json:"id,omitempty"`
+	Id                          NotificationID         `json:"id,omitempty"`
 	Implementation              string                 `json:"implementation,omitempty"`
 	ImplementationName          string                 `json:"implementationName,omitempty"`
 	IncludeHealthWarnings       *bool                  `json:"includeHealthWarnings,omitempty"`
@@ -32,4 +32,4 @@ type NotificationResource struct {
 func (m NotificationResource) GetName() string { return m.Name }
 
 // GetId is the record's Id, for code that handles records of several types alike.
-func (m NotificationResource) GetId() int { return m.Id }
+func (m NotificationResource) GetId() NotificationID { return m.Id }

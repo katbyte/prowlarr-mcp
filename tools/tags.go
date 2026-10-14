@@ -55,7 +55,7 @@ func (r *registry) tagRows(ctx context.Context, idx []prowlarr.IndexerResource, 
 	if err != nil {
 		return nil, err
 	}
-	appNames, proxyNames, noteNames := map[int]string{}, map[int]string{}, map[int]string{}
+	appNames, proxyNames, noteNames := map[prowlarr.ApplicationID]string{}, map[prowlarr.IndexerProxyID]string{}, map[prowlarr.NotificationID]string{}
 	for _, a := range apps {
 		appNames[a.Id] = a.Name
 	}

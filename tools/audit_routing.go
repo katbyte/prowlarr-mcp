@@ -134,7 +134,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 					Detail: "Prowlarr's health check: " + outsideSaid(h.Message), Fix: "app_test says why; app_edit base_url or api_key",
 				})
 			}
-			if tr, ok := tested[app.Id]; ok && !tr.OK {
+			if tr, ok := tested[int(app.Id)]; ok && !tr.OK {
 				out.report(finding{
 					Subject: app.Name, Kind: "app", Problem: "test_failed",
 					Detail: "its connection test fails: " + strings.Join(tr.Problems, "; "), Fix: "app_edit base_url or api_key",
@@ -242,7 +242,7 @@ func registerRoutingAudits(r *registry, t *auditTable) {
 					Detail: "Prowlarr's health check: " + outsideSaid(h.Message), Fix: "proxy_test says why; proxy_edit its host",
 				})
 			}
-			if tr, ok := tested[p.Id]; ok && !tr.OK {
+			if tr, ok := tested[int(p.Id)]; ok && !tr.OK {
 				out.report(finding{
 					Subject: p.Name, Kind: "proxy", Problem: "proxy_failing",
 					Detail: "its test fails: " + strings.Join(tr.Problems, "; "), Fix: "proxy_edit its host, or proxy_delete",

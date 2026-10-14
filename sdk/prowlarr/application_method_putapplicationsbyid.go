@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
@@ -60,7 +61,7 @@ func (o PutApplicationsByIdOptions) ToQuery() *client.QueryParams {
 }
 
 // PutApplicationsById calls PUT /api/v1/applications/{id}.
-func (c Client) PutApplicationsById(ctx context.Context, id int, input ApplicationResource, forceSave ...bool) (result PutApplicationsByIdResponse, err error) {
+func (c Client) PutApplicationsById(ctx context.Context, id ApplicationID, input ApplicationResource, forceSave ...bool) (result PutApplicationsByIdResponse, err error) {
 	var option PutApplicationsByIdOptions
 	if len(forceSave) > 1 {
 		err = fmt.Errorf("PutApplicationsById takes one forceSave at most, not %d", len(forceSave))
@@ -79,7 +80,7 @@ func (c Client) PutApplicationsById(ctx context.Context, id int, input Applicati
 		HTTPMethod:    http.MethodPut,
 		Operation:     "PutApplicationsById",
 		OptionsObject: option,
-		Path:          fmt.Sprintf("/api/v1/applications/%d", id),
+		Path:          fmt.Sprintf("/api/v1/applications/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

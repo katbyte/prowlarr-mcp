@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
@@ -39,7 +41,7 @@ func (r GetNotificationByIdResponse) Record() (NotificationResource, error) {
 }
 
 // GetNotificationById calls GET /api/v1/notification/{id}.
-func (c Client) GetNotificationById(ctx context.Context, id int) (result GetNotificationByIdResponse, err error) {
+func (c Client) GetNotificationById(ctx context.Context, id NotificationID) (result GetNotificationByIdResponse, err error) {
 	result.NotificationResource = &NotificationResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
@@ -47,7 +49,7 @@ func (c Client) GetNotificationById(ctx context.Context, id int) (result GetNoti
 		},
 		HTTPMethod: http.MethodGet,
 		Operation:  "GetNotificationById",
-		Path:       fmt.Sprintf("/api/v1/notification/%d", id),
+		Path:       fmt.Sprintf("/api/v1/notification/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

@@ -228,7 +228,7 @@ func TestApplicationSync(t *testing.T) {
 	if err != nil || put.Answer.SyncLevel != prowlarr.ApplicationSyncLevelAddOnly {
 		t.Errorf("update = %+v, %v", put.Answer, err)
 	}
-	bulk, err := sdk.PutApplicationsBulk(ctx, prowlarr.ApplicationBulkResource{Ids: []int{fx.app}, SyncLevel: prowlarr.ApplicationSyncLevelFullSync})
+	bulk, err := sdk.PutApplicationsBulk(ctx, prowlarr.ApplicationBulkResource{Ids: []prowlarr.ApplicationID{fx.app}, SyncLevel: prowlarr.ApplicationSyncLevelFullSync})
 	if err != nil || len(bulk.Answer) != 1 || bulk.Answer[0].SyncLevel != prowlarr.ApplicationSyncLevelFullSync {
 		t.Errorf("bulk = %+v, %v", bulk.Answer, err)
 	}
@@ -570,7 +570,7 @@ func TestBulkDeletes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := sdk.DeleteApplicationsBulk(ctx, prowlarr.ApplicationBulkResource{Ids: []int{madeApp.Answer.Id}}); err != nil {
+	if _, err := sdk.DeleteApplicationsBulk(ctx, prowlarr.ApplicationBulkResource{Ids: []prowlarr.ApplicationID{madeApp.Answer.Id}}); err != nil {
 		t.Errorf("deleting applications in bulk: %v", err)
 	}
 	if _, err := sdk.GetApplicationsById(ctx, madeApp.Answer.Id); client.StatusCode(err) != http.StatusNotFound {

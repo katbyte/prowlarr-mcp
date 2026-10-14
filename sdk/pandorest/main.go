@@ -54,15 +54,19 @@ var generator = pandorest.Config{
 		// Prowlarr declares its dates and sends RFC 3339 in UTC ("2026-09-19T13:00:00Z"), with year one for never, which reads as no date
 		Dates: config.Dates{Send: time.RFC3339},
 		// the ids that are held apart from their own record and passed between kinds of thing: an indexer's in history, statistics and a search, a profile's on an
-		// indexer, a tag's on five kinds of thing, a download client's on a grab. The rest stay plain numbers
+		// indexer, a tag's on five kinds of thing, a download client's on a grab, and an application's, a proxy's and a notification's in what carries a tag.
+		// The rest stay plain numbers
 		IDs: []config.ID{
 			{Name: "IndexerID", Of: []string{"IndexerResource"}, Names: []string{"indexerId", "indexerIds"}, In: []string{"IndexerBulkResource .ids"}, Joined: []string{"indexers"}},
 			{Name: "AppProfileID", Of: []string{"AppProfileResource"}, Names: []string{"appProfileId"}},
 			{Name: "TagID", Of: []string{"TagResource"}, Names: []string{"tags"}, In: []string{"TagDetailsResource .id"}, Joined: []string{"tags"}},
 			{Name: "DownloadClientID", Of: []string{"DownloadClientResource"}, Names: []string{"downloadClientId"}, In: []string{"DownloadClientBulkResource .ids"}},
+			{Name: "ApplicationID", Of: []string{"ApplicationResource"}, Names: []string{"applicationIds"}, In: []string{"ApplicationBulkResource .ids"}},
+			{Name: "IndexerProxyID", Of: []string{"IndexerProxyResource"}, Names: []string{"indexerProxyIds"}},
+			{Name: "NotificationID", Of: []string{"NotificationResource"}, Names: []string{"notificationIds"}},
 		},
 		// left plain on purpose: other services' ids, which only pass through, a release's and a grab's own text ids, and the id of a thing nothing else refers to
-		Plain: []string{"applicationIds", "doubanid", "downloadId", "guid", "id", "ids", "imdbId", "imdbid", "indexerProxyIds", "notificationIds", "rid", "tmdbId", "tmdbid", "traktid", "tvMazeId", "tvdbId", "tvdbid", "tvmazeid"},
+		Plain: []string{"doubanid", "downloadId", "guid", "id", "ids", "imdbId", "imdbid", "rid", "tmdbId", "tmdbid", "traktid", "tvMazeId", "tvdbId", "tvdbid", "tvmazeid"},
 	}},
 	Workarounds: workarounds.All,
 }

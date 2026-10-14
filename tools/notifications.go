@@ -86,7 +86,7 @@ func sendError(what string, err error) error {
 }
 
 func projectNotification(n *prowlarr.NotificationResource, tags map[prowlarr.TagID]string) notificationRow {
-	row := notificationRow{ID: n.Id, Name: n.Name, Kind: n.Implementation, On: sentFor(n), HealthWarnings: boolv(n.IncludeHealthWarnings), ManualGrabs: boolv(n.IncludeManualGrabs), Tags: labels(n.Tags, tags)}
+	row := notificationRow{ID: int(n.Id), Name: n.Name, Kind: n.Implementation, On: sentFor(n), HealthWarnings: boolv(n.IncludeHealthWarnings), ManualGrabs: boolv(n.IncludeManualGrabs), Tags: labels(n.Tags, tags)}
 	row.Settings, row.SecretsSet = settings(n.Fields)
 
 	return row
@@ -229,7 +229,7 @@ func registerNotificationTools(r *registry) {
 
 		// what is sent back is the whole notification, so it is read once no
 		// other edit of it can run
-		unlock := editing[prowlarr.NotificationResource](r, found.Id, len(in.Tags)+len(in.AddTags) > 0)
+		unlock := editing[prowlarr.NotificationResource](r, int(found.Id), len(in.Tags)+len(in.AddTags) > 0)
 		defer unlock()
 
 		read, err := pc.GetNotificationById(ctx, found.Id)
@@ -313,7 +313,7 @@ func registerNotificationTools(r *registry) {
 		}
 		names := map[int]string{}
 		for _, n := range res.Answer {
-			names[n.Id] = n.Name
+			names[int(n.Id)] = n.Name
 		}
 		test := func(n *prowlarr.NotificationResource) (testRow, error) { return testNotification(ctx, pc, n) }
 

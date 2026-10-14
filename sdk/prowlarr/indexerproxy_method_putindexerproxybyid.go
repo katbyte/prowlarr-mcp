@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/katbyte/pandorest/client"
@@ -60,7 +61,7 @@ func (o PutIndexerProxyByIdOptions) ToQuery() *client.QueryParams {
 }
 
 // PutIndexerProxyById calls PUT /api/v1/indexerproxy/{id}.
-func (c Client) PutIndexerProxyById(ctx context.Context, id int, input IndexerProxyResource, forceSave ...bool) (result PutIndexerProxyByIdResponse, err error) {
+func (c Client) PutIndexerProxyById(ctx context.Context, id IndexerProxyID, input IndexerProxyResource, forceSave ...bool) (result PutIndexerProxyByIdResponse, err error) {
 	var option PutIndexerProxyByIdOptions
 	if len(forceSave) > 1 {
 		err = fmt.Errorf("PutIndexerProxyById takes one forceSave at most, not %d", len(forceSave))
@@ -79,7 +80,7 @@ func (c Client) PutIndexerProxyById(ctx context.Context, id int, input IndexerPr
 		HTTPMethod:    http.MethodPut,
 		Operation:     "PutIndexerProxyById",
 		OptionsObject: option,
-		Path:          fmt.Sprintf("/api/v1/indexerproxy/%d", id),
+		Path:          fmt.Sprintf("/api/v1/indexerproxy/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)

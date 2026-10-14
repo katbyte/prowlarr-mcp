@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"github.com/katbyte/pandorest/client"
 )
@@ -39,7 +41,7 @@ func (r GetIndexerProxyByIdResponse) Record() (IndexerProxyResource, error) {
 }
 
 // GetIndexerProxyById calls GET /api/v1/indexerproxy/{id}.
-func (c Client) GetIndexerProxyById(ctx context.Context, id int) (result GetIndexerProxyByIdResponse, err error) {
+func (c Client) GetIndexerProxyById(ctx context.Context, id IndexerProxyID) (result GetIndexerProxyByIdResponse, err error) {
 	result.IndexerProxyResource = &IndexerProxyResource{}
 	opts := client.RequestOptions{
 		ExpectedStatusCodes: []int{
@@ -47,7 +49,7 @@ func (c Client) GetIndexerProxyById(ctx context.Context, id int) (result GetInde
 		},
 		HTTPMethod: http.MethodGet,
 		Operation:  "GetIndexerProxyById",
-		Path:       fmt.Sprintf("/api/v1/indexerproxy/%d", id),
+		Path:       fmt.Sprintf("/api/v1/indexerproxy/%s", url.PathEscape(strconv.Itoa(int(id)))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
