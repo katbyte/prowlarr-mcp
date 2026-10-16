@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/katbyte/go-kt/chttp"
+	"github.com/katbyte/go-kt/httpc"
 	"github.com/katbyte/pandorest/client"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
@@ -267,9 +267,6 @@ func TestSmallHelpers(t *testing.T) {
 	if humanSize(1<<30) != "1.0 GiB" || humanSize(512) != "512 B" {
 		t.Error("humanSize")
 	}
-	if d := waitFor(0); d != commandWait || waitFor(-1) != 0 || waitFor(5) != 5*time.Second {
-		t.Error("waitFor")
-	}
 }
 
 func TestSortReleases(t *testing.T) {
@@ -333,7 +330,7 @@ func TestForcedAdd(t *testing.T) {
 // refused is the error the base client gives for an answer with a status its
 // operation does not document, carrying what the server said went wrong.
 func refused(status int, messages ...string) error {
-	return &client.StatusError{StatusError: &chttp.StatusError{StatusCode: status}, Messages: messages}
+	return &client.StatusError{StatusError: &httpc.StatusError{StatusCode: status}, Messages: messages}
 }
 
 // What testing every provider answers becomes a row for each, by name, and a failed single test is a row, not an error.

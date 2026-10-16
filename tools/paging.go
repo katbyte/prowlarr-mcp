@@ -1,5 +1,7 @@
 package tools
 
+import mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 // Every list takes limit and offset and answers total and next_offset, so a
 // client reads a long one a page at a time and always knows how much there is:
 // a list cut short with no count reads as the whole of it.
@@ -29,7 +31,7 @@ type pageOut struct {
 // the default when no limit is given, never more than maxLimit, never before
 // the start.
 func pageArgs(asked, from, def int) (limit, offset int) {
-	return min(limitOr(asked, def), maxLimit), max(from, 0)
+	return min(mcpregistry.LimitOr(asked, def), maxLimit), max(from, 0)
 }
 
 // pageOf is one page of a list held whole: at most limit rows from offset,
@@ -38,17 +40,7 @@ func pageOf[T any](all []T, limit, offset int) (page []T, next int) {
 	offset = min(offset, len(all))
 	page = all[offset:min(offset+limit, len(all))]
 
-	return page, nextOffset(offset, len(page), len(all))
-}
-
-// nextOffset is where the page after one of n rows from offset starts, or 0
-// when that was the last.
-func nextOffset(offset, n, total int) int {
-	if n == 0 || offset+n >= total {
-		return 0
-	}
-
-	return offset + n
+	return page, mcpregistry.NextOffset(offset, len(page), len(all))
 }
 
 // paged is the page of rows a list was asked for and where it sits in the

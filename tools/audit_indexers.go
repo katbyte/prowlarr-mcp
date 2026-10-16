@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -85,7 +87,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		Description: "Find the indexers that fail too often over a window (default 30 days): the share of their queries, RSS syncs, logins and grabs that failed is at or above a threshold (default 20%), worst first, split by kind - failing logins mean credentials or a cookie, failing grabs a download limit or a dead link, failing queries a site that is down or behind Cloudflare. " +
 			"indexer_test and indexer_edit fix them, or indexer_edit priority lowers one.",
 	}, "indexers failing 20% or more of their requests over 30 days", func(ctx context.Context, s *snapshot, in unreliableIn) (auditOut, error) {
-		days, threshold, minReq := daysOr(in.Days, 30), limitOr(in.Threshold, 20), limitOr(in.MinRequests, 10)
+		days, threshold, minReq := daysOr(in.Days, 30), mcpregistry.LimitOr(in.Threshold, 20), mcpregistry.LimitOr(in.MinRequests, 10)
 		stats, err := s.statsFor(ctx, time.Duration(days)*24*time.Hour)
 		if err != nil {
 			return auditOut{}, err
@@ -155,7 +157,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		Description: "Find the slow indexers: those whose queries took, on average over a window (default 30 days), longer than a threshold (default 5 seconds), slowest first, and those whose grabs take twice that. An application searching every indexer waits for the slowest, so one slow site slows every search. " +
 			"indexer_edit lowers its priority or moves it to a sync profile without automatic search (profile_create), a proxy may be the cause (audit_proxies), or indexer_edit enable=false.",
 	}, "indexers averaging over 5 seconds a query over 30 days", func(ctx context.Context, s *snapshot, in slowIn) (auditOut, error) {
-		days, threshold, minQ := daysOr(in.Days, 30), limitOr(in.ThresholdMs, 5000), limitOr(in.MinQueries, 5)
+		days, threshold, minQ := daysOr(in.Days, 30), mcpregistry.LimitOr(in.ThresholdMs, 5000), mcpregistry.LimitOr(in.MinQueries, 5)
 		stats, err := s.statsFor(ctx, time.Duration(days)*24*time.Hour)
 		if err != nil {
 			return auditOut{}, err
@@ -273,7 +275,7 @@ func registerIndexerAudits(r *registry, t *auditTable) {
 		Description: "Find the indexers at or near a query or grab limit set on them: how much of each limit the current window (the last day, or the last hour) has used. At the limit Prowlarr refuses the applications with a 429 until the window moves on, which they read as the indexer failing. " +
 			"indexer_edit query_limit and grab_limit raise them to what the site allows; a sync profile without RSS (profile_create) spends fewer.",
 	}, "indexers that have used 80% or more of a query or grab limit", func(ctx context.Context, s *snapshot, in limitsIn) (auditOut, error) {
-		threshold := limitOr(in.Threshold, 80)
+		threshold := mcpregistry.LimitOr(in.Threshold, 80)
 		out := auditOut{}
 		for _, i := range s.enabled() {
 			queryLimit, hasQ := fieldNumber(i.Fields, "baseSettings.queryLimit")

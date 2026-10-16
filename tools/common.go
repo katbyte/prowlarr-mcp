@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/katbyte/go-kt/text"
+
 	"github.com/katbyte/pandorest/client"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 )
@@ -24,15 +26,6 @@ import (
 
 // boolv reads an optional flag, false when unset.
 func boolv(b *bool) bool { return b != nil && *b }
-
-// limitOr is a limit input with its default.
-func limitOr(limit, def int) int {
-	if limit <= 0 {
-		return def
-	}
-
-	return limit
-}
 
 // daysOr is a days-back input with its default.
 func daysOr(days, def int) int {
@@ -245,8 +238,8 @@ func settings(fields []prowlarr.Field) (out map[string]any, secretsSet []string)
 			continue
 		}
 		out[f.Name] = f.Value
-		if text, ok := f.Value.(string); ok {
-			out[f.Name] = blankAddresses(text)
+		if s, ok := f.Value.(string); ok {
+			out[f.Name] = blankAddresses(s)
 		}
 	}
 	slices.Sort(secretsSet)
@@ -653,7 +646,7 @@ func (r *registry) runCommand(ctx context.Context, name string, fields map[strin
 		// said again here, so what Prowlarr wrote is marked as its words and an exception is cut to its first line
 		msg := cmd.Message
 		if cmd.Exception != "" {
-			msg = strings.TrimSpace(msg + " " + firstLine(cmd.Exception))
+			msg = strings.TrimSpace(msg + " " + text.FirstLine(cmd.Exception))
 		}
 
 		return out, fmt.Errorf("%s %s: %s", name, cmd.Status, outsideSaid(msg))
@@ -670,25 +663,4 @@ func commandDone(s prowlarr.CommandStatus) bool {
 	default:
 		return true
 	}
-}
-
-// waitFor is the wait a tool's input asks for: the default when unset, none
-// when negative.
-func waitFor(seconds int) time.Duration {
-	switch {
-	case seconds < 0:
-		return 0
-	case seconds == 0:
-		return commandWait
-	default:
-		return time.Duration(seconds) * time.Second
-	}
-}
-
-func firstLine(s string) string {
-	if before, _, ok := strings.Cut(s, "\n"); ok {
-		return strings.TrimSpace(before)
-	}
-
-	return strings.TrimSpace(s)
 }

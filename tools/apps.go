@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -407,7 +409,7 @@ func registerAppTools(r *registry) {
 		Name:        "app_sync",
 		Description: "Push the indexers to every application now rather than on Prowlarr's schedule - after adding, editing or retagging indexers or applications - and say how many each receives. force rewrites every indexer in them, which repairs one edited by hand in the application.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, in syncIn) (*mcp.CallToolResult, syncOut, error) {
-		cmd, err := r.runCommand(ctx, "ApplicationIndexerSync", map[string]any{"forceSync": in.Force}, waitFor(in.Wait))
+		cmd, err := r.runCommand(ctx, "ApplicationIndexerSync", map[string]any{"forceSync": in.Force}, mcpregistry.WaitFor(in.Wait, commandWait))
 		if err != nil {
 			return nil, syncOut{Command: cmd}, err
 		}

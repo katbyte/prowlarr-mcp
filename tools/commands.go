@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -124,7 +126,7 @@ func registerCommandTools(r *registry) {
 		// it answers for a moment after it has been told, so the start time
 		// changing is what says it went down and came back
 		began := time.Now()
-		deadline := began.Add(waitFor(in.Wait))
+		deadline := began.Add(mcpregistry.WaitFor(in.Wait, commandWait))
 		out := restartOut{}
 		for time.Now().Before(deadline) {
 			select {

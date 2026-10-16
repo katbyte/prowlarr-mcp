@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -95,7 +97,7 @@ func registerBackupTools(r *registry) {
 		Wait int `json:"wait,omitempty" jsonschema:"seconds to wait for it to finish, default 60; -1 queues it and returns at once"`
 	},
 	) (*mcp.CallToolResult, createOut, error) {
-		cmd, err := r.runCommand(ctx, "Backup", nil, waitFor(in.Wait))
+		cmd, err := r.runCommand(ctx, "Backup", nil, mcpregistry.WaitFor(in.Wait, commandWait))
 		out := createOut{Command: cmd}
 		if err != nil || cmd.Status != string(prowlarr.CommandStatusCompleted) {
 			return nil, out, err

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -158,7 +160,7 @@ func registerStatsTools(r *registry) {
 			}
 		})
 		out.Offset = min(offset, out.Total)
-		out.NextOffset = nextOffset(out.Offset, len(out.Events), out.Total)
+		out.NextOffset = mcpregistry.NextOffset(out.Offset, len(out.Events), out.Total)
 
 		return nil, out, err
 	})

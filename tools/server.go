@@ -11,6 +11,9 @@ import (
 	"strings"
 	"time"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+	"github.com/katbyte/go-kt/text"
+
 	"github.com/katbyte/go-kt/version"
 	"github.com/katbyte/pandorest/client"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
@@ -230,7 +233,7 @@ func registerServerTools(r *registry) {
 			slices.Sort(names)
 			return nil, commandOut{}, fmt.Errorf("no task %q (have: %s)", in.Name, strings.Join(names, ", "))
 		}
-		out, err := r.runCommand(ctx, name, nil, waitFor(in.Wait))
+		out, err := r.runCommand(ctx, name, nil, mcpregistry.WaitFor(in.Wait, commandWait))
 		if name == "IndexerDefinitionUpdate" {
 			// the catalogue is what it refreshes, so the kept read is stale
 			r.forgetCatalog()
@@ -308,7 +311,7 @@ func registerServerTools(r *registry) {
 			for _, line := range slices.Backward(lines[:max(len(lines)-offset, 0)]) {
 				out.Entries = append(out.Entries, logEntry{Message: outsideSaid(line)})
 			}
-			out.NextOffset = nextOffset(out.Offset, len(out.Entries), out.Total)
+			out.NextOffset = mcpregistry.NextOffset(out.Offset, len(out.Entries), out.Total)
 
 			return nil, out, nil
 		}
@@ -333,7 +336,7 @@ func registerServerTools(r *registry) {
 				}
 				out.Total++
 				if out.Total > offset && len(out.Entries) < limit {
-					out.Entries = append(out.Entries, logEntry{Time: shownTime(e.Time), Level: e.Level, Logger: e.Logger, Message: outsideSaid(e.Message), Exception: outsideSaid(firstLine(e.Exception))})
+					out.Entries = append(out.Entries, logEntry{Time: shownTime(e.Time), Level: e.Level, Logger: e.Logger, Message: outsideSaid(e.Message), Exception: outsideSaid(text.FirstLine(e.Exception))})
 				}
 			}
 			if len(res.Answer.Records) < 200 {
@@ -341,7 +344,7 @@ func registerServerTools(r *registry) {
 			}
 		}
 		out.Offset = min(offset, out.Total)
-		out.NextOffset = nextOffset(out.Offset, len(out.Entries), out.Total)
+		out.NextOffset = mcpregistry.NextOffset(out.Offset, len(out.Entries), out.Total)
 
 		return nil, out, nil
 	})

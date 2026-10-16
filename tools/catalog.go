@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -205,7 +207,7 @@ func registerCatalogTools(r *registry) {
 			out.Entries = append(out.Entries, row)
 		}
 		out.Offset = min(offset, out.Total)
-		out.NextOffset = nextOffset(out.Offset, len(out.Entries), out.Total)
+		out.NextOffset = mcpregistry.NextOffset(out.Offset, len(out.Entries), out.Total)
 
 		return nil, out, nil
 	})
@@ -247,7 +249,7 @@ func registerCatalogTools(r *registry) {
 			i.Name = in.Name
 		}
 		i.Enable = new(!in.Disabled)
-		i.Priority = limitOr(in.Priority, 25)
+		i.Priority = mcpregistry.LimitOr(in.Priority, 25)
 		if i.Priority > 50 {
 			return nil, addOut{}, fmt.Errorf("priority must be 1 to 50, got %d", i.Priority)
 		}

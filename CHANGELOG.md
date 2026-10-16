@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- built on go-kt 0.9.0 and pandorest 0.11.0, using go-kt's shared helpers for paging, waiting and wording in place of this repository's own copies. Nothing changes for the tools or the Go client
+
 ## 0.4.0 (2026-10-14)
 
 Only the Go client changes; the tools answer as before.

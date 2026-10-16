@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/katbyte/go-kt/chttp"
+	"github.com/katbyte/go-kt/httpc"
 	"github.com/katbyte/pandorest/client"
 )
 
@@ -28,7 +28,7 @@ func answering(t *testing.T, status int, body string) (*Client, *http.Header) {
 	}))
 	t.Cleanup(srv.Close)
 
-	c, err := New(srv.URL, "the-key", client.WithRetry(chttp.Retry{Wait: func(int) time.Duration { return 0 }}))
+	c, err := New(srv.URL, "the-key", client.WithRetry(httpc.Retry{Wait: func(int) time.Duration { return 0 }}))
 	if err != nil {
 		t.Fatal(err)
 	}

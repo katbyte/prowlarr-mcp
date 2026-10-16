@@ -7,6 +7,8 @@ import (
 	"slices"
 	"strings"
 
+	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
+
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -120,7 +122,7 @@ func registerDownloadClientTools(r *registry) {
 		if in.Name != "" {
 			c.Name = in.Name
 		}
-		c.Presets, c.Enable, c.Priority = nil, new(true), limitOr(in.Priority, 1)
+		c.Presets, c.Enable, c.Priority = nil, new(true), mcpregistry.LimitOr(in.Priority, 1)
 		if c.Tags, err = r.makeTags(ctx, in.Tags); err != nil {
 			return nil, downloadClientRow{}, err
 		}
