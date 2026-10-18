@@ -14,6 +14,8 @@
 package tools
 
 import (
+	"sync"
+
 	"github.com/katbyte/go-kt/lock"
 	mcpregistry "github.com/katbyte/go-kt/mcp/registry"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
@@ -286,8 +288,13 @@ func queuedFor(client *prowlarr.Client, opts Options) *registry {
 // the names registered. It fails when an allow/deny pattern matches no tool,
 // so a typo cannot silently hide one.
 func RegisterAll(server *mcp.Server, client *prowlarr.Client, opts Options) ([]string, error) {
+	setCommandCheck.Do(func() { prowlarr.CommandPoll = commandCheck })
+
 	return queuedFor(client, opts).queued().Register(server, opts.selection())
 }
+
+// setCommandCheck sets how often the client asks after a running command, once for the process, since the client holds it for every caller.
+var setCommandCheck sync.Once
 
 // selection is the part of the options that chooses tools, as go-kt's
 // registry takes it.

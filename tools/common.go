@@ -588,6 +588,9 @@ func editTags(have, set, add, remove []prowlarr.TagID, replace bool) []prowlarr.
 // hanging the session.
 const commandWait = 60 * time.Second
 
+// commandCheck is how often a running command is asked after, so a quick one answers at once; the client's own default is every 2 seconds.
+const commandCheck = 500 * time.Millisecond
+
 // commandPoll is how often a restarting Prowlarr is asked whether it is back.
 var commandPoll = 500 * time.Millisecond
 

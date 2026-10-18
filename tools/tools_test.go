@@ -38,6 +38,16 @@ func register(t *testing.T, opts Options) []string {
 	return names
 }
 
+// A tool that runs a command asks after it every half second, not the client's 2, so a quick one answers at once.
+func TestRegisterAllSetsCommandCheck(t *testing.T) {
+	t.Parallel()
+
+	register(t, Options{})
+	if prowlarr.CommandPoll != commandCheck {
+		t.Errorf("CommandPoll = %s, want %s", prowlarr.CommandPoll, commandCheck)
+	}
+}
+
 // registerEvery registers every tool a registry has queued, the delete tools
 // among them.
 func registerEvery(t *testing.T, r *registry, srv *mcp.Server) {
