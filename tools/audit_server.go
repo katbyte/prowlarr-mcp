@@ -67,9 +67,17 @@ func registerServerAudits(r *registry, t *auditTable) {
 			}
 		}
 		if !heard {
+			which := fmt.Sprintf("none of the %d notifications is sent for a health issue", len(notes))
+			switch len(notes) {
+			case 0:
+				which = "there are no notifications"
+			case 1:
+				which = "the one notification is not sent for a health issue"
+			}
+
 			out.report(finding{
 				Subject: "notifications", Kind: "notification", Problem: "no_health_notification",
-				Detail: fmt.Sprintf("none of the %d notifications is sent for a health issue, so nothing Prowlarr's own checks find - a failing indexer, an application it cannot reach, an expiring VIP - is told to anyone", len(notes)),
+				Detail: which + ", so nothing Prowlarr's own checks find - a failing indexer, an application it cannot reach, an expiring VIP - is told to anyone",
 				Fix:    "notification_add kind=Discord (or Webhook, Email, ...) on=health_issue,health_restored, or notification_edit on=health_issue on one there is",
 			})
 		}

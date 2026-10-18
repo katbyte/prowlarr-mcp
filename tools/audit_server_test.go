@@ -3,6 +3,7 @@ package tools
 import (
 	"net/http"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -36,6 +37,21 @@ func TestAuditNotificationsCanned(t *testing.T) {
 	}
 	if detail := detailOf(t, out, "Health", "test_failed"); !slices.Contains([]string{detail}, detail) || detail == "" {
 		t.Errorf("detail = %q", detail)
+	}
+
+	// with none, or one, the finding says so rather than counting them
+	for _, c := range []struct {
+		notes []any
+		want  string
+	}{
+		{[]any{}, "there are no notifications, "},
+		{[]any{discord(2, "Grabs", "grab")}, "the one notification is not sent for a health issue, "},
+		{[]any{discord(2, "Grabs", "grab"), discord(4, "Updates", "update")}, "none of the 2 notifications is sent for a health issue, "},
+	} {
+		f.answer("GET /api/v1/notification", c.notes)
+		if detail := detailOf(t, mustCall(t, cs, "audit_notifications", nil), "notifications", "no_health_notification"); !strings.HasPrefix(detail, c.want) {
+			t.Errorf("with %d = %q, want it to start %q", len(c.notes), detail, c.want)
+		}
 	}
 }
 
