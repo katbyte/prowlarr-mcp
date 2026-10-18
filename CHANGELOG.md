@@ -1,15 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.4.1 (2026-10-18)
 
 ### Fixed
 
-- a tool that runs a command (`app_sync`, `backup_create`, `task_run`, and `server_health` when it checks again) answers as soon as the command finishes again, where since 0.3.0 it could wait up to 2 seconds more
+- a tool that runs a command (`app_sync`, `backup_create`, `task_run`, and `server_health` when it checks again) answers as soon as the command is done; since 0.3.0 it could take up to 2 seconds longer
 - `audit_notifications` says "there are no notifications" when there are none, where it said "none of the 0 notifications"
 
 ### Changed
 
-- built on go-kt 0.9.0 and pandorest 0.11.0, using go-kt's shared helpers for paging, waiting and wording in place of this repository's own copies. Nothing changes for the tools or the Go client
+- built on go-kt 0.9.0 and pandorest 0.11.0, using go-kt's shared helpers where this repository kept its own copies. Nothing changes for the tools or the Go client
 
 ## 0.4.0 (2026-10-14)
 
