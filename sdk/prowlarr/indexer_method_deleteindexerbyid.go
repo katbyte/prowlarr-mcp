@@ -4,7 +4,6 @@ package prowlarr
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -25,12 +24,12 @@ func (c Client) DeleteIndexerById(ctx context.Context, id IndexerID) (result Del
 		},
 		HTTPMethod: http.MethodDelete,
 		Operation:  "DeleteIndexerById",
-		Path:       fmt.Sprintf("/api/v1/indexer/%s", url.PathEscape(strconv.Itoa(int(id)))),
+		Path:       "/api/v1/indexer/" + url.PathEscape(strconv.Itoa(int(id))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -39,8 +38,8 @@ func (c Client) DeleteIndexerById(ctx context.Context, id IndexerID) (result Del
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	return
+	return result, nil
 }

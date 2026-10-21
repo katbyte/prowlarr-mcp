@@ -49,8 +49,7 @@ type GetIndexerStatsOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o GetIndexerStatsOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -77,8 +76,7 @@ func (o GetIndexerStatsOptions) ToQuery() *client.QueryParams {
 // GetIndexerStats calls GET /api/v1/indexerstats.
 func (c Client) GetIndexerStats(ctx context.Context, options ...GetIndexerStatsOptions) (result GetIndexerStatsResponse, err error) {
 	if len(options) > 1 {
-		err = fmt.Errorf("GetIndexerStats takes one options struct at most, not %d", len(options))
-		return
+		return result, fmt.Errorf("GetIndexerStats takes one options struct at most, not %d", len(options))
 	}
 	var option GetIndexerStatsOptions
 	if len(options) == 1 {
@@ -98,7 +96,7 @@ func (c Client) GetIndexerStats(ctx context.Context, options ...GetIndexerStatsO
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -107,15 +105,15 @@ func (c Client) GetIndexerStats(ctx context.Context, options ...GetIndexerStatsO
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var answer IndexerStatsResource
 	result.Answer = &answer
-	if err = resp.Unmarshal(result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(result.Answer); err != nil {
+		return result, err
 	}
 	result.IndexerStatsResource = result.Answer
 
-	return
+	return result, nil
 }

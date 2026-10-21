@@ -31,11 +31,11 @@ func (c Client) PostSystemBackupRestoreUpload(ctx context.Context, input io.Read
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = req.SetBody(input, contentType); err != nil {
-		return
+	if err := req.SetBody(input, contentType); err != nil {
+		return result, err
 	}
 
 	var resp *client.Response
@@ -44,8 +44,8 @@ func (c Client) PostSystemBackupRestoreUpload(ctx context.Context, input io.Read
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	return
+	return result, nil
 }

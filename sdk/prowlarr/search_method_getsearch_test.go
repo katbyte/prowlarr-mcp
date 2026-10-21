@@ -33,7 +33,7 @@ func TestOperationGetSearch(t *testing.T) {
 	expectQuery(t, r, "categories", "1", "2")
 	expectQuery(t, r, "limit", "7")
 	expectQuery(t, r, "offset", "7")
-	if result.HttpResponse == nil || result.HttpResponse.StatusCode != 200 {
+	if result.HttpResponse == nil || result.HttpResponse.StatusCode != http.StatusOK {
 		t.Fatalf("HttpResponse = %+v", result.HttpResponse)
 	}
 	if result.Answer == nil || !result.Answered() {

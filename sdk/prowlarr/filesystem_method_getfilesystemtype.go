@@ -28,8 +28,7 @@ type GetFileSystemTypeOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o GetFileSystemTypeOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -45,8 +44,7 @@ func (o GetFileSystemTypeOptions) ToQuery() *client.QueryParams {
 func (c Client) GetFileSystemType(ctx context.Context, path ...string) (result GetFileSystemTypeResponse, err error) {
 	var option GetFileSystemTypeOptions
 	if len(path) > 1 {
-		err = fmt.Errorf("GetFileSystemType takes one path at most, not %d", len(path))
-		return
+		return result, fmt.Errorf("GetFileSystemType takes one path at most, not %d", len(path))
 	}
 	if len(path) == 1 {
 		option.Path = path[0]
@@ -64,7 +62,7 @@ func (c Client) GetFileSystemType(ctx context.Context, path ...string) (result G
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -73,12 +71,12 @@ func (c Client) GetFileSystemType(ctx context.Context, path ...string) (result G
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = resp.Unmarshal(&result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(&result.Answer); err != nil {
+		return result, err
 	}
 
-	return
+	return result, nil
 }

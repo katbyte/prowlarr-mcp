@@ -33,8 +33,7 @@ type GetSearchOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o GetSearchOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -64,8 +63,7 @@ func (o GetSearchOptions) ToQuery() *client.QueryParams {
 // GetSearch calls GET /api/v1/search.
 func (c Client) GetSearch(ctx context.Context, options ...GetSearchOptions) (result GetSearchResponse, err error) {
 	if len(options) > 1 {
-		err = fmt.Errorf("GetSearch takes one options struct at most, not %d", len(options))
-		return
+		return result, fmt.Errorf("GetSearch takes one options struct at most, not %d", len(options))
 	}
 	var option GetSearchOptions
 	if len(options) == 1 {
@@ -84,7 +82,7 @@ func (c Client) GetSearch(ctx context.Context, options ...GetSearchOptions) (res
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -93,12 +91,12 @@ func (c Client) GetSearch(ctx context.Context, options ...GetSearchOptions) (res
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = resp.Unmarshal(&result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(&result.Answer); err != nil {
+		return result, err
 	}
 
-	return
+	return result, nil
 }

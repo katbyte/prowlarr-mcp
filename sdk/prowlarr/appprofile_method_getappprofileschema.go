@@ -51,7 +51,7 @@ func (c Client) GetAppProfileSchema(ctx context.Context) (result GetAppProfileSc
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -60,15 +60,15 @@ func (c Client) GetAppProfileSchema(ctx context.Context) (result GetAppProfileSc
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var answer AppProfileResource
 	result.Answer = &answer
-	if err = resp.Unmarshal(result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(result.Answer); err != nil {
+		return result, err
 	}
 	result.AppProfileResource = result.Answer
 
-	return
+	return result, nil
 }

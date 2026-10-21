@@ -29,7 +29,7 @@ type GetIndexerByIdNewznabResponse struct {
 // answer, so a deferred Close is always safe. The body stays readable after
 // the result goes out of scope, and has no size or time limit of the client's:
 // the caller's context is the one bound on a slow read.
-func (r GetIndexerByIdNewznabResponse) Reader() (io.ReadCloser, string) {
+func (r GetIndexerByIdNewznabResponse) Reader() (body io.ReadCloser, contentType string) {
 	if r.HttpResponse == nil || r.HttpResponse.Body == nil {
 		return http.NoBody, ""
 	}
@@ -69,14 +69,14 @@ func (r GetIndexerByIdNewznabResponse) WriteTo(w io.Writer) (int64, error) {
 	return client.Copy(w, r.HttpResponse.Body)
 }
 
-// Bytes reads the file whole, up to max bytes, and closes the body: a file
-// over max is a client.TooLargeError rather than cut short without a word.
-func (r GetIndexerByIdNewznabResponse) Bytes(max int64) ([]byte, error) {
+// Bytes reads the file whole, up to limit bytes, and closes the body: a file
+// over the limit is a client.TooLargeError rather than cut short without a word.
+func (r GetIndexerByIdNewznabResponse) Bytes(limit int64) ([]byte, error) {
 	if r.HttpResponse == nil || r.HttpResponse.Body == nil {
 		return nil, errors.New("no answer to read")
 	}
 
-	return client.ReadAtMost(r.HttpResponse.Body, max)
+	return client.ReadAtMost(r.HttpResponse.Body, limit)
 }
 
 // GetIndexerByIdNewznabOptions holds the query and header parameters of GetIndexerByIdNewznab.
@@ -117,8 +117,7 @@ type GetIndexerByIdNewznabOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o GetIndexerByIdNewznabOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -226,8 +225,7 @@ func (o GetIndexerByIdNewznabOptions) ToQuery() *client.QueryParams {
 // GetIndexerByIdNewznab calls GET /api/v1/indexer/{id}/newznab.
 func (c Client) GetIndexerByIdNewznab(ctx context.Context, id IndexerID, options ...GetIndexerByIdNewznabOptions) (result GetIndexerByIdNewznabResponse, err error) {
 	if len(options) > 1 {
-		err = fmt.Errorf("GetIndexerByIdNewznab takes one options struct at most, not %d", len(options))
-		return
+		return result, fmt.Errorf("GetIndexerByIdNewznab takes one options struct at most, not %d", len(options))
 	}
 	var option GetIndexerByIdNewznabOptions
 	if len(options) == 1 {
@@ -242,13 +240,13 @@ func (c Client) GetIndexerByIdNewznab(ctx context.Context, id IndexerID, options
 		HTTPMethod:     http.MethodGet,
 		Operation:      "GetIndexerByIdNewznab",
 		OptionsObject:  option,
-		Path:           fmt.Sprintf("/api/v1/indexer/%s/newznab", url.PathEscape(strconv.Itoa(int(id)))),
+		Path:           "/api/v1/indexer/" + url.PathEscape(strconv.Itoa(int(id))) + "/newznab",
 		StreamResponse: true,
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -257,8 +255,8 @@ func (c Client) GetIndexerByIdNewznab(ctx context.Context, id IndexerID, options
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	return
+	return result, nil
 }

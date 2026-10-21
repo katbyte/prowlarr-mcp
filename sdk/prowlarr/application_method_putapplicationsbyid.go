@@ -47,8 +47,7 @@ type PutApplicationsByIdOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o PutApplicationsByIdOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -64,8 +63,7 @@ func (o PutApplicationsByIdOptions) ToQuery() *client.QueryParams {
 func (c Client) PutApplicationsById(ctx context.Context, id ApplicationID, input ApplicationResource, forceSave ...bool) (result PutApplicationsByIdResponse, err error) {
 	var option PutApplicationsByIdOptions
 	if len(forceSave) > 1 {
-		err = fmt.Errorf("PutApplicationsById takes one forceSave at most, not %d", len(forceSave))
-		return
+		return result, fmt.Errorf("PutApplicationsById takes one forceSave at most, not %d", len(forceSave))
 	}
 	if len(forceSave) == 1 {
 		option.ForceSave = &forceSave[0]
@@ -80,16 +78,16 @@ func (c Client) PutApplicationsById(ctx context.Context, id ApplicationID, input
 		HTTPMethod:    http.MethodPut,
 		Operation:     "PutApplicationsById",
 		OptionsObject: option,
-		Path:          fmt.Sprintf("/api/v1/applications/%s", url.PathEscape(strconv.Itoa(int(id)))),
+		Path:          "/api/v1/applications/" + url.PathEscape(strconv.Itoa(int(id))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = req.Marshal(input); err != nil {
-		return
+	if err := req.Marshal(input); err != nil {
+		return result, err
 	}
 
 	var resp *client.Response
@@ -98,15 +96,15 @@ func (c Client) PutApplicationsById(ctx context.Context, id ApplicationID, input
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var answer ApplicationResource
 	result.Answer = &answer
-	if err = resp.Unmarshal(result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(result.Answer); err != nil {
+		return result, err
 	}
 	result.ApplicationResource = result.Answer
 
-	return
+	return result, nil
 }

@@ -28,8 +28,7 @@ type GetHistorySinceOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o GetHistorySinceOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -47,8 +46,7 @@ func (o GetHistorySinceOptions) ToQuery() *client.QueryParams {
 // GetHistorySince calls GET /api/v1/history/since.
 func (c Client) GetHistorySince(ctx context.Context, options ...GetHistorySinceOptions) (result GetHistorySinceResponse, err error) {
 	if len(options) > 1 {
-		err = fmt.Errorf("GetHistorySince takes one options struct at most, not %d", len(options))
-		return
+		return result, fmt.Errorf("GetHistorySince takes one options struct at most, not %d", len(options))
 	}
 	var option GetHistorySinceOptions
 	if len(options) == 1 {
@@ -67,7 +65,7 @@ func (c Client) GetHistorySince(ctx context.Context, options ...GetHistorySinceO
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -76,12 +74,12 @@ func (c Client) GetHistorySince(ctx context.Context, options ...GetHistorySinceO
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = resp.Unmarshal(&result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(&result.Answer); err != nil {
+		return result, err
 	}
 
-	return
+	return result, nil
 }

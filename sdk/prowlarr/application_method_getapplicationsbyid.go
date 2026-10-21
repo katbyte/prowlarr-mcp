@@ -5,7 +5,6 @@ package prowlarr
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -49,12 +48,12 @@ func (c Client) GetApplicationsById(ctx context.Context, id ApplicationID) (resu
 		},
 		HTTPMethod: http.MethodGet,
 		Operation:  "GetApplicationsById",
-		Path:       fmt.Sprintf("/api/v1/applications/%s", url.PathEscape(strconv.Itoa(int(id)))),
+		Path:       "/api/v1/applications/" + url.PathEscape(strconv.Itoa(int(id))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -63,15 +62,15 @@ func (c Client) GetApplicationsById(ctx context.Context, id ApplicationID) (resu
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var answer ApplicationResource
 	result.Answer = &answer
-	if err = resp.Unmarshal(result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(result.Answer); err != nil {
+		return result, err
 	}
 	result.ApplicationResource = result.Answer
 
-	return
+	return result, nil
 }

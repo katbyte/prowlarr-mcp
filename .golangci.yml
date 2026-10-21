@@ -75,6 +75,7 @@ linters:
     - makezero                  # finds slice declarations with non-zero initial length but capacity is initialized
 
   exclusions:
+    generated: disable # the generated sdk under sdk/prowlarr, and its tests, are linted like everything else
     rules:
       # flag names ("repo", "build-type-id", ...) repeat across cobra/viper registration, env binding, and
       # validation lists by design; hoisting them into constants would just add indirection
@@ -125,7 +126,7 @@ linters:
         rangeValCopy:
           sizeThreshold: 512
         hugeParam:
-          sizeThreshold: 512
+          sizeThreshold: 1024 # the generated sdk takes request bodies by value, and the host settings one is 528 bytes
     revive:
       enable-all-rules: true
       rules:

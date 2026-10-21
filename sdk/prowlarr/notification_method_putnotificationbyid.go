@@ -47,8 +47,7 @@ type PutNotificationByIdOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o PutNotificationByIdOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -64,8 +63,7 @@ func (o PutNotificationByIdOptions) ToQuery() *client.QueryParams {
 func (c Client) PutNotificationById(ctx context.Context, id NotificationID, input NotificationResource, forceSave ...bool) (result PutNotificationByIdResponse, err error) {
 	var option PutNotificationByIdOptions
 	if len(forceSave) > 1 {
-		err = fmt.Errorf("PutNotificationById takes one forceSave at most, not %d", len(forceSave))
-		return
+		return result, fmt.Errorf("PutNotificationById takes one forceSave at most, not %d", len(forceSave))
 	}
 	if len(forceSave) == 1 {
 		option.ForceSave = &forceSave[0]
@@ -80,16 +78,16 @@ func (c Client) PutNotificationById(ctx context.Context, id NotificationID, inpu
 		HTTPMethod:    http.MethodPut,
 		Operation:     "PutNotificationById",
 		OptionsObject: option,
-		Path:          fmt.Sprintf("/api/v1/notification/%s", url.PathEscape(strconv.Itoa(int(id)))),
+		Path:          "/api/v1/notification/" + url.PathEscape(strconv.Itoa(int(id))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = req.Marshal(input); err != nil {
-		return
+	if err := req.Marshal(input); err != nil {
+		return result, err
 	}
 
 	var resp *client.Response
@@ -98,15 +96,15 @@ func (c Client) PutNotificationById(ctx context.Context, id NotificationID, inpu
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var answer NotificationResource
 	result.Answer = &answer
-	if err = resp.Unmarshal(result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(result.Answer); err != nil {
+		return result, err
 	}
 	result.NotificationResource = result.Answer
 
-	return
+	return result, nil
 }

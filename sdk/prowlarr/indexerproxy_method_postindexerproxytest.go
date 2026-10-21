@@ -23,8 +23,7 @@ type PostIndexerProxyTestOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o PostIndexerProxyTestOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -40,8 +39,7 @@ func (o PostIndexerProxyTestOptions) ToQuery() *client.QueryParams {
 func (c Client) PostIndexerProxyTest(ctx context.Context, input IndexerProxyResource, forceTest ...bool) (result PostIndexerProxyTestResponse, err error) {
 	var option PostIndexerProxyTestOptions
 	if len(forceTest) > 1 {
-		err = fmt.Errorf("PostIndexerProxyTest takes one forceTest at most, not %d", len(forceTest))
-		return
+		return result, fmt.Errorf("PostIndexerProxyTest takes one forceTest at most, not %d", len(forceTest))
 	}
 	if len(forceTest) == 1 {
 		option.ForceTest = &forceTest[0]
@@ -60,11 +58,11 @@ func (c Client) PostIndexerProxyTest(ctx context.Context, input IndexerProxyReso
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = req.Marshal(input); err != nil {
-		return
+	if err := req.Marshal(input); err != nil {
+		return result, err
 	}
 
 	var resp *client.Response
@@ -73,8 +71,8 @@ func (c Client) PostIndexerProxyTest(ctx context.Context, input IndexerProxyReso
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	return
+	return result, nil
 }

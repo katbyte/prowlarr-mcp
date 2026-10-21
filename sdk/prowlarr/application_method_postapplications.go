@@ -46,8 +46,7 @@ type PostApplicationsOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o PostApplicationsOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -63,8 +62,7 @@ func (o PostApplicationsOptions) ToQuery() *client.QueryParams {
 func (c Client) PostApplications(ctx context.Context, input ApplicationResource, forceSave ...bool) (result PostApplicationsResponse, err error) {
 	var option PostApplicationsOptions
 	if len(forceSave) > 1 {
-		err = fmt.Errorf("PostApplications takes one forceSave at most, not %d", len(forceSave))
-		return
+		return result, fmt.Errorf("PostApplications takes one forceSave at most, not %d", len(forceSave))
 	}
 	if len(forceSave) == 1 {
 		option.ForceSave = &forceSave[0]
@@ -84,11 +82,11 @@ func (c Client) PostApplications(ctx context.Context, input ApplicationResource,
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = req.Marshal(input); err != nil {
-		return
+	if err := req.Marshal(input); err != nil {
+		return result, err
 	}
 
 	var resp *client.Response
@@ -97,15 +95,15 @@ func (c Client) PostApplications(ctx context.Context, input ApplicationResource,
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var answer ApplicationResource
 	result.Answer = &answer
-	if err = resp.Unmarshal(result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(result.Answer); err != nil {
+		return result, err
 	}
 	result.ApplicationResource = result.Answer
 
-	return
+	return result, nil
 }

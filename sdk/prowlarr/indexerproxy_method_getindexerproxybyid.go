@@ -5,7 +5,6 @@ package prowlarr
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -49,12 +48,12 @@ func (c Client) GetIndexerProxyById(ctx context.Context, id IndexerProxyID) (res
 		},
 		HTTPMethod: http.MethodGet,
 		Operation:  "GetIndexerProxyById",
-		Path:       fmt.Sprintf("/api/v1/indexerproxy/%s", url.PathEscape(strconv.Itoa(int(id)))),
+		Path:       "/api/v1/indexerproxy/" + url.PathEscape(strconv.Itoa(int(id))),
 	}
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var resp *client.Response
@@ -63,15 +62,15 @@ func (c Client) GetIndexerProxyById(ctx context.Context, id IndexerProxyID) (res
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
 	var answer IndexerProxyResource
 	result.Answer = &answer
-	if err = resp.Unmarshal(result.Answer); err != nil {
-		return
+	if err := resp.Unmarshal(result.Answer); err != nil {
+		return result, err
 	}
 	result.IndexerProxyResource = result.Answer
 
-	return
+	return result, nil
 }

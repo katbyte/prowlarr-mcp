@@ -23,8 +23,7 @@ type PostApplicationsTestOptions struct {
 
 // ToHeaders returns the header parameters the options set.
 func (o PostApplicationsTestOptions) ToHeaders() *client.Headers {
-	out := client.Headers{}
-	return &out
+	return &client.Headers{}
 }
 
 // ToQuery returns the query parameters the options set.
@@ -40,8 +39,7 @@ func (o PostApplicationsTestOptions) ToQuery() *client.QueryParams {
 func (c Client) PostApplicationsTest(ctx context.Context, input ApplicationResource, forceTest ...bool) (result PostApplicationsTestResponse, err error) {
 	var option PostApplicationsTestOptions
 	if len(forceTest) > 1 {
-		err = fmt.Errorf("PostApplicationsTest takes one forceTest at most, not %d", len(forceTest))
-		return
+		return result, fmt.Errorf("PostApplicationsTest takes one forceTest at most, not %d", len(forceTest))
 	}
 	if len(forceTest) == 1 {
 		option.ForceTest = &forceTest[0]
@@ -60,11 +58,11 @@ func (c Client) PostApplicationsTest(ctx context.Context, input ApplicationResou
 
 	req, err := c.Client.NewRequest(ctx, opts)
 	if err != nil {
-		return
+		return result, err
 	}
 
-	if err = req.Marshal(input); err != nil {
-		return
+	if err := req.Marshal(input); err != nil {
+		return result, err
 	}
 
 	var resp *client.Response
@@ -73,8 +71,8 @@ func (c Client) PostApplicationsTest(ctx context.Context, input ApplicationResou
 		result.HttpResponse = resp.Response
 	}
 	if err != nil {
-		return
+		return result, err
 	}
 
-	return
+	return result, nil
 }
