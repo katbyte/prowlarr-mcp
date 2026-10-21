@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 (2026-10-20)
+
+### Changed
+
+- built on pandorest 0.13.1, which writes the Go client so it passes the same lint checks as the rest of the code. Nothing changes for the tools or the Go client
+
 ## 0.4.1 (2026-10-18)
 
 ### Fixed
