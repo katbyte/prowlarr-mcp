@@ -33,6 +33,7 @@ type fakeServer struct {
 	mu       sync.Mutex
 	answers  map[string]any
 	statuses map[string]int
+	handlers map[string]http.HandlerFunc
 	seen     []string
 	bodies   map[string][]string
 }
@@ -40,7 +41,7 @@ type fakeServer struct {
 func newFakeServer(t *testing.T) *fakeServer {
 	t.Helper()
 
-	f := &fakeServer{answers: map[string]any{}, statuses: map[string]int{}, bodies: map[string][]string{}}
+	f := &fakeServer{answers: map[string]any{}, statuses: map[string]int{}, handlers: map[string]http.HandlerFunc{}, bodies: map[string][]string{}}
 	// what a new Prowlarr answers: nothing configured
 	for _, route := range []string{
 		"/api/v1/indexer", "/api/v1/indexerstatus", "/api/v1/applications", "/api/v1/indexerproxy", "/api/v1/downloadclient",
@@ -61,7 +62,12 @@ func newFakeServer(t *testing.T) *fakeServer {
 		f.bodies[key] = append(f.bodies[key], string(body))
 		answer, ok := f.answers[key]
 		status := f.statuses[key]
+		handler := f.handlers[key]
 		f.mu.Unlock()
+		if handler != nil {
+			handler(w, r)
+			return
+		}
 		if !ok {
 			http.NotFound(w, r)
 			return
@@ -105,6 +111,13 @@ func (f *fakeServer) answerStatus(route string, status int, v any) {
 	defer f.mu.Unlock()
 	f.answers[route] = v
 	f.statuses[route] = status
+}
+
+// handle has a route answered by a handler of the test's own, for an answer that is not JSON: a file, or a redirect.
+func (f *fakeServer) handle(route string, h http.HandlerFunc) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.handlers[route] = h
 }
 
 // requested reports the requests made to a route, with their queries.
