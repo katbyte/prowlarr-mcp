@@ -85,9 +85,10 @@ var Toolsets = map[string][]string{
 		"notification_add", "tag_create", "category_list",
 	},
 	// search from Prowlarr itself and send a release straight to a download
-	// client, without going through an application
+	// client, or fetch its torrent file over this connection, without going
+	// through an application
 	"grab": {
-		"release_grab", "downloadclient_list", "downloadclient_test", "downloadclient_edit",
+		"release_grab", "release_download", "downloadclient_list", "downloadclient_test", "downloadclient_edit",
 	},
 	// running Prowlarr rather than using it: scheduled tasks and what they
 	// queue, logs, updates, its own settings, backups and a restart,
@@ -152,6 +153,9 @@ type registry struct {
 	// the catalogue of trackers Prowlarr can add, read once and kept a
 	// while; see catalog.go
 	catalogCache catalogCache
+
+	// what the last searches turned up, for a download to name one by its guid; see releases.go
+	found foundReleases
 }
 
 // toolHints are what a tool tells a client about itself beyond its kind, in
@@ -208,6 +212,9 @@ var toolHints = map[string]mcpregistry.Hints{
 	// a release handed to a download client and a grab recorded, with nothing
 	// in Prowlarr written over; asked again it is sent again
 	"release_grab": {Additive: true},
+	// a release's file fetched and handed to whoever asked, and a grab recorded and counted against the indexer's limit, with nothing in Prowlarr
+	// written over; asked again it is fetched again
+	"release_download": {Additive: true},
 	// a sync takes indexers out of applications, housekeeping deletes old
 	// history, and each backup is one more
 	"task_run": {},

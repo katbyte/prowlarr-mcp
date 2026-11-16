@@ -3,11 +3,19 @@ package tools
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"mime"
+	"net/http"
+	"net/url"
 	"slices"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
+	"github.com/katbyte/pandorest/client"
 	"github.com/katbyte/prowlarr-mcp/sdk/prowlarr"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -65,6 +73,106 @@ func projectRelease(rel *prowlarr.ReleaseResource) releaseRow {
 	return row
 }
 
+// foundFor is how long a release a search turned up can be downloaded: the half hour Prowlarr itself keeps one for a grab.
+const foundFor = 30 * time.Minute
+
+// maxDownload is the largest file release_download hands back, since the whole file rides in one answer. A torrent is rarely a tenth of it.
+const maxDownload = 8 << 20
+
+// foundKey names a release the way a grab does: by its indexer and its guid.
+type foundKey struct {
+	indexer prowlarr.IndexerID
+	guid    string
+}
+
+// foundRelease is what a download needs of a release a search turned up: its name, and the addresses Prowlarr fetches its file and its magnet link
+// through.
+type foundRelease struct {
+	title    string
+	infoHash string
+	file     string
+	magnet   string
+	at       time.Time
+}
+
+// foundReleases remembers what the searches of the last half hour turned up, so release_download can be given a guid as release_grab is. The
+// addresses carry Prowlarr's API key, which is why they are kept here and never shown.
+type foundReleases struct {
+	mu       sync.Mutex
+	releases map[foundKey]foundRelease
+}
+
+// remember keeps a search's releases, and lets go of the ones found too long ago to download.
+func (f *foundReleases) remember(found []prowlarr.ReleaseResource) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	now := time.Now()
+	for key, rel := range f.releases {
+		if now.Sub(rel.at) > foundFor {
+			delete(f.releases, key)
+		}
+	}
+
+	if f.releases == nil {
+		f.releases = map[foundKey]foundRelease{}
+	}
+	for i := range found {
+		rel := &found[i]
+		f.releases[foundKey{rel.IndexerId, rel.Guid}] = foundRelease{title: rel.Title, infoHash: rel.InfoHash, file: rel.DownloadUrl, magnet: rel.MagnetUrl, at: now}
+	}
+}
+
+// get is a release a search turned up in the last half hour, and whether there is one.
+func (f *foundReleases) get(indexer prowlarr.IndexerID, guid string) (foundRelease, bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	rel, ok := f.releases[foundKey{indexer, guid}]
+
+	return rel, ok && time.Since(rel.at) <= foundFor
+}
+
+// downloadOptions reads what Prowlarr's download call takes out of the address a search gave for a release, leaving the API key in it behind.
+func downloadOptions(address, title string) (prowlarr.GetIndexerByIdDownloadOptions, error) {
+	u, err := url.Parse(address)
+	if err != nil || u.Query().Get("link") == "" {
+		return prowlarr.GetIndexerByIdDownloadOptions{}, errors.New("the address Prowlarr gave for this release is not one of its own download links, so there is nothing to fetch it through")
+	}
+
+	return prowlarr.GetIndexerByIdDownloadOptions{Link: u.Query().Get("link"), File: cmp.Or(u.Query().Get("file"), title)}, nil
+}
+
+// redirectsHandedBack is the client with a redirect handed back as the answer where it would be refused. It is for the download alone: Prowlarr
+// answers one for a release with no file by sending its caller on to the magnet link.
+func (r *registry) redirectsHandedBack() *prowlarr.Client {
+	base := r.client.Client
+	if base == nil || base.HTTPClient == nil {
+		return r.client
+	}
+
+	handsBack, sender := *base, *base.HTTPClient
+	sender.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	handsBack.HTTPClient = &sender
+
+	return &prowlarr.Client{Client: &handsBack}
+}
+
+// sentOnTo is where an answer sent its caller on to, "" when it did not.
+func sentOnTo(res *http.Response) string {
+	if res == nil || res.StatusCode < http.StatusMultipleChoices || res.StatusCode >= http.StatusBadRequest {
+		return ""
+	}
+
+	return res.Header.Get("Location")
+}
+
+// fileName is the name a downloaded torrent goes out under: the one Prowlarr gave it, or the release's own, made safe to show and with nothing in
+// it that reads as a folder.
+func fileName(given, title string) string {
+	return strings.NewReplacer("/", "_", "\\", "_").Replace(outsideName(cmp.Or(given, title+".torrent")))
+}
+
 func registerReleaseTools(r *registry) {
 	pc := r.client
 
@@ -110,6 +218,8 @@ func registerReleaseTools(r *registry) {
 		if err != nil {
 			return nil, searchOut{}, err
 		}
+		r.found.remember(res.Answer)
+
 		out := searchOut{ByIndexer: map[string]int{}}
 		var rows []releaseRow
 		for i := range res.Answer {
@@ -159,17 +269,17 @@ func registerReleaseTools(r *registry) {
 		if len(guids) == 0 {
 			return nil, grabOut{}, errors.New("give the release's guid, or several guids, from release_search")
 		}
-		var client prowlarr.DownloadClientID
+		var sendTo prowlarr.DownloadClientID
 		if in.DownloadClient != "" {
 			dc, dcErr := r.resolveDownloadClient(ctx, in.DownloadClient)
 			if dcErr != nil {
 				return nil, grabOut{}, dcErr
 			}
-			client = dc.Id
+			sendTo = dc.Id
 		}
 		releases := make([]prowlarr.ReleaseResource, 0, len(guids))
 		for _, guid := range guids {
-			releases = append(releases, prowlarr.ReleaseResource{IndexerId: i.Id, Guid: guid, DownloadClientId: client})
+			releases = append(releases, prowlarr.ReleaseResource{IndexerId: i.Id, Guid: guid, DownloadClientId: sendTo})
 		}
 		// one goes as Prowlarr's search page sends one; several go as its
 		// bulk grab sends them, in one call
@@ -196,6 +306,84 @@ func registerReleaseTools(r *registry) {
 		}
 
 		return nil, out, nil
+	})
+
+	type downloadIn struct {
+		Indexer string `json:"indexer" jsonschema:"the release's indexer, by name or id (release_search's indexer_id)"`
+		GUID    string `json:"guid"    jsonschema:"the release's guid from release_search, within half an hour of the search"`
+	}
+	type downloadOut struct {
+		Title    string `json:"title"`
+		Indexer  string `json:"indexer"`
+		File     string `json:"file,omitempty"      jsonschema:"the name of the file attached to this answer"`
+		MIMEType string `json:"mime_type,omitempty" jsonschema:"what kind of file it is: application/x-bittorrent for a torrent"`
+		Size     int    `json:"size,omitempty"      jsonschema:"the file's size in bytes"`
+		InfoHash string `json:"info_hash,omitempty" jsonschema:"the torrent's hash, where the indexer gave one"`
+		Magnet   string `json:"magnet,omitempty"    jsonschema:"the magnet link of a release that has no file, as the indexer gave it; nothing is attached"`
+		Note     string `json:"note"`
+	}
+	add(r, writeTool, &mcp.Tool{
+		Name:        "release_download",
+		Description: "Fetch the .torrent file of a release found by release_search and hand it back over this connection, attached to the answer as a file, where release_grab sends it to a download client. A release with no file answers its magnet link instead. Prowlarr fetches it from the indexer, so it counts against the indexer's grab limit and shows in the history and statistics as a grab. The release must come from a search in the last half hour. Usenet releases cannot be fetched this way: release_grab takes those.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in downloadIn) (*mcp.CallToolResult, downloadOut, error) {
+		i, err := r.resolveIndexer(ctx, in.Indexer)
+		if err != nil {
+			return nil, downloadOut{}, err
+		}
+
+		rel, ok := r.found.get(i.Id, strings.TrimSpace(in.GUID))
+		if !ok {
+			return nil, downloadOut{}, fmt.Errorf("no search in the last half hour found a release with that guid on %s: find it with release_search, and give its guid as it came", i.Name)
+		}
+
+		opts, err := downloadOptions(cmp.Or(rel.file, rel.magnet), rel.title)
+		if err != nil {
+			return nil, downloadOut{}, err
+		}
+		out := downloadOut{Title: outsideName(rel.title), Indexer: i.Name, InfoHash: rel.infoHash}
+
+		res, err := r.redirectsHandedBack().GetIndexerByIdDownload(ctx, i.Id, opts)
+		to := sentOnTo(res.HttpResponse)
+		if strings.HasPrefix(strings.ToLower(to), "magnet:") {
+			out.Magnet, out.Note = to, "this release has no file, only a magnet link, which a torrent client takes as it is; the history records a grab"
+
+			return nil, out, nil
+		}
+		if to != "" {
+			return nil, downloadOut{}, fmt.Errorf("%s sends downloads straight to the site rather than fetching them (its redirect setting, which usenet indexers always have on), so Prowlarr has no file to hand over: release_grab sends the release to a download client, or indexer_edit redirect=false has Prowlarr fetch a torrent indexer's files itself", i.Name)
+		}
+		if err != nil {
+			return nil, downloadOut{}, fmt.Errorf("fetching the release from %s: %w", i.Name, err)
+		}
+
+		// the length is checked before anything is read, and again as it is read for an answer that named none
+		if res.ContentLength() > maxDownload {
+			body, _ := res.Reader()
+			_ = body.Close()
+
+			return nil, downloadOut{}, fmt.Errorf("the file is %s, more than the %s one answer carries: release_grab sends the release to a download client instead", humanSize(res.ContentLength()), humanSize(maxDownload))
+		}
+		data, err := res.Bytes(maxDownload)
+		if _, tooLarge := errors.AsType[*client.TooLargeError](err); tooLarge {
+			return nil, downloadOut{}, fmt.Errorf("the file is more than the %s one answer carries: release_grab sends the release to a download client instead", humanSize(maxDownload))
+		}
+		if err != nil {
+			return nil, downloadOut{}, fmt.Errorf("fetching the release from %s: %w", i.Name, err)
+		}
+
+		mimeType, _, _ := mime.ParseMediaType(res.HttpResponse.Header.Get("Content-Type"))
+		out.MIMEType = cmp.Or(mimeType, "application/octet-stream")
+		out.File, out.Size = fileName(res.Filename(), rel.title), len(data)
+		out.Note = "the file is attached to this answer; Prowlarr fetched it from the indexer, and the history records a grab"
+
+		// the answer is said in words as well, for a client that reads only what is beside the file
+		said, err := json.Marshal(out)
+		if err != nil {
+			return nil, downloadOut{}, err
+		}
+		file := &mcp.ResourceContents{URI: "prowlarr://release/" + strconv.Itoa(int(i.Id)) + "/" + url.PathEscape(out.File), MIMEType: out.MIMEType, Blob: data}
+
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: string(said)}, &mcp.EmbeddedResource{Resource: file}}}, out, nil
 	})
 }
 

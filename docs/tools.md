@@ -17,7 +17,7 @@ Tools are named resource-first (`indexer_*`, `app_*`, `audit_*`, `server_*`...) 
 | tasks | `task_list`, `task_run` (waits for it, or queues it with `wait=-1`), `command_list` (what is queued, running and lately finished), `command_cancel` (one still queued) |
 | indexers | `indexer_list`, `indexer_get` (settings, categories, searches, which applications receive it and why not, failures, 30 days of statistics, last ten events), `indexer_catalog` (the definitions Prowlarr ships, searchable), `indexer_add`, `indexer_edit`, `indexer_bulk_edit` (priority, profile, tags, seed goals across many), `indexer_test`, `indexer_delete`, `indexer_stats`, `category_list` |
 | audits | the 19 audits in [audits.md](audits.md) |
-| releases | `release_search` (as an application would, by words and kind, narrowed to categories, indexers or protocol), `release_grab` (sends one, or several from one indexer at once, to a download client) |
+| releases | `release_search` (as an application would, by words and kind, narrowed to categories, indexers or protocol), `release_grab` (sends one, or several from one indexer at once, to a download client), `release_download` (fetches a torrent's `.torrent` file and hands it back attached to the answer, or its magnet link when that is all it has) |
 | applications | `app_list`, `app_get` (what it receives, what is held back, what it skips), `app_add`, `app_edit`, `app_test`, `app_sync`, `app_delete` |
 | profiles | `profile_list`, `profile_create`, `profile_edit`, `profile_delete` |
 | proxies | `proxy_list`, `proxy_add`, `proxy_edit`, `proxy_test`, `proxy_delete` |
@@ -38,13 +38,13 @@ The eight tools that delete (`indexer_delete`, `app_delete`, `profile_delete`, `
 | toolset | tools | with core | ~tokens |
 |---|---|---|---|
 | `core` *(default)* | 6 | 6 | 1,300 |
-| `grab` | 4 | 10 | 1,900 |
+| `grab` | 5 | 11 | 2,200 |
 | `setup` | 9 | 15 | 3,700 |
 | `admin` | 19 (27 with delete) | 25 | 4,600 |
 | `curation` | 36 | 42 | 8,500 |
-| `all` | 74 (82 with delete) | 74 | 15,000 |
+| `all` | 75 (83 with delete) | 75 | 15,200 |
 
-Tokens are what the model sees: each tool's name, description and input schema, measured over a real `tools/list` at four bytes a token. Every tool also carries an output schema, another 20,100 tokens across `all`, but clients keep that to themselves to validate results rather than sending it to the model.
+Tokens are what the model sees: each tool's name, description and input schema, measured over a real `tools/list` at four bytes a token. Every tool also carries an output schema, another 20,300 tokens across `all`, but clients keep that to themselves to validate results rather than sending it to the model.
 
 `--toolsets` also takes a resource family - `indexer`, `app`, `audit`, `release`, `profile`, `proxy`, `downloadclient`, `notification`, `filter`, `tag`, `history`, `category`, `server`, `task`, `command`, `backup` - which is every tool with that prefix:
 

@@ -21,7 +21,7 @@ Design rules, in priority order:
 | know the setup | `server_info`, `server_health`, `indexer_list`, `indexer_get`, `indexer_stats`, `history_list`, `app_list`, `app_get`, `profile_list`, `proxy_list`, `downloadclient_list`, `notification_list`, `tag_list`, `category_list`, `backup_list`, `command_list`, `filter_list`, `server_settings` | "what is wired up, and is it working" |
 | curation | `audit_all` + 18 audits, `indexer_test`, `indexer_edit`, `indexer_bulk_edit`, `app_edit`, `app_sync`, `app_test`, `profile_edit`, `proxy_edit`, `proxy_test`, `tag_edit`, `tag_delete` | "what is wrong, and fix it" |
 | setup | `indexer_catalog`, `indexer_add`, `app_add`, `profile_create`, `proxy_add`, `downloadclient_add`, `notification_add`, `tag_create` | "add a tracker, get it into Sonarr, and be told when it breaks" |
-| grab | `release_search`, `release_grab`, `downloadclient_list`, `downloadclient_edit`, `downloadclient_test` | "find this and send it to the client" |
+| grab | `release_search`, `release_grab`, `release_download`, `downloadclient_list`, `downloadclient_edit`, `downloadclient_test` | "find this and send it to the client, or hand me its torrent file" |
 | admin | `server_logs`, `server_log`, `server_updates`, `server_settings_edit`, `server_restart`, `task_list`, `task_run`, `command_cancel`, `backup_create`, `backup_restore`, `notification_edit`, `notification_test`, `filter_create`, `filter_edit`, and the eight deletes | "keep it healthy, and keep a way back" |
 
 ## Guarded

@@ -53,7 +53,7 @@ There are 19. Each finds one kind of problem and names the tool that fixes it. T
 
 ## The tools
 
-There are 74 tools, 82 with the ones that delete. They cover indexers, applications, sync profiles, proxies, download clients, notifications, tags, history, backups, tasks and Prowlarr's own settings.
+There are 75 tools, 83 with the ones that delete. They cover indexers, applications, sync profiles, proxies, download clients, notifications, tags, history, backups, tasks and Prowlarr's own settings.
 
 - **Names work everywhere.** A tool takes a thing's name or its id.
 - **Lists page the same way,** with `limit` and `offset`.

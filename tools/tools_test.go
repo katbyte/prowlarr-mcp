@@ -247,7 +247,7 @@ func TestRegisterAllKinds(t *testing.T) {
 	// every tool that changes something is named for it, so a name read
 	// under --read-only is a read
 	for _, name := range ro {
-		for _, verb := range []string{"_add", "_edit", "_delete", "_create", "_run", "_grab", "_sync"} {
+		for _, verb := range []string{"_add", "_edit", "_delete", "_create", "_run", "_grab", "_download", "_sync"} {
 			if strings.HasSuffix(name, verb) {
 				t.Errorf("%s registered under --read-only", name)
 			}
@@ -302,7 +302,7 @@ func TestRegisterAllFilters(t *testing.T) {
 
 	// an allow list beside a toolset adds to it, and a deny list narrows what both asked for
 	got = register(t, Options{Toolsets: []string{"grab"}, Allow: []string{"tag_list"}, Deny: []string{"downloadclient_*"}})
-	want = append(slices.Clone(Toolsets["core"]), "release_grab", "tag_list")
+	want = append(slices.Clone(Toolsets["core"]), "release_grab", "release_download", "tag_list")
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Errorf("grab with tag_list allowed and the download clients denied = %v, want %v", got, want)

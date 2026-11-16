@@ -11,6 +11,7 @@ import (
 
 	"github.com/katbyte/go-kt/mcp/acctest"
 	"github.com/katbyte/prowlarr-mcp/lib/testenv"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 func TestReleaseSearch(t *testing.T) {
@@ -110,6 +111,57 @@ func TestReleaseGrab(t *testing.T) {
 	// a release no search has turned up
 	if msg := suite.CallErr(t, "release_grab", map[string]any{"indexer": idxTorrent, "guid": "nothing-found-this"}); !strings.Contains(msg, "search") {
 		t.Errorf("grabbing an unknown release = %q", msg)
+	}
+}
+
+// A torrent a search found comes back over the connection as the file the site serves, and the site counts it as fetched. A usenet release has no
+// file Prowlarr will fetch, and says what takes it instead.
+func TestReleaseDownload(t *testing.T) {
+	found := acctest.Rows(t, search(t, "arrival", idxTorrent)["releases"], "releases")
+	if len(found) == 0 {
+		t.Fatalf("searching %s for arrival found nothing to download", idxTorrent)
+	}
+	args := map[string]any{"indexer": idxTorrent, "guid": acctest.Str(found[0]["guid"])}
+
+	before := len(sitesUp.Indexer(siteTorrent).Grabbed())
+	out := suite.Call(t, "release_download", args)
+	size := acctest.Num(t, out["size"], "size")
+	if file := acctest.Str(out["file"]); !strings.Contains(file, "Arrival") || !strings.HasSuffix(file, ".torrent") || acctest.Str(out["mime_type"]) != "application/x-bittorrent" || size == 0 || acctest.Str(out["indexer"]) != idxTorrent {
+		t.Errorf("downloaded = %v", out)
+	}
+	if got := len(sitesUp.Indexer(siteTorrent).Grabbed()); got != before+1 {
+		t.Errorf("the site was asked for %d torrents by one download, want 1", got-before)
+	}
+
+	// the file rides beside the answer, as the site made it
+	res, err := suite.Session.CallTool(suite.Ctx, &mcp.CallToolParams{Name: "release_download", Arguments: args})
+	if err != nil || res.IsError {
+		t.Fatalf("the download = %v, %v", res, err)
+	}
+	var attached *mcp.ResourceContents
+	for _, c := range res.Content {
+		if file, ok := c.(*mcp.EmbeddedResource); ok {
+			attached = file.Resource
+		}
+	}
+	if attached == nil || len(attached.Blob) != size || !strings.HasPrefix(string(attached.Blob), "d8:announce") || attached.MIMEType != "application/x-bittorrent" {
+		t.Errorf("attached = %+v, want the %d bytes of the site's torrent", attached, size)
+	}
+
+	// the history has it as a grab
+	events := acctest.Rows(t, suite.Call(t, "history_list", map[string]any{"event": "grab", "indexer": idxTorrent, "limit": 1})["events"], "events")
+	if len(events) == 0 || !strings.Contains(acctest.Str(events[0]["title"]), "Arrival") {
+		t.Errorf("the last grab in the history = %v", events)
+	}
+
+	// a usenet indexer sends whoever asks on to the site
+	found = acctest.Rows(t, search(t, "arrival", idxUsenet)["releases"], "releases")
+	if msg := suite.CallErr(t, "release_download", map[string]any{"indexer": idxUsenet, "guid": acctest.Str(found[0]["guid"])}); !strings.Contains(msg, "redirect") || strings.Contains(msg, siteKeys[siteUsenet]) {
+		t.Errorf("a usenet download = %q", msg)
+	}
+	// a release no search has turned up
+	if msg := suite.CallErr(t, "release_download", map[string]any{"indexer": idxTorrent, "guid": "nothing-found-this"}); !strings.Contains(msg, "release_search") {
+		t.Errorf("downloading an unknown release = %q", msg)
 	}
 }
 

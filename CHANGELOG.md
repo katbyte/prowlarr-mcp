@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `release_download`: fetches the `.torrent` file of a release found by `release_search` and hands it back over the MCP connection, attached to the answer as a file. A release that only has a magnet link answers the link instead. It is in the `grab` toolset, counts as a grab on the indexer, and is not loaded under `--read-only`. With it, 75 tools, 83 with the ones that delete
+
 ## 0.4.2 (2026-10-20)
 
 ### Changed
